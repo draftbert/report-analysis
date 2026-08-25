@@ -22,6 +22,8 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 
 - Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;
   la quita `aprobar`; `redactar` no admite observaciones que la conserven.
+- `aplicar-cambios`: sustituciones acotadas por sección, sin aproximaciones (solo tildes/espacios),
+  ambiguo = no aplicado, contradictorio = CONFLICTO. Cada caso raro nuevo va a `tests/test_aplicar_cambios.py`.
 
 ## Pruebas rápidas
 `.venv/bin/python -m pytest -q tests` (determinista, sin red). `.venv/bin/python demo.py` (flujo completo con LLM). Sin LLM: `./revisor revisar-texto --fichero
