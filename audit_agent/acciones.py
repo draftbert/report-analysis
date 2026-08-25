@@ -25,9 +25,9 @@ from datetime import datetime
 from pathlib import Path
 
 from .esquemas import (BorradorInforme, Correcciones, ExtraccionObservaciones,
-                       Observacion, PlanCambios)
+                       Observacion, ObservacionExtraida, PlanCambios)
 from .expediente import Expediente, ExpedienteError
-from .formato_md import (normalizar_nivel, parrafos_con_lineas,
+from .formato_md import (COLETILLA_RIESGO_PROPUESTO, normalizar_nivel, parrafos_con_lineas,
                          parsear_informe, parsear_observaciones,
                          render_informe, render_observaciones)
 from .llm import ClienteLLM
@@ -92,6 +92,10 @@ def _obs_a_dict(o: Observacion, ident: str, estado: str = "propuesta", notas: st
     d = o.model_dump()
     d["nivel_riesgo"] = normalizar_nivel(d["nivel_riesgo"])
     d.update({"id": ident, "estado": estado, "notas": notas})
+    soportado = d.pop("riesgo_soportado_por_evidencia", None)
+    if isinstance(o, ObservacionExtraida):
+        # Nivel estimado por el modelo sin evidencia en el PT -> coletilla visible
+        d["riesgo_propuesto"] = bool(d["nivel_riesgo"]) and not soportado
     return d
 
 
@@ -135,7 +139,7 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
     if exp.existe("observaciones") and not forzar:
         raise ExpedienteError("01_observaciones.md ya existe y puede contener trabajo del auditor. "
                               "Usa --forzar para regenerarlo (se guarda snapshot en historial/).")
-    campos = "\n".join(f"- {k}: {v.description}" for k, v in Observacion.model_fields.items())
+    campos = "\n".join(f"- {k}: {v.description}" for k, v in ObservacionExtraida.model_fields.items())
     user = (f"{_contexto_proyecto(exp)}\n\n"
             "Extrae TODAS las observaciones (debilidades de control) soportadas por los papeles de trabajo, "
             "cada una con su recomendación, en el esquema:\n"
@@ -143,6 +147,8 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "Reglas: una observación por debilidad real (no fragmentes ni fusiones); campo vacío antes que "
             "inventar hechos; en `nivel_riesgo` PROPÓN siempre Alto/Medio/Bajo según impacto y probabilidad "
             "(es una propuesta que el auditor validará); en `fuente` cita el documento y apartado. "
+            "`riesgo_soportado_por_evidencia`: true SOLO si el papel de trabajo menciona explícitamente la "
+            "severidad, criticidad o nivel de riesgo de esa debilidad; si el PT no habla de riesgo, false. "
             "Ordena de mayor a menor riesgo.\n\n"
             f"PAPELES DE TRABAJO:\n{_documentos_entrada(exp)}")
     res = ctx.llm.completar_estructurado("extraer", ctx.system, user, ExtraccionObservaciones)
@@ -153,7 +159,11 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
     for o in observaciones:
         r = ctx.checker.revisar_observacion(_campos_obs(o))
         marca = "✔" if r.limpio else f"✖ {sum(h.severidad == 'error' for h in r.hallazgos)} hallazgos"
-        lineas.append(f"  {o['id']}  [{o['nivel_riesgo'] or 'N/D':5}] {o['titulo'][:70]}  {marca}")
+        nivel = (o["nivel_riesgo"] or "N/D") + ("*" if o.get("riesgo_propuesto") else "")
+        lineas.append(f"  {o['id']}  [{nivel:6}] {o['titulo'][:70]}  {marca}")
+    if any(o.get("riesgo_propuesto") for o in observaciones):
+        lineas.append("  (*) nivel de riesgo propuesto por el modelo sin evidencia en el PT: valídalo al aprobar "
+                      "(la coletilla desaparece con `aprobar`).")
     if res.notas.strip():
         lineas.append(f"\nNotas del modelo: {res.notas.strip()}")
     lineas.append("\nSiguiente: abre el fichero, corrige lo que haga falta y marca `Estado: aprobada` "
@@ -180,6 +190,11 @@ def accion_aprobar(exp: Expediente, ids: list[str], estado: str = "aprobada") ->
                 and (todas or bloque_actual in objetivo):
             linea = f"- Estado: {estado}"
             cambiadas.append(bloque_actual)
+        elif (estado == "aprobada" and bloque_actual and (todas or bloque_actual in objetivo)
+              and re.match(r"^\s*[-*]\s*Nivel de riesgo\s*:", linea, re.IGNORECASE)
+              and COLETILLA_RIESGO_PROPUESTO in linea):
+            # El auditor valida el nivel al aprobar: la coletilla desaparece
+            linea = linea.replace(COLETILLA_RIESGO_PROPUESTO, "").rstrip()
         salida.append(linea)
     exp.escribir("observaciones", "\n".join(salida) + "\n", f"aprobar-{estado}")
     faltan = sorted(objetivo - set(cambiadas) - {"TODAS"})
@@ -250,9 +265,13 @@ def accion_regenerar_obs(ctx: Contexto, ident: str) -> str:
             "cambiar y apóyate solo en los papeles de trabajo.\n\n"
             f"INDICACIONES DEL AUDITOR:\n{o['notas']}\n\n"
             f"OBSERVACIÓN ACTUAL:\n{json.dumps(_campos_obs(o), ensure_ascii=False, indent=2)}\n\n"
+            "`riesgo_soportado_por_evidencia`: true SOLO si el PT menciona explícitamente la severidad o el "
+            "nivel de riesgo.\n\n"
             f"PAPELES DE TRABAJO:\n{_documentos_entrada(exp)}")
-    nueva = ctx.llm.completar_estructurado(f"regenerar-{ident}", ctx.system, user, Observacion)
-    o.update(_campos_obs(_obs_a_dict(nueva, ident)))
+    nueva = ctx.llm.completar_estructurado(f"regenerar-{ident}", ctx.system, user, ObservacionExtraida)
+    d = _obs_a_dict(nueva, ident)
+    o.update(_campos_obs(d))
+    o["riesgo_propuesto"] = d.get("riesgo_propuesto", False)
     o["estado"], o["notas"] = "propuesta", ""
     exp.escribir("observaciones", render_observaciones(observaciones, exp.proyecto), f"regenerar-{ident}")
     verif = ctx.checker.revisar_observacion(_campos_obs(o))
@@ -271,6 +290,15 @@ def accion_redactar(ctx: Contexto, forzar: bool = False, secciones: list[str] | 
     if not aprobadas:
         raise ExpedienteError("No hay observaciones con `Estado: aprobada`. Aprueba al menos una "
                               "(edita el fichero o usa `aprobar OBS-01 ...` / `aprobar todas`).")
+    # Una observación aprobada a mano cuyo nivel de riesgo sigue marcado como
+    # «propuesto por el modelo» no ha sido validada: no entra en el informe.
+    bloqueadas = [o for o in aprobadas if o.get("riesgo_propuesto")]
+    aprobadas = [o for o in aprobadas if not o.get("riesgo_propuesto")]
+    if bloqueadas and not aprobadas:
+        raise ExpedienteError(
+            "Todas las observaciones aprobadas tienen el nivel de riesgo «propuesto por el modelo, sin "
+            "evidencia en PT»: valida el nivel (edita la línea o usa `aprobar OBS-XX`, que quita la coletilla). "
+            f"Pendientes: {', '.join(o['id'] for o in bloqueadas)}.")
     existe = exp.existe("informe")
     if existe and not forzar and not secciones:
         raise ExpedienteError("02_informe.md ya existe y puede contener trabajo de varios días. Usa "
@@ -314,6 +342,10 @@ def accion_redactar(ctx: Contexto, forzar: bool = False, secciones: list[str] | 
     errores = sum(h["severidad"] == "error" for h in hall)
     msg = [f"Informe {'actualizado' if existe else 'redactado'} en {exp.archivo('informe').name} "
            f"con {len(datos['observaciones'])} observaciones."]
+    if bloqueadas:
+        msg.append("⚠ NO incluidas por tener el nivel de riesgo aún «propuesto por el modelo, sin evidencia en PT» "
+                   "(valídalo con `aprobar OBS-XX` y vuelve a `redactar --secciones observaciones`): "
+                   + ", ".join(f"{o['id']} ({o['nivel_riesgo']})" for o in bloqueadas))
     if snap:
         msg.append(f"Versión anterior guardada en historial/{snap.name}.")
     msg.append(f"Revisión determinista: {errores} errores, {len(hall) - errores} avisos"

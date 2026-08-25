@@ -55,6 +55,9 @@ expedientes/CNC-2026-03/
 # 1. Observaciones y recomendaciones
 ./revisor extraer           # el modelo propone → 01_observaciones.md
 #   El auditor lee, corrige el texto, y en cada bloque pone Estado: aprobada / descartada.
+#   Si el papel de trabajo no habla de severidad, el nivel de riesgo aparece como
+#   "Medio (propuesto por el modelo, sin evidencia en PT)": `aprobar` quita la coletilla
+#   (el auditor lo ha validado) y `redactar` no admite observaciones que la conserven.
 #   Si quiere que el modelo rehaga una: escribe en «Notas del auditor» y…
 ./revisor regenerar-obs OBS-02
 ./revisor aprobar OBS-01 OBS-03      # o `aprobar todas`, `descartar OBS-04`
@@ -96,6 +99,15 @@ Con varios expedientes, fija el activo con `./revisor usar <ruta>` o pásalo con
 Sin proveedor configurado, todo lo determinista sigue funcionando
 (`estado`, `revisar`, `revisar-obs`, `aprobar`, `diff`, `deshacer`, `ppt`).
 
+## Tests
+
+```bash
+.venv/bin/python -m pytest -q tests
+```
+
+Deterministas y sin red (el LLM se sustituye por respuestas preparadas):
+riesgo propuesto/validado.
+
 ## Mantenimiento del criterio de estilo
 
 Todo el criterio vive en `config/estilo.yaml`: palabras prohibidas con
@@ -119,6 +131,7 @@ audit_agent/reviewer.py     Revisión de texto suelto
 audit_agent/ppt_builder.py  Resumen Ejecutivo PPT
 audit_agent/cli.py          Comandos y menú interactivo
 ejemplos/                   Papel de trabajo, borrador y datos de informe de ejemplo
+tests/                      Suite determinista (pytest)
 docs/referencia/            Proveedor KAIA original de audit-engine (referencia)
 ```
 

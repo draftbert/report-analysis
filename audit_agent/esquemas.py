@@ -32,8 +32,19 @@ class Observacion(BaseModel):
     fuente: str = Field(description="Referencia al papel de trabajo / evidencia que soporta la observación.")
 
 
+class ObservacionExtraida(Observacion):
+    """Observación tal como sale del extractor: añade la procedencia del
+    nivel de riesgo. Si el papel de trabajo no menciona severidad/riesgo, el
+    nivel es una propuesta del modelo y así se marca en 01_observaciones.md
+    hasta que el auditor la valide al aprobar."""
+
+    riesgo_soportado_por_evidencia: bool = Field(
+        description="true SOLO si el papel de trabajo menciona explícitamente la severidad, criticidad o "
+                    "nivel de riesgo de esta debilidad. false si el nivel es una estimación propia.")
+
+
 class ExtraccionObservaciones(BaseModel):
-    observaciones: list[Observacion]
+    observaciones: list[ObservacionExtraida]
     notas: str = Field(description="Dudas, datos ambiguos o elementos del papel de trabajo que no se han podido clasificar. Vacío si no hay.")
 
 

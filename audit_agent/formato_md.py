@@ -27,6 +27,10 @@ import unicodedata
 
 ESTADOS = ("propuesta", "aprobada", "descartada")
 
+# Coletilla que marca un nivel de riesgo estimado por el modelo sin evidencia
+# en el papel de trabajo (PT). La quita `aprobar` cuando el auditor valida.
+COLETILLA_RIESGO_PROPUESTO = "(propuesto por el modelo, sin evidencia en PT)"
+
 CAMPOS_TEXTO = [  # (clave, etiqueta visible)
     ("condicion", "Condición"),
     ("criterio", "Criterio"),
@@ -57,7 +61,16 @@ _CLAVES.update({"estado": "estado", "notas del auditor": "notas", "notas": "nota
                 "recomendacion": "recomendacion", "condicion": "condicion"})
 
 
+def separar_coletilla(valor: str) -> tuple[str, bool]:
+    """'Medio (propuesto por el modelo, sin evidencia en PT)' -> ('Medio', True)."""
+    v = valor.strip()
+    if COLETILLA_RIESGO_PROPUESTO in v:
+        return v.replace(COLETILLA_RIESGO_PROPUESTO, "").strip(), True
+    return v, False
+
+
 def normalizar_nivel(valor: str) -> str:
+    valor, _ = separar_coletilla(valor)
     v = _norm(valor)
     for n in ("alto", "medio", "bajo"):
         if v.startswith(n):
@@ -74,6 +87,8 @@ def _bloque_observacion(o: dict, cabecera: str, con_estado: bool, con_notas: boo
         valor = o.get(clave, "")
         if clave == "fuente" and not valor and not con_estado:
             continue
+        if clave == "nivel_riesgo" and o.get("riesgo_propuesto") and valor:
+            valor = f"{valor} {COLETILLA_RIESGO_PROPUESTO}"
         lineas.append(f"- {etiqueta}: {valor}")
     lineas.append("")
     for clave, etiqueta in CAMPOS_TEXTO:
@@ -156,7 +171,8 @@ def render_informe(datos: dict, proyecto: dict) -> str:
 # ====================================================================== PARSE
 def _parsear_bloque(lineas: list[str]) -> dict:
     """Parsea las líneas de una observación (sin la cabecera) a dict."""
-    o: dict = {"estado": "propuesta", "nivel_riesgo": "", "responsable": "", "fuente": "", "notas": ""}
+    o: dict = {"estado": "propuesta", "nivel_riesgo": "", "responsable": "", "fuente": "", "notas": "",
+               "riesgo_propuesto": False}
     for clave, _ in CAMPOS_TEXTO:
         o[clave] = ""
     campo_actual: str | None = None
@@ -181,8 +197,13 @@ def _parsear_bloque(lineas: list[str]) -> dict:
         if m_meta and campo_actual is None and _norm(m_meta.group(1)) in _CLAVES:
             clave = _CLAVES[_norm(m_meta.group(1))]
             valor = m_meta.group(2).strip()
-            o[clave] = _norm(valor).split()[0] if clave == "estado" and valor else (
-                normalizar_nivel(valor) if clave == "nivel_riesgo" else valor)
+            if clave == "estado" and valor:
+                o[clave] = _norm(valor).split()[0]
+            elif clave == "nivel_riesgo":
+                o[clave] = normalizar_nivel(valor)
+                o["riesgo_propuesto"] = separar_coletilla(valor)[1]
+            else:
+                o[clave] = valor
             continue
         if campo_actual is not None:
             buffer.append(linea.rstrip())
