@@ -40,6 +40,7 @@ expedientes/CNC-2026-03/
   historial/              snapshot automático antes de cada sobreescritura (`diff`, `deshacer`)
   salidas/                ResumenEjecutivo_<REF>.pptx
   trazas/                 una entrada JSON por llamada al LLM
+  <REF>_archivo_<fecha>.zip  evidencia archivada al cierre (`archivar`)
 ```
 
 ## Flujo de trabajo
@@ -74,8 +75,9 @@ expedientes/CNC-2026-03/
 ./revisor aplicar-cambios [--solo-plan]   # cambios concretos, aplicados y registrados
 ./revisor diff | deshacer | historial     # control de versiones del informe
 
-# 3. Entregable
+# 3. Entregable y cierre
 ./revisor ppt                        # salidas/ResumenEjecutivo_CNC-2026-03.pptx
+./revisor archivar                   # zip de evidencia con manifest sha256 (ver Trazabilidad y retención)
 
 # Texto suelto (p. ej. una observación copiada de Pentana), sin expediente:
 ./revisor revisar-texto --fichero borrador.txt [--sin-llm]
@@ -99,6 +101,24 @@ Con varios expedientes, fija el activo con `./revisor usar <ruta>` o pásalo con
 Sin proveedor configurado, todo lo determinista sigue funcionando
 (`estado`, `revisar`, `revisar-obs`, `aprobar`, `diff`, `deshacer`, `ppt`).
 
+## Trazabilidad y retención
+
+- `trazas/` guarda, por cada llamada al modelo, un JSON con fecha, acción, modelo,
+  prompt completo, respuesta estructurada y tokens; y por cada lectura de
+  `entrada/`, el texto normalizado enviado. Es la evidencia de **cómo se redactó
+  cada observación**.
+- `historial/` guarda cada versión anterior de los ficheros de trabajo antes de que
+  la herramienta los sobreescriba (`diff`, `deshacer`).
+- Ninguna de las dos carpetas se versiona en git (`.gitignore`): contienen datos del
+  trabajo y crecen con el uso.
+- Al cerrar el trabajo, `./revisor archivar` genera `<REF>_archivo_<fecha>.zip` con
+  `trazas/`, `historial/`, `expediente.yaml`, los tres Markdown de trabajo,
+  `revision.md`, `cambios_aplicados.md` y `salidas/`, más un `manifest.json` con la
+  lista de ficheros y el sha256 de cada uno. Ese zip se adjunta al expediente en
+  Pentana; la integridad se demuestra recalculando los hashes contra el manifiesto
+  (`audit_agent.acciones.verificar_archivo`). `estado` sugiere archivar cuando el
+  PPT está generado y al día.
+
 ## Tests
 
 ```bash
@@ -107,7 +127,8 @@ Sin proveedor configurado, todo lo determinista sigue funcionando
 
 Deterministas y sin red (el LLM se sustituye por respuestas preparadas):
 riesgo propuesto/validado, suite de sustituciones ambiguas de `aplicar-cambios`
-(`tests/test_aplicar_cambios.py`, que crece con cada caso raro visto en uso real).
+(`tests/test_aplicar_cambios.py`, que crece con cada caso raro visto en uso real),
+archivado con hashes.
 
 ## Mantenimiento del criterio de estilo
 

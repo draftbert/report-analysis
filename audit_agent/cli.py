@@ -11,7 +11,7 @@ CLI del revisor de informes de auditoría interna.
     ./revisor revisar-obs | corregir-obs | regenerar-obs OBS-02
     ./revisor redactar [--forzar | --secciones objetivo alcance]   → 02_informe.md
     ./revisor revisar | corregir [--avisos] | aplicar-cambios [--solo-plan]
-    ./revisor diff | deshacer | historial | ppt
+    ./revisor diff | deshacer | historial | ppt | archivar
 
     ./revisor revisar-texto --fichero borrador.txt [--sin-llm]   (texto suelto, sin expediente)
 """
@@ -142,6 +142,11 @@ def cmd_ppt(args):
     return accion_ppt(_abrir(args))
 
 
+def cmd_archivar(args):
+    from .acciones import accion_archivar
+    return accion_archivar(_abrir(args))
+
+
 def cmd_diff(args):
     from .acciones import accion_diff
     return accion_diff(_abrir(args), args.fichero)
@@ -189,6 +194,7 @@ MENU = [
     ("diff", "Ver cambios del informe respecto a la última versión guardada", cmd_diff, {"fichero": "informe"}),
     ("deshacer", "Restaurar la versión anterior del informe", cmd_deshacer, {"fichero": "informe"}),
     ("ppt", "Generar el Resumen Ejecutivo en PowerPoint", cmd_ppt, {}),
+    ("archivar", "Archivar evidencia (zip con trazas, historial, informe, PPT + manifest sha256)", cmd_archivar, {}),
 ]
 
 
@@ -267,6 +273,7 @@ def construir_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("aplicar-cambios", help="Aplicar 03_instrucciones.md al informe (LLM)"); s.set_defaults(fn=cmd_aplicar_cambios)
     s.add_argument("--solo-plan", action="store_true", help="Mostrar el plan sin tocar el informe")
     sub.add_parser("ppt", help="Generar el Resumen Ejecutivo").set_defaults(fn=cmd_ppt)
+    sub.add_parser("archivar", help="Zip de evidencia del expediente con manifest sha256").set_defaults(fn=cmd_archivar)
 
     for nombre, fn in (("diff", cmd_diff), ("deshacer", cmd_deshacer)):
         s = sub.add_parser(nombre); s.set_defaults(fn=fn)
