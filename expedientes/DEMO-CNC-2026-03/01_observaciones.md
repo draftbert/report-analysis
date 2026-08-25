@@ -11,59 +11,59 @@
 > - Cuando tengas las que quieras aprobadas, ejecuta `redactar`.
 
 
-## OBS-01 · Ausencia de ofertas comparativas en pedidos >30.000 €
+## OBS-01 · Falta de documentación de ofertas comparativas en pedidos >30.000 €
 
-- Estado: propuesta
-- Nivel de riesgo: Medio
+- Estado: aprobada
+- Nivel de riesgo: Alto
 - Responsable: Dirección de Compras
-- Fuente: papel_trabajo_compras.md — Tarea 3.2 Prueba realizada / Resultados; Anexo E3 (Expedientes de los pedidos de la muestra).
+- Fuente: papel_trabajo_compras.md, Tarea 3.2 Prueba realizada (iii) y Resultados; Expedientes de los pedidos de la muestra (Anexo E3).
 
-**Condición:** En 3 de los 12 pedidos con importe superior a 30.000 € no consta la documentación de las tres ofertas comparativas en el expediente (muestra de 45 pedidos, ene-mar 2026).
+**Condición:** De la muestra de 12 pedidos superiores a 30.000 €, en 3 pedidos no consta la documentación de las tres ofertas comparativas en el expediente.
 
-**Criterio:** Existencia de tres ofertas comparativas para pedidos superiores a 30.000 € (criterio verificado en la prueba realizada).
+**Criterio:** Requisito de la prueba: existencia de tres ofertas comparativas cuando el importe supera 30.000 € (procedimiento interno de compras).
 
-**Causa raíz:** El sistema de compras no exige adjuntar las tres ofertas para tramitar o aprobar el pedido, según reconocimiento del área.
+**Causa raíz:** 
 
-**Efecto:** Compras sin competencia documentada, riesgo de selección inadecuada de proveedor y potencial incremento de coste.
+**Efecto:** Riesgo de incumplimiento del procedimiento de contratación, menores niveles de competencia en la selección y falta de trazabilidad en la justificación del proveedor seleccionado.
 
-**Recomendación:** Implementar en el sistema un control bloqueante que impida la tramitación y aprobación de pedidos >30.000 € si no están adjuntas las tres ofertas comparativas. Establecer un procedimiento formal de excepciones con aprobación documentada y trazabilidad. Revisar y completar los expedientes pendientes de la muestra.
+**Recomendación:** Exigir la incorporación de las tres ofertas al expediente como condición previa a la aprobación; realizar revisión de los expedientes afectados y regularizar la documentación; actualizar listas de verificación y capacitar al personal de compras sobre el requisito.
 
 **Notas del auditor:** 
 
-## OBS-02 · Aprobaciones registradas después de la emisión del pedido
+## OBS-02 · Aprobaciones registradas con posterioridad a la emisión del pedido
 
 - Estado: aprobada
 - Nivel de riesgo: Medio
 - Responsable: Dirección de Compras
-- Fuente: papel_trabajo_compras.md — Tarea 3.2 Resultados; Comentarios del área; Anexo E1 (Extracto del módulo de compras); Anexo E3 (Expedientes).
+- Fuente: papel_trabajo_compras.md, Tarea 3.2 Prueba realizada (i) y Resultados; Extracto del módulo de compras (Anexo E1); Expedientes de la muestra (Anexo E3).
 
-**Condición:** En 6 de 45 pedidos (13%) la aprobación se registró en el sistema con posterioridad a la fecha de emisión del pedido al proveedor.
+**Condición:** En 6 de los 45 pedidos seleccionados (13%) la aprobación se registró en el sistema con posterioridad a la fecha de emisión del pedido al proveedor.
 
-**Criterio:** Aprobación previa conforme a la matriz de delegación de facultades vigente (criterio verificado en la prueba realizada).
+**Criterio:** Existencia de aprobación previa conforme a la matriz de delegación de facultades vigente (matriz v4.2) y requisito interno de registro de aprobaciones antes de compromiso con proveedores.
 
-**Causa raíz:** Aprobaciones impartidas fuera del sistema en situaciones de urgencia y registradas posteriormente en el sistema.
+**Causa raíz:** El área indica que los 6 casos corresponden a pedidos urgentes de mantenimiento y que existió comunicación previa por correo fuera del sistema.
 
-**Efecto:** Compromisos económicos sin autorización formal previa; riesgo de incumplimiento de la matriz de delegación y de controles de autorización.
+**Efecto:** Riesgo de compromisos sin autorización formal en el sistema, menor control sobre gastos urgentes y potenciales inconsistencias entre documentación interna y registros electrónicos.
 
-**Recomendación:** Definir procedimiento para registrar aprobaciones de urgencia en el sistema de compras. Permitir adjuntar correos electrónicos como evidencia. Exigir registro posterior inmediato con justificación documentada y plazo máximo para el registro.
+**Recomendación:** Establecer control que exija la aprobación previa en el sistema antes de emitir pedidos; para situaciones excepcionales, formalizar un procedimiento que permita registrar y adjuntar la justificación (correo u otra evidencia) en el sistema y revisar retrospectivamente los casos urgentes.
 
 **Notas del auditor:** 
 
-## OBS-03 · Aprobador coincide con solicitante por delegación temporal no revertida
+## OBS-03 · Ausencia de segregación entre solicitante y aprobador por delegación temporal no revertida
 
 - Estado: aprobada
 - Nivel de riesgo: Medio
-- Responsable: Dirección de Compras
-- Fuente: papel_trabajo_compras.md — Tarea 3.2 Resultados; Comentarios del área; Anexo E2 (Matriz de delegación de facultades); Anexo E3 (Expedientes).
+- Responsable: Dirección de Compras / Dirección de Tecnología
+- Fuente: papel_trabajo_compras.md, Tarea 3.2 Prueba realizada (ii) y Resultados; Matriz de delegación de facultades v4.2 (Anexo E2).
 
 **Condición:** En 2 pedidos el aprobador coincidía con el solicitante debido a una delegación temporal de permisos durante vacaciones que no fue revertida.
 
-**Criterio:** Segregación entre solicitante y aprobador exigida en las pruebas de revisión de aprobaciones y en la matriz de delegación.
+**Criterio:** Matriz de delegación de facultades v4.2 y principios de segregación de funciones aplicables al proceso de compras.
 
-**Causa raíz:** Reversión de permisos tras vacaciones gestionada manualmente y no revertida en los casos identificados.
+**Causa raíz:** El área reconoce que la reversión de permisos tras vacaciones se gestiona manualmente.
 
-**Efecto:** Reducción del control de segregación de funciones, aumentando el riesgo de autorizaciones inapropiadas.
+**Efecto:** Riesgo de autorizaciones no independientes que puede facilitar aprobaciones inadecuadas o irregularidades en el proceso de compra.
 
-**Recomendación:** Implementar control para revertir automáticamente delegaciones temporales o checklist de reapertura de permisos. Realizar revisiones periódicas de permisos activos.
+**Recomendación:** Automatizar la gestión de delegaciones temporales para revocar permisos al término del periodo previsto; revisar y corregir las delegaciones temporales pendientes; establecer controles periódicos que detecten coincidencias entre solicitante y aprobador.
 
 **Notas del auditor:**

@@ -9,6 +9,11 @@ Precaución (heredada de audit-engine): las clases que viajan al modelo se
 compilan con `to_strict_json_schema` -> todos los campos son obligatorios y
 `additionalProperties: false` en cada nivel. Un campo que no esté aquí,
 literalmente no se le pide al modelo.
+
+Los campos "opcionales" llevan `default`: el schema que viaja sigue listándolos
+como required (el compilador estricto ignora el default), pero la validación
+de la respuesta no falla si el backend los omite. Visto en vivo (2026-08-25):
+KAIA devolvió `PlanCambios` sin `insertar_tras` en dos ítems pese al strict.
 """
 from __future__ import annotations
 
@@ -29,7 +34,7 @@ class Observacion(BaseModel):
     recomendacion: str = Field(description="Acción propuesta, concreta y accionable.")
     nivel_riesgo: str = Field(description="Exactamente uno de: Alto, Medio, Bajo. Vacío si no es deducible.")
     responsable: str = Field(description="Área o rol responsable del plan de acción.")
-    fuente: str = Field(description="Referencia al papel de trabajo / evidencia que soporta la observación.")
+    fuente: str = Field(default="", description="Referencia al papel de trabajo / evidencia que soporta la observación.")
 
 
 class ObservacionExtraida(Observacion):
@@ -39,13 +44,14 @@ class ObservacionExtraida(Observacion):
     hasta que el auditor la valide al aprobar."""
 
     riesgo_soportado_por_evidencia: bool = Field(
+        default=False,  # si el backend omite el campo, se trata como propuesta (conservador)
         description="true SOLO si el papel de trabajo menciona explícitamente la severidad, criticidad o "
                     "nivel de riesgo de esta debilidad. false si el nivel es una estimación propia.")
 
 
 class ExtraccionObservaciones(BaseModel):
     observaciones: list[ObservacionExtraida]
-    notas: str = Field(description="Dudas, datos ambiguos o elementos del papel de trabajo que no se han podido clasificar. Vacío si no hay.")
+    notas: str = Field(default="", description="Dudas, datos ambiguos o elementos del papel de trabajo que no se han podido clasificar. Vacío si no hay.")
 
 
 class Magnitud(BaseModel):
@@ -93,14 +99,15 @@ class Correcciones(BaseModel):
 class Cambio(BaseModel):
     seccion: str = Field(description="Cabecera literal del informe (`## …` o `### N. …`) bajo la que está el fragmento a cambiar.")
     motivo: str = Field(description="Qué instrucción o comentario origina el cambio, en una frase.")
-    texto_original: str = Field(description="Fragmento EXACTO y contiguo del informe actual que se sustituye (copiado literal, sin recortar ni corregir). Vacío solo si es una inserción.")
-    texto_nuevo: str = Field(description="Texto que sustituye al original (o que se inserta). Vacío si es una eliminación.")
-    insertar_tras: str = Field(description="Solo para inserciones: fragmento EXACTO del informe tras el cual se inserta el texto nuevo. Vacío en sustituciones.")
+    texto_original: str = Field(default="", description="Fragmento EXACTO y contiguo del informe actual que se sustituye (copiado literal, sin recortar ni corregir). Vacío solo si es una inserción.")
+    texto_nuevo: str = Field(default="", description="Texto que sustituye al original (o que se inserta). Vacío si es una eliminación.")
+    insertar_tras: str = Field(default="", description="Solo para inserciones: fragmento EXACTO del informe tras el cual se inserta el texto nuevo. Vacío en sustituciones.")
 
 
 class PlanCambios(BaseModel):
     cambios: list[Cambio]
-    pendientes: list[str] = Field(description="Instrucciones que no se han podido aplicar (falta información, ambigüedad, contradicen la evidencia) y por qué. Vacío si no hay.")
+    pendientes: list[str] = Field(default_factory=list, description="Instrucciones que no se han podido aplicar (falta información, ambigüedad, contradicen la evidencia) y por qué. Vacío si no hay.")
+
 
 class PropuestaRegla(BaseModel):
     """Propuesta de cambio en config/estilo.yaml derivada de informes aprobados."""
@@ -108,12 +115,12 @@ class PropuestaRegla(BaseModel):
     tipo: str = Field(description="Exactamente uno de: alta (regla nueva), baja (eliminar regla), modificacion (ajustar sugerencia/motivo o añadir excepción).")
     seccion: str = Field(description="Sección del YAML afectada: palabras_prohibidas | primera_persona | reglas.")
     termino: str = Field(description="Término o expresión objeto de la regla (literal).")
-    sugerencia: str = Field(description="Alternativa de redacción propuesta (para altas/modificaciones). Vacío en bajas.")
+    sugerencia: str = Field(default="", description="Alternativa de redacción propuesta (para altas/modificaciones). Vacío en bajas.")
     motivo: str = Field(description="Por qué se propone, en una o dos frases.")
-    evidencia: list[str] = Field(description="Fragmentos LITERALES del corpus que soportan la propuesta (con el fichero entre corchetes). Mínimo uno.")
-    confianza: str = Field(description="alta | media | baja, según cuánta evidencia hay.")
+    evidencia: list[str] = Field(default_factory=list, description="Fragmentos LITERALES del corpus que soportan la propuesta (con el fichero entre corchetes). Mínimo uno.")
+    confianza: str = Field(default="media", description="alta | media | baja, según cuánta evidencia hay.")
 
 
 class PropuestasEstilo(BaseModel):
     propuestas: list[PropuestaRegla]
-    patrones_observados: str = Field(description="Rasgos de estilo consistentes en los informes aprobados que no se traducen en una regla concreta (estructura de frases, terminología, tono). Vacío si no hay.")
+    patrones_observados: str = Field(default="", description="Rasgos de estilo consistentes en los informes aprobados que no se traducen en una regla concreta (estructura de frases, terminología, tono). Vacío si no hay.")
