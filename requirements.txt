@@ -1,0 +1,12 @@
+# Núcleo
+requests>=2.31
+python-dotenv>=1.0
+pydantic>=2.6
+PyYAML>=6.0
+python-pptx>=1.0
+python-docx>=1.1          # lectura de .docx en entrada/ (exportaciones de Pentana)
+# Solo se usa `openai.lib._pydantic.to_strict_json_schema`: el mismo compilador de
+# JSON Schema estricto que usa el SDK para Structured Outputs. KAIA reenvía el
+# schema al despliegue de OpenAI y exige exactamente ese formato.
+openai>=1.40
+# Opcional (proveedor alternativo a KAIA): pip install anthropic
