@@ -113,7 +113,9 @@ class StyleChecker:
 
         # Nivel de riesgo válido
         validos = self.cfg.get("reglas", {}).get("niveles_riesgo_validos", [])
-        nivel = str(obs.get("nivel_riesgo", "")).strip().capitalize()
+        nivel = str(obs.get("nivel_riesgo", "")).strip()
+        from .formato_md import separar_coletilla  # import tardío: evita ciclo
+        nivel = separar_coletilla(nivel)[0].capitalize()  # «Medio (propuesto por el modelo…)» es válido
         if validos and nivel and nivel not in validos:
             res.hallazgos.append(Hallazgo(
                 tipo="estructura", severidad="error", fragmento=nivel, posicion=-1,

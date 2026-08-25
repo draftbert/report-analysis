@@ -20,6 +20,9 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 `cli.py` (comandos/menú) → `acciones.py` (flujo) → `expediente.py` (ficheros) + `formato_md.py`
 (Markdown ↔ dict) + `llm.py`/`kaia_client.py` (modelo) + `style_checker.py` (reglas) + `ppt_builder.py`.
 
+- Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;
+  la quita `aprobar`; `redactar` no admite observaciones que la conserven.
+
 ## Pruebas rápidas
-`.venv/bin/python demo.py` (flujo completo con LLM). Sin LLM: `./revisor revisar-texto --fichero
+`.venv/bin/python -m pytest -q tests` (determinista, sin red). `.venv/bin/python demo.py` (flujo completo con LLM). Sin LLM: `./revisor revisar-texto --fichero
 ejemplos/observacion_borrador.txt --sin-llm` y los round-trips de `formato_md`.
