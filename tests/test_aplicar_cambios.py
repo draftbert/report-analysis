@@ -215,3 +215,17 @@ def test_eliminacion():
     assert filas[0]["estado"] == "eliminado"
     assert parsear_informe(nuevo)["alcance"] == "Pedidos de enero a marzo."
 
+
+# Regresión (visto en vivo con KAIA, 2026-08-25): el backend omitió `insertar_tras`
+# en ítems de sustitución pese al schema estricto. La validación debe tolerarlo
+# y el schema que viaja debe seguir pidiendo el campo.
+def test_respuesta_sin_insertar_tras_se_acepta():
+    from audit_agent.kaia_client import schema_para
+    bruto = {"cambios": [{"seccion": "## Próximos pasos", "motivo": "m", "texto_original": "Seguimiento en 2027.",
+                          "texto_nuevo": "Seguimiento en T1 2027."}]}
+    plan = PlanCambios.model_validate(bruto)
+    assert plan.cambios[0].insertar_tras == "" and plan.pendientes == []
+    nuevo, filas = aplicar_plan(INFORME, plan)
+    assert filas[0]["estado"] == "aplicado"
+    params = schema_para(PlanCambios)["parameters"]
+    assert "insertar_tras" in params["$defs"]["Cambio"]["required"]
