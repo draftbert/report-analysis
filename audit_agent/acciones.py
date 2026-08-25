@@ -415,21 +415,36 @@ def accion_corregir(ctx: Contexto, incluir_avisos: bool = False) -> str:
 
 
 # ============================================================ 5. aplicar cambios (instrucciones)
+def _num_cabecera(t: str) -> str | None:
+    m = re.match(r"^(?:obs-)?0*(\d+)\b", t)
+    return m.group(1) if m else None
+
+
 def _rango_seccion(texto: str, seccion: str) -> tuple[int, int] | None:
     """Rango [inicio, fin) del bloque de la cabecera Markdown que mejor casa
     con `seccion` (p. ej. "### 3. Aprobador coincide…" o "Evaluación global").
-    None si no hay cabecera parecida."""
-    objetivo = re.sub(r"^#+\s*", "", seccion.strip())
-    objetivo = _norm_simple(re.sub(r"^\d+\s*[.)·\-–:]?\s*", "", objetivo))
+    Si `seccion` lleva número (3., OBS-03) solo casan cabeceras con ese mismo
+    número: dos observaciones con el mismo título se distinguen por él.
+    None si no hay cabecera parecida (ratio < 0.6)."""
+    objetivo = _norm_simple(re.sub(r"^#+\s*", "", seccion.strip()))
+    objetivo_sin = re.sub(r"^(obs-\d+|\d+)\s*[.)·\-–:]?\s*", "", objetivo)
     if not objetivo:
         return None
+    n_obj = _num_cabecera(objetivo)
     cabeceras = [(m.start(), len(m.group(1)), m.group(2)) for m in re.finditer(r"^(#+)\s+(.+)$", texto, re.M)]
     mejor, mejor_ratio = None, 0.0
     for i, (pos, nivel, titulo) in enumerate(cabeceras):
-        t = _norm_simple(re.sub(r"^(OBS-\d+|\d+)\s*[.)·\-–:]?\s*", "", titulo))
-        ratio = difflib.SequenceMatcher(None, t, objetivo).ratio()
-        if objetivo in t or t in objetivo:
+        t = _norm_simple(titulo)
+        t_sin = re.sub(r"^(obs-\d+|\d+)\s*[.)·\-–:]?\s*", "", t)
+        n_tit = _num_cabecera(t)
+        if n_obj and n_tit and n_obj != n_tit:
+            continue
+        ratio = max(difflib.SequenceMatcher(None, t, objetivo).ratio(),
+                    difflib.SequenceMatcher(None, t_sin, objetivo_sin).ratio())
+        if objetivo_sin and (objetivo_sin in t_sin or t_sin in objetivo_sin):
             ratio = max(ratio, 0.9)
+        if t == objetivo:
+            ratio = 1.0
         if ratio > mejor_ratio:
             mejor, mejor_ratio = i, ratio
     if mejor is None or mejor_ratio < 0.6:
@@ -449,55 +464,61 @@ def _norm_simple(s: str) -> str:
     return re.sub(r"\s+", " ", "".join(c for c in nfkd if unicodedata.category(c) != "Mn")).strip()
 
 
-def _localizar(texto: str, fragmento: str, seccion: str = "") -> tuple[str, int] | None:
-    """Encuentra `fragmento` en `texto`: exacto, con espacios flexibles, o
-    aproximado sobre frases/párrafos (ratio >= 0.85). Si el fragmento aparece
-    varias veces, se acota a la sección indicada; si sigue siendo ambiguo, se
-    devuelve None (mejor no aplicar que aplicar en el sitio equivocado).
-    Devuelve (fragmento real, posición) o None."""
+def _norm_aprox(s: str) -> str:
+    """Normalización para la coincidencia aproximada: tildes, mayúsculas,
+    espacios y comillas/guiones tipográficos. Nada más: un texto distinto
+    (otra cifra, otra palabra) nunca se aproxima."""
+    t = _norm_simple(s)
+    return re.sub(r"[\"'«»“”‘’`]", "", t).replace("–", "-").replace("—", "-").strip(" .")
+
+
+def _localizar(texto: str, fragmento: str, seccion: str = "") -> tuple[str | None, int, str]:
+    """Localiza `fragmento` en `texto` y devuelve (fragmento_real, posición, motivo).
+    `fragmento_real` es None si no se puede aplicar, con `motivo` explicando por qué:
+    - sección indicada inexistente -> no se aplica (no se busca en todo el documento);
+    - fragmento inexistente -> no se aplica (sin aproximaciones salvo diferencias
+      de tildes/mayúsculas/espacios/comillas: igualdad tras normalizar);
+    - fragmento repetido dentro del ámbito de búsqueda -> ambiguo, no se aplica."""
     frag = fragmento.strip()
     if not frag:
-        return None
-    rango = _rango_seccion(texto, seccion) if seccion else None
-    ini, fin = rango if rango else (0, len(texto))
+        return None, -1, "fragmento vacío"
+    if seccion.strip():
+        rango = _rango_seccion(texto, seccion)
+        if rango is None:
+            return None, -1, f"sección «{seccion.strip()}» no encontrada en el informe"
+        ini, fin = rango
+        ambito_desc = f"la sección «{seccion.strip()}»"
+    else:
+        ini, fin = 0, len(texto)
+        ambito_desc = "el informe (no se indicó sección)"
     ambito = texto[ini:fin]
 
-    def _unico(patron: str) -> tuple[str, int] | None:
+    for patron in (re.escape(frag), r"\s+".join(re.escape(t) for t in frag.split())):
         hits = list(re.finditer(patron, ambito))
         if len(hits) == 1:
-            return hits[0].group(0), ini + hits[0].start()
-        if len(hits) > 1 and not rango:
-            return None  # ambiguo en todo el documento y sin sección que acote
+            return hits[0].group(0), ini + hits[0].start(), "exacto"
         if len(hits) > 1:
-            return hits[0].group(0), ini + hits[0].start()  # ambiguo dentro de la sección: primera
-        return None
+            return None, -1, f"ambiguo: el texto aparece {len(hits)} veces en {ambito_desc}"
 
-    for patron in (re.escape(frag), r"\s+".join(re.escape(t) for t in frag.split())):
-        res = _unico(patron)
-        if res:
-            return res
-        if re.search(patron, ambito):
-            return None  # existía pero ambiguo
-
-    candidatos = []
-    desplaz = 0
-    for parrafo in ambito.split("\n\n"):
-        pos_p = ambito.find(parrafo, desplaz)
-        desplaz = pos_p + len(parrafo)
-        candidatos.append((parrafo.strip(), pos_p))
+    # Aproximación solo por diferencias de tildes/mayúsculas/espacios/comillas
+    candidatos: dict[tuple[str, int], None] = {}
+    for m in re.finditer(r"[^\n]+", ambito):
+        linea = m.group(0)
+        candidatos[(linea.strip(), m.start() + (len(linea) - len(linea.lstrip())))] = None
         off = 0
-        for frase in re.split(r"(?<=[.!?])\s+", parrafo):
+        for frase in re.split(r"(?<=[.!?])\s+", linea):
             if frase.strip():
-                candidatos.append((frase.strip(), pos_p + parrafo.find(frase, off)))
-                off = parrafo.find(frase, off) + len(frase)
-    mejor, mejor_ratio = None, 0.0
-    for c, pos in candidatos:
-        if not c or not (0.5 <= len(c) / max(len(frag), 1) <= 2.0):
-            continue
-        ratio = difflib.SequenceMatcher(None, c, frag).ratio()
-        if ratio > mejor_ratio:
-            mejor, mejor_ratio = (c, ini + pos), ratio
-    return mejor if mejor_ratio >= 0.85 else None
+                pos_f = linea.find(frase, off)
+                candidatos[(frase.strip(), m.start() + pos_f)] = None
+                off = pos_f + len(frase)
+    objetivo = _norm_aprox(frag)
+    coincidencias = [(c, pos) for c, pos in candidatos if c and _norm_aprox(c) == objetivo]
+    if len(coincidencias) == 1:
+        c, pos = coincidencias[0]
+        return c, ini + pos, "aproximado"
+    if len(coincidencias) > 1:
+        return None, -1, f"ambiguo: el texto (aproximado) aparece {len(coincidencias)} veces en {ambito_desc}"
+    return None, -1, f"texto original no encontrado en {ambito_desc}"
 
 
 def _sustituir_en(texto: str, real: str, pos: int, nuevo: str) -> str:
@@ -505,24 +526,34 @@ def _sustituir_en(texto: str, real: str, pos: int, nuevo: str) -> str:
 
 
 def aplicar_plan(texto: str, plan: PlanCambios) -> tuple[str, list[dict]]:
+    """Aplica los cambios EN ORDEN. Cada cambio se localiza en el texto ya
+    modificado por los anteriores. Si dos cambios apuntan al mismo fragmento
+    original (instrucciones contradictorias del transcript), el primero se
+    aplica y el segundo se marca CONFLICTO con referencia al primero: nunca
+    se pisa en silencio; la persona decide cuál prevalece."""
     resultado = []
-    for c in plan.cambios:
+    aplicados: list[tuple[int, str]] = []  # (nº de cambio, fragmento original normalizado)
+    for i, c in enumerate(plan.cambios, 1):
         fila = {"seccion": c.seccion, "motivo": c.motivo, "estado": "", "detalle": ""}
-        if c.texto_original.strip():
-            hit = _localizar(texto, c.texto_original, c.seccion)
-            if hit is None:
-                fila.update(estado="NO APLICADO", detalle="texto original no encontrado o ambiguo (aparece varias veces)")
+        orig = _norm_simple(c.texto_original)
+        if orig:
+            previo = next((n for n, o in aplicados if o == orig or (len(orig) > 20 and (orig in o or o in orig))), None)
+            real, pos, motivo = _localizar(texto, c.texto_original, c.seccion)
+            if real is None and previo is not None:
+                fila.update(estado="CONFLICTO", detalle=f"el fragmento ya fue modificado por el cambio {previo}; "
+                                                        "revisar cuál de las dos instrucciones prevalece")
+            elif real is None:
+                fila.update(estado="NO APLICADO", detalle=motivo)
             else:
-                real, pos = hit
                 texto = _sustituir_en(texto, real, pos, c.texto_nuevo.strip())
                 fila["estado"] = "eliminado" if not c.texto_nuevo.strip() else (
-                    "aplicado" if real == c.texto_original.strip() else "aplicado (coincidencia aproximada)")
+                    "aplicado" if motivo == "exacto" else "aplicado (coincidencia aproximada)")
+                aplicados.append((i, orig))
         elif c.insertar_tras.strip() and c.texto_nuevo.strip():
-            hit = _localizar(texto, c.insertar_tras, c.seccion)
-            if hit is None:
-                fila.update(estado="NO APLICADO", detalle="punto de inserción no encontrado o ambiguo")
+            real, pos, motivo = _localizar(texto, c.insertar_tras, c.seccion)
+            if real is None:
+                fila.update(estado="NO APLICADO", detalle=f"punto de inserción: {motivo}")
             else:
-                real, pos = hit
                 texto = _sustituir_en(texto, real, pos, real + "\n\n" + c.texto_nuevo.strip())
                 fila["estado"] = "insertado"
         else:
@@ -585,7 +616,9 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False) -> str:
     exp.anexar_registro("cambios", "\n".join(registro) + "\n")
     exp.vaciar_instrucciones()
 
+    n_conf = sum(f["estado"] == "CONFLICTO" for f in filas)
     lineas += ["", diff_texto(texto, nuevo, "02_informe.md"), "",
+               (f"⚠ {n_conf} cambio(s) en CONFLICTO con otro anterior: revisar en cambios_aplicados.md.\n" if n_conf else "") +
                f"Aplicados {sum(f['estado'].startswith(('aplicado', 'insertado', 'eliminado')) for f in filas)} "
                f"de {len(filas)} cambios. Registro en cambios_aplicados.md; 03_instrucciones.md vaciado "
                f"(lo pegado queda en historial/).",

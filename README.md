@@ -106,7 +106,8 @@ Sin proveedor configurado, todo lo determinista sigue funcionando
 ```
 
 Deterministas y sin red (el LLM se sustituye por respuestas preparadas):
-riesgo propuesto/validado.
+riesgo propuesto/validado, suite de sustituciones ambiguas de `aplicar-cambios`
+(`tests/test_aplicar_cambios.py`, que crece con cada caso raro visto en uso real).
 
 ## Mantenimiento del criterio de estilo
 
