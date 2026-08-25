@@ -29,6 +29,8 @@ from pathlib import Path
 
 import yaml
 
+from .lectores import EXTENSIONES, Documento, leer as leer_documento
+
 ARCHIVOS = {
     "meta": "expediente.yaml",
     "observaciones": "01_observaciones.md",
@@ -38,7 +40,7 @@ ARCHIVOS = {
     "cambios": "cambios_aplicados.md",
 }
 DIRECTORIOS = ("entrada", "historial", "salidas", "trazas")
-EXTENSIONES_ENTRADA = (".md", ".txt", ".docx")
+EXTENSIONES_ENTRADA = EXTENSIONES  # ver lectores.py
 
 SEPARADOR_INSTRUCCIONES = "---"
 
@@ -98,7 +100,7 @@ class Expediente:
         (ruta / ARCHIVOS["instrucciones"]).write_text(
             PLANTILLA_INSTRUCCIONES.format(referencia=referencia), encoding="utf-8")
         (ruta / "entrada" / "LEEME.txt").write_text(
-            "Deja aquí los papeles de trabajo exportados de Pentana (.md, .txt o .docx).\n"
+            "Deja aquí los papeles de trabajo exportados de Pentana (.md, .txt, .docx, .xlsx o .pdf con texto).\n"
             "Todos los ficheros de esta carpeta se envían al modelo en `extraer`.\n", encoding="utf-8")
         return cls(ruta)
 
@@ -156,14 +158,10 @@ class Expediente:
         return sorted(p for p in (self.ruta / "entrada").iterdir()
                       if p.suffix.lower() in EXTENSIONES_ENTRADA and p.name.lower() != "leeme.txt")
 
-    def leer_entrada(self) -> list[tuple[str, str]]:
-        docs = []
-        for p in self.ficheros_entrada():
-            if p.suffix.lower() == ".docx":
-                docs.append((p.name, _leer_docx(p)))
-            else:
-                docs.append((p.name, p.read_text(encoding="utf-8", errors="replace")))
-        return docs
+    def leer_entrada(self) -> list[Documento]:
+        """Lee todos los documentos de entrada/ con la capa de lectores
+        (texto normalizado a Markdown, con el nombre del lector usado)."""
+        return [leer_documento(p) for p in self.ficheros_entrada()]
 
     # ------------------------------------------------------------ instrucciones
     def instrucciones_pendientes(self) -> str:
@@ -192,16 +190,3 @@ class Expediente:
     # ------------------------------------------------------------ salidas
     def ruta_ppt(self) -> Path:
         return self.ruta / "salidas" / f"ResumenEjecutivo_{self.referencia}.pptx"
-
-
-def _leer_docx(ruta: Path) -> str:
-    try:
-        import docx  # python-docx
-    except ImportError as exc:
-        raise ExpedienteError("Para leer .docx instala python-docx (pip install python-docx).") from exc
-    d = docx.Document(str(ruta))
-    partes = [p.text for p in d.paragraphs]
-    for tabla in d.tables:
-        for fila in tabla.rows:
-            partes.append(" | ".join(c.text.strip() for c in fila.cells))
-    return "\n".join(x for x in partes if x is not None)
