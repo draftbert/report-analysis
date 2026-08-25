@@ -12,6 +12,7 @@ CLI del revisor de informes de auditoría interna.
     ./revisor redactar [--forzar | --secciones objetivo alcance]   → 02_informe.md
     ./revisor revisar | corregir [--avisos] | aplicar-cambios [--solo-plan]
     ./revisor diff | deshacer | historial | ppt | archivar
+    ./revisor calibrar-estilo <carpeta_informes_aprobados> [--salida x.md] [--sin-llm]
 
     ./revisor revisar-texto --fichero borrador.txt [--sin-llm]   (texto suelto, sin expediente)
 """
@@ -147,6 +148,32 @@ def cmd_archivar(args):
     return accion_archivar(_abrir(args))
 
 
+def cmd_calibrar_estilo(args):
+    from .calibracion import calibrar
+    from .llm import ClienteLLM
+    from .style_checker import StyleChecker
+    carpeta = Path(args.carpeta)
+    if not carpeta.is_dir():
+        sys.exit(f"{carpeta} no es una carpeta.")
+    salida = Path(args.salida) if args.salida else carpeta / "calibracion_estilo.md"
+    trazas = salida.with_name(salida.stem + "_trazas")
+
+    def trazar(accion, registro):
+        import json
+        trazas.mkdir(parents=True, exist_ok=True)
+        from datetime import datetime
+        (trazas / f"{datetime.now():%Y-%m-%dT%H-%M-%S}_{accion}.json").write_text(
+            json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    llm = None
+    if not args.sin_llm:
+        try:
+            llm = ClienteLLM(modelo=args.modelo, proveedor=args.proveedor, trazador=trazar, esfuerzo=args.esfuerzo)
+        except Exception as exc:  # noqa: BLE001
+            print(f"(LLM no disponible: {exc}; solo análisis determinista)", file=sys.stderr)
+    return calibrar(carpeta, StyleChecker(args.config), llm, salida)
+
+
 def cmd_diff(args):
     from .acciones import accion_diff
     return accion_diff(_abrir(args), args.fichero)
@@ -274,6 +301,12 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--solo-plan", action="store_true", help="Mostrar el plan sin tocar el informe")
     sub.add_parser("ppt", help="Generar el Resumen Ejecutivo").set_defaults(fn=cmd_ppt)
     sub.add_parser("archivar", help="Zip de evidencia del expediente con manifest sha256").set_defaults(fn=cmd_archivar)
+
+    s = sub.add_parser("calibrar-estilo", help="Contrastar estilo.yaml con informes aprobados (no modifica el YAML)")
+    s.set_defaults(fn=cmd_calibrar_estilo)
+    s.add_argument("carpeta", help="Carpeta con informes aprobados (y opcionalmente *_borrador.*)")
+    s.add_argument("--salida", help="Ruta del informe Markdown (por defecto <carpeta>/calibracion_estilo.md)")
+    s.add_argument("--sin-llm", action="store_true", help="Solo falsos positivos deterministas")
 
     for nombre, fn in (("diff", cmd_diff), ("deshacer", cmd_deshacer)):
         s = sub.add_parser(nombre); s.set_defaults(fn=fn)

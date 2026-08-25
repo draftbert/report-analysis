@@ -132,6 +132,31 @@ los ficheros sintéticos de `ejemplos/entrada_sintetica/` usados en los tests.
   (`audit_agent.acciones.verificar_archivo`). `estado` sugiere archivar cuando el
   PPT está generado y al día.
 
+## Calibración del criterio de estilo con informes reales
+
+Las palabras prohibidas iniciales son plausibles pero inventadas. Para calibrarlas
+con el criterio real del departamento:
+
+```bash
+./revisor calibrar-estilo <carpeta_con_informes_aprobados> [--salida calibracion.md] [--sin-llm]
+```
+
+La carpeta contiene informes ya aprobados por Dirección (Markdown, texto, Word,
+Excel o PDF con texto). Si además hay borradores previos con el mismo nombre y
+sufijo `_borrador` (p. ej. `informe_X_borrador.docx` junto a `informe_X.docx`), se
+comparan por parejas. El comando produce `calibracion_estilo.md` con:
+
+- **(a) Falsos positivos** (determinista): términos de `estilo.yaml` que SÍ aparecen
+  en informes aprobados, con recuento, ficheros y contexto — señal de que la regla
+  sobra o necesita excepción. También la proporción de frases que superan el límite.
+- **(b) Propuestas del modelo** (salida estructurada): altas, bajas y modificaciones
+  de reglas, cada una con evidencia literal del corpus y nivel de confianza, más los
+  patrones de estilo observados.
+
+El comando **nunca modifica `config/estilo.yaml`**: el equipo revisa el informe y
+edita el YAML a mano. Ejemplo con el corpus de prueba del repo:
+`./revisor calibrar-estilo ejemplos/corpus_calibracion`.
+
 ## Tests
 
 ```bash
@@ -161,12 +186,13 @@ audit_agent/acciones.py     Las acciones del flujo (extraer, redactar, revisar, 
 audit_agent/esquemas.py     Salidas estructuradas del LLM (Pydantic) — formato pivote
 audit_agent/style_checker.py  Reglas deterministas (texto y Markdown)
 audit_agent/lectores.py     Lectura de entrada/ (.md/.txt/.docx/.xlsx/.pdf) a Markdown normalizado
+audit_agent/calibracion.py  Calibración de estilo.yaml contra informes aprobados
 audit_agent/llm.py          Cliente LLM unificado (kaia | anthropic | dry-run) con trazas
 audit_agent/kaia_client.py  Transporte KAIA (OAuth2 + invoke con output_format_schema)
 audit_agent/reviewer.py     Revisión de texto suelto
 audit_agent/ppt_builder.py  Resumen Ejecutivo PPT
 audit_agent/cli.py          Comandos y menú interactivo
-ejemplos/                   Papel de trabajo, borrador, datos de informe y entrada sintética
+ejemplos/                   Papel de trabajo, borrador, datos de informe, entrada sintética y corpus de calibración
 scripts/                    Generación de ficheros de entrada sintéticos
 tests/                      Suite determinista (pytest)
 docs/referencia/            Proveedor KAIA original de audit-engine (referencia)
@@ -177,5 +203,6 @@ docs/referencia/            Proveedor KAIA original de audit-engine (referencia)
 - Sustituir el PPT autónomo por la plantilla `.potx` corporativa (mismo código;
   asignar `run.text`, nunca `text_frame.text`).
 - Añadir el lector específico del formato real de exportación de Pentana en `lectores.py`.
+- Calibrar `estilo.yaml` con informes aprobados reales (`calibrar-estilo`).
 - Memoria histórica: sugerir observaciones similares de auditorías cerradas.
 - Interfaz web (Streamlit) sobre las mismas acciones si el equipo no quiere terminal.

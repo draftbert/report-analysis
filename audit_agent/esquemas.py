@@ -101,3 +101,19 @@ class Cambio(BaseModel):
 class PlanCambios(BaseModel):
     cambios: list[Cambio]
     pendientes: list[str] = Field(description="Instrucciones que no se han podido aplicar (falta información, ambigüedad, contradicen la evidencia) y por qué. Vacío si no hay.")
+
+class PropuestaRegla(BaseModel):
+    """Propuesta de cambio en config/estilo.yaml derivada de informes aprobados."""
+
+    tipo: str = Field(description="Exactamente uno de: alta (regla nueva), baja (eliminar regla), modificacion (ajustar sugerencia/motivo o añadir excepción).")
+    seccion: str = Field(description="Sección del YAML afectada: palabras_prohibidas | primera_persona | reglas.")
+    termino: str = Field(description="Término o expresión objeto de la regla (literal).")
+    sugerencia: str = Field(description="Alternativa de redacción propuesta (para altas/modificaciones). Vacío en bajas.")
+    motivo: str = Field(description="Por qué se propone, en una o dos frases.")
+    evidencia: list[str] = Field(description="Fragmentos LITERALES del corpus que soportan la propuesta (con el fichero entre corchetes). Mínimo uno.")
+    confianza: str = Field(description="alta | media | baja, según cuánta evidencia hay.")
+
+
+class PropuestasEstilo(BaseModel):
+    propuestas: list[PropuestaRegla]
+    patrones_observados: str = Field(description="Rasgos de estilo consistentes en los informes aprobados que no se traducen en una regla concreta (estructura de frases, terminología, tono). Vacío si no hay.")
