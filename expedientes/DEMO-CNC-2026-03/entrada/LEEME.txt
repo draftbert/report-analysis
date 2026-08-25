@@ -1,0 +1,2 @@
+Deja aquí los papeles de trabajo exportados de Pentana (.md, .txt o .docx).
+Todos los ficheros de esta carpeta se envían al modelo en `extraer`.

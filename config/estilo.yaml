@@ -1,0 +1,89 @@
+# ============================================================
+# Configuración de estilo corporativo del informe de auditoría
+# Este fichero es EL punto de mantenimiento del criterio de estilo.
+# Los auditores pueden ampliarlo sin tocar código.
+# ============================================================
+
+# Palabras/expresiones prohibidas en informes.
+# "sugerencia" es lo que el agente propone como sustitución.
+palabras_prohibidas:
+  - termino: "fallo"
+    sugerencia: "debilidad / incidencia"
+    motivo: "Lenguaje culpabilizador; el informe describe hechos, no culpas."
+  - termino: "culpa"
+    sugerencia: "(reformular de forma neutra, orientada al proceso)"
+    motivo: "Lenguaje culpabilizador."
+  - termino: "error del responsable"
+    sugerencia: "debilidad en el proceso de revisión"
+    motivo: "Las observaciones se orientan a proceso, no a personas."
+  - termino: "negligencia"
+    sugerencia: "(describir el hecho objetivo)"
+    motivo: "Juicio de valor con posibles implicaciones legales."
+  - termino: "fraude"
+    sugerencia: "indicios que requieren análisis adicional"
+    motivo: "Calificación reservada; requiere validación de Dirección/Legal."
+  - termino: "grave"
+    sugerencia: "de riesgo alto"
+    motivo: "La severidad se expresa con la escala de riesgo (Alto/Medio/Bajo)."
+  - termino: "nunca"
+    sugerencia: "no se ha identificado evidencia de que…"
+    motivo: "Absolutos no soportables con la evidencia de una muestra."
+  - termino: "siempre"
+    sugerencia: "en los casos analizados…"
+    motivo: "Absolutos no soportables con la evidencia de una muestra."
+  - termino: "todos los casos"
+    sugerencia: "la totalidad de la muestra analizada"
+    motivo: "Acotar la afirmación al alcance de la prueba."
+  - termino: "creemos"
+    sugerencia: "se ha observado / se concluye"
+    motivo: "El informe se redacta en impersonal, no en primera persona."
+  - termino: "pensamos"
+    sugerencia: "se considera"
+    motivo: "El informe se redacta en impersonal."
+  - termino: "obviamente"
+    sugerencia: "(eliminar)"
+    motivo: "Muletilla valorativa sin aporte."
+  - termino: "evidentemente"
+    sugerencia: "(eliminar)"
+    motivo: "Muletilla valorativa sin aporte."
+  - termino: "problema"
+    sugerencia: "observación / debilidad"
+    motivo: "Terminología estándar del informe."
+  - termino: "mal hecho"
+    sugerencia: "no conforme con el criterio establecido"
+    motivo: "Redacción objetiva contra criterio."
+
+# Expresiones en primera persona (el informe es impersonal)
+primera_persona:
+  - "hemos"
+  - "nuestro"
+  - "nuestra"
+  - "yo"
+  - "considero"
+  - "opino"
+
+# Reglas cuantitativas
+reglas:
+  longitud_maxima_frase: 45        # palabras por frase (legibilidad)
+  requiere_nivel_riesgo: true      # toda observación debe tener Alto/Medio/Bajo
+  niveles_riesgo_validos: ["Alto", "Medio", "Bajo"]
+
+# Estructura mínima exigible a una observación completa
+# (modelo de las "4C + recomendación")
+estructura_observacion:
+  - campo: "titulo"
+    descripcion: "Título breve de la observación"
+  - campo: "condicion"
+    descripcion: "Qué se ha observado (hecho objetivo, con datos de la muestra)"
+  - campo: "criterio"
+    descripcion: "Contra qué se compara (norma, política interna, buena práctica)"
+  - campo: "causa_raiz"
+    descripcion: "Por qué ocurre"
+  - campo: "efecto"
+    descripcion: "Riesgo/impacto de la debilidad"
+  - campo: "recomendacion"
+    descripcion: "Acción propuesta"
+  - campo: "nivel_riesgo"
+    descripcion: "Alto / Medio / Bajo"
+  - campo: "responsable"
+    descripcion: "Área o rol responsable del plan de acción"
