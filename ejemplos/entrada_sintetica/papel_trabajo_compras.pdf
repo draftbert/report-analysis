@@ -1,0 +1,61 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1748 >>
+stream
+BT /F1 10 Tf 50 790 Td 13 TL
+(Papel de trabajo — Auditoría de Compras No Comerciales) Tj T*
+(Tarea 3.2: Revisión de aprobaciones de pedidos) Tj T*
+() Tj T*
+(Auditor: A. García — Fecha: 12/05/2026 — Ref. Pentana: CNC-2026-03/T3.2) Tj T*
+() Tj T*
+(Prueba realizada) Tj T*
+(Se ha seleccionado una muestra de 45 pedidos de compra superiores a 10.000 € emitidos entre) Tj T*
+(enero y marzo de 2026. Para cada pedido se ha verificado: \(i\) existencia de aprobación previa) Tj T*
+(conforme a la matriz de delegación de facultades vigente; \(ii\) segregación entre solicitante y) Tj T*
+(aprobador; \(iii\) existencia de tres ofertas comparativas cuando el importe supera 30.000 €.) Tj T*
+() Tj T*
+(Resultados) Tj T*
+(R1. En 6 de los 45 pedidos \(13%\) la aprobación se registró en el sistema con posterioridad a la) Tj T*
+(fecha de emisión del pedido al proveedor. \(Anexo E1\)) Tj T*
+(R2. En 2 pedidos el aprobador coincidía con el solicitante, debido a una delegación temporal de) Tj T*
+(permisos durante vacaciones que no fue revertida. \(Anexo E2\)) Tj T*
+(R3. En 3 de los 12 pedidos superiores a 30.000 € no consta la documentación de las tres ofertas) Tj T*
+(comparativas en el expediente. \(Anexo E3\)) Tj T*
+() Tj T*
+(Comentarios del área auditada) Tj T*
+(El área indica que los 6 casos de aprobación posterior corresponden a pedidos urgentes de) Tj T*
+(mantenimiento y que existe un correo previo del responsable, aunque fuera del sistema.) Tj T*
+(Reconocen que la reversión de permisos tras vacaciones se gestiona manualmente.) Tj T*
+() Tj T*
+(Evidencias) Tj T*
+(- Extracto del módulo de compras \(Anexo E1\)) Tj T*
+(- Matriz de delegación de facultades v4.2 \(Anexo E2\)) Tj T*
+(- Expedientes de los pedidos de la muestra \(Anexo E3\)) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000002041 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2138
+%%EOF

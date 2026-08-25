@@ -18,7 +18,8 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 
 ## Mapa
 `cli.py` (comandos/menú) → `acciones.py` (flujo) → `expediente.py` (ficheros) + `formato_md.py`
-(Markdown ↔ dict) + `llm.py`/`kaia_client.py` (modelo) + `style_checker.py` (reglas) + `ppt_builder.py`.
+(Markdown ↔ dict) + `lectores.py` (entrada/ → Markdown) + `llm.py`/`kaia_client.py` (modelo) +
+`style_checker.py` (reglas) + `ppt_builder.py`.
 
 - Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;
   la quita `aprobar`; `redactar` no admite observaciones que la conserven.

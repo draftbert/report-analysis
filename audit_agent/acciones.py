@@ -33,6 +33,7 @@ from .expediente import Expediente, ExpedienteError
 from .formato_md import (COLETILLA_RIESGO_PROPUESTO, normalizar_nivel, parrafos_con_lineas,
                          parsear_informe, parsear_observaciones,
                          render_informe, render_observaciones)
+from .lectores import EXTENSIONES as EXT_ENTRADA, Documento
 from .llm import ClienteLLM
 from .style_checker import StyleChecker, reglas_como_texto, revisar_markdown
 
@@ -78,17 +79,34 @@ def _contexto_proyecto(exp: Expediente) -> str:
     return "\n".join(lineas)
 
 
-def _documentos_entrada(exp: Expediente) -> str:
+def _cargar_entrada(exp: Expediente, accion: str) -> list[Documento]:
+    """Lee entrada/ con la capa de lectores y deja en trazas/ qué lector se
+    usó y el texto normalizado exacto que se envía al modelo (auditoría de
+    la fidelidad de la lectura)."""
     docs = exp.leer_entrada()
     if not docs:
-        raise ExpedienteError(f"No hay papeles de trabajo en {exp.ruta / 'entrada'} (.md/.txt/.docx).")
+        raise ExpedienteError(f"No hay papeles de trabajo en {exp.ruta / 'entrada'} "
+                              f"(formatos: {', '.join(EXT_ENTRADA)}).")
+    exp.trazar(f"{accion}-entrada", {
+        "fecha": datetime.now().isoformat(timespec="seconds"), "accion": accion,
+        "documentos": [{"nombre": d.nombre, "lector": d.lector, "avisos": d.avisos,
+                        "caracteres": len(d.texto), "texto_normalizado": d.texto} for d in docs]})
+    return docs
+
+
+def _texto_entrada(docs: list[Documento]) -> str:
     partes, total = [], 0
-    for nombre, texto in docs:
+    for d in docs:
+        texto = d.texto
         if total + len(texto) > MAX_CHARS_ENTRADA:
             texto = texto[: max(0, MAX_CHARS_ENTRADA - total)] + "\n[... documento truncado ...]"
         total += len(texto)
-        partes.append(f"===== DOCUMENTO: {nombre} =====\n{texto.strip()}\n")
+        partes.append(f"===== DOCUMENTO: {d.nombre} (lector: {d.lector}) =====\n{texto.strip()}\n")
     return "\n".join(partes)
+
+
+def _documentos_entrada(exp: Expediente, accion: str = "lectura") -> str:
+    return _texto_entrada(_cargar_entrada(exp, accion))
 
 
 def _obs_a_dict(o: Observacion, ident: str, estado: str = "propuesta", notas: str = "") -> dict:
@@ -143,6 +161,7 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
         raise ExpedienteError("01_observaciones.md ya existe y puede contener trabajo del auditor. "
                               "Usa --forzar para regenerarlo (se guarda snapshot en historial/).")
     campos = "\n".join(f"- {k}: {v.description}" for k, v in ObservacionExtraida.model_fields.items())
+    docs = _cargar_entrada(exp, "extraer")
     user = (f"{_contexto_proyecto(exp)}\n\n"
             "Extrae TODAS las observaciones (debilidades de control) soportadas por los papeles de trabajo, "
             "cada una con su recomendación, en el esquema:\n"
@@ -153,7 +172,7 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "`riesgo_soportado_por_evidencia`: true SOLO si el papel de trabajo menciona explícitamente la "
             "severidad, criticidad o nivel de riesgo de esa debilidad; si el PT no habla de riesgo, false. "
             "Ordena de mayor a menor riesgo.\n\n"
-            f"PAPELES DE TRABAJO:\n{_documentos_entrada(exp)}")
+            f"PAPELES DE TRABAJO:\n{_texto_entrada(docs)}")
     res = ctx.llm.completar_estructurado("extraer", ctx.system, user, ExtraccionObservaciones)
     observaciones = [_obs_a_dict(o, f"OBS-{i:02d}") for i, o in enumerate(res.observaciones, 1)]
     exp.escribir("observaciones", render_observaciones(observaciones, exp.proyecto, res.notas), "extraer")
@@ -167,6 +186,8 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
     if any(o.get("riesgo_propuesto") for o in observaciones):
         lineas.append("  (*) nivel de riesgo propuesto por el modelo sin evidencia en el PT: valídalo al aprobar "
                       "(la coletilla desaparece con `aprobar`).")
+    lineas.append("Entrada leída: " + ", ".join(f"{d.nombre} [{d.lector}]" for d in docs)
+                  + " — texto normalizado guardado en trazas/.")
     if res.notas.strip():
         lineas.append(f"\nNotas del modelo: {res.notas.strip()}")
     lineas.append("\nSiguiente: abre el fichero, corrige lo que haga falta y marca `Estado: aprobada` "
@@ -270,7 +291,7 @@ def accion_regenerar_obs(ctx: Contexto, ident: str) -> str:
             f"OBSERVACIÓN ACTUAL:\n{json.dumps(_campos_obs(o), ensure_ascii=False, indent=2)}\n\n"
             "`riesgo_soportado_por_evidencia`: true SOLO si el PT menciona explícitamente la severidad o el "
             "nivel de riesgo.\n\n"
-            f"PAPELES DE TRABAJO:\n{_documentos_entrada(exp)}")
+            f"PAPELES DE TRABAJO:\n{_documentos_entrada(exp, f'regenerar-{ident}')}")
     nueva = ctx.llm.completar_estructurado(f"regenerar-{ident}", ctx.system, user, ObservacionExtraida)
     d = _obs_a_dict(nueva, ident)
     o.update(_campos_obs(d))
@@ -323,7 +344,7 @@ def accion_redactar(ctx: Contexto, forzar: bool = False, secciones: list[str] | 
             "'Razonable|Mejorable|Deficiente — Impacto Alto|Medio|Bajo' y conclusión coherente con las observaciones.\n"
             "- Próximos pasos: plan de acción y seguimiento, sin inventar fechas que no consten.\n\n"
             f"OBSERVACIONES APROBADAS:\n{obs_json}\n\n"
-            f"PAPELES DE TRABAJO:\n{_documentos_entrada(exp)}{informe_actual}")
+            f"PAPELES DE TRABAJO:\n{_documentos_entrada(exp, 'redactar')}{informe_actual}")
     borrador = ctx.llm.completar_estructurado("redactar", ctx.system, user, BorradorInforme)
     datos = {
         "objetivo": borrador.objetivo, "alcance": borrador.alcance,

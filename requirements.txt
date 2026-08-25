@@ -9,5 +9,7 @@ python-docx>=1.1          # lectura de .docx en entrada/ (exportaciones de Penta
 # JSON Schema estricto que usa el SDK para Structured Outputs. KAIA reenvía el
 # schema al despliegue de OpenAI y exige exactamente ese formato.
 openai>=1.40
+openpyxl>=3.1            # lectura de .xlsx en entrada/
+pdfplumber>=0.11         # lectura de .pdf con capa de texto en entrada/
 pytest>=8.0              # tests deterministas (tests/)
 # Opcional (proveedor alternativo a KAIA): pip install anthropic

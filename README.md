@@ -31,7 +31,7 @@ cualquier editor (VS Code es ideal: vista previa Markdown + terminal al lado):
 ```
 expedientes/CNC-2026-03/
   expediente.yaml         nombre, referencia, fecha, distribución, notas para el modelo
-  entrada/                papeles de trabajo de Pentana (.md, .txt, .docx)
+  entrada/                papeles de trabajo de Pentana (.md, .txt, .docx, .xlsx, .pdf con texto)
   01_observaciones.md     propuestas del modelo → el auditor edita y marca `Estado: aprobada`
   02_informe.md           texto del informe → se edita durante días
   03_instrucciones.md     buzón: pega la transcripción / comentarios → `aplicar-cambios`
@@ -39,7 +39,7 @@ expedientes/CNC-2026-03/
   cambios_aplicados.md    qué cambios pidió el modelo y cuáles se aplicaron
   historial/              snapshot automático antes de cada sobreescritura (`diff`, `deshacer`)
   salidas/                ResumenEjecutivo_<REF>.pptx
-  trazas/                 una entrada JSON por llamada al LLM
+  trazas/                 una entrada JSON por llamada al LLM (y el texto leído de entrada/)
   <REF>_archivo_<fecha>.zip  evidencia archivada al cierre (`archivar`)
 ```
 
@@ -101,6 +101,19 @@ Con varios expedientes, fija el activo con `./revisor usar <ruta>` o pásalo con
 Sin proveedor configurado, todo lo determinista sigue funcionando
 (`estado`, `revisar`, `revisar-obs`, `aprobar`, `diff`, `deshacer`, `ppt`).
 
+## Entrada: exportaciones de Pentana
+
+`entrada/` admite `.md`, `.txt`, `.docx` (tablas conservadas como tablas Markdown),
+`.xlsx` (cada hoja como sección; bloques tabulares como tablas, celdas largas como
+párrafos) y `.pdf` con capa de texto (sin OCR: un PDF escaneado da un error claro
+pidiendo otra exportación). La capa de lectura está en `audit_agent/lectores.py`:
+dada una ruta devuelve Markdown normalizado conservando la estructura que exista,
+sin inventar secciones. Cada `extraer` deja en `trazas/*_extraer-entrada.json` qué
+lector se usó y el texto exacto enviado al modelo, para auditar la fidelidad de la
+lectura. Cuando se conozca el formato real de Pentana, añadir un lector es una
+función más registrada en `LECTORES`. `scripts/generar_ejemplos_entrada.py` genera
+los ficheros sintéticos de `ejemplos/entrada_sintetica/` usados en los tests.
+
 ## Trazabilidad y retención
 
 - `trazas/` guarda, por cada llamada al modelo, un JSON con fecha, acción, modelo,
@@ -128,7 +141,7 @@ Sin proveedor configurado, todo lo determinista sigue funcionando
 Deterministas y sin red (el LLM se sustituye por respuestas preparadas):
 riesgo propuesto/validado, suite de sustituciones ambiguas de `aplicar-cambios`
 (`tests/test_aplicar_cambios.py`, que crece con cada caso raro visto en uso real),
-archivado con hashes.
+archivado con hashes y lectores de entrada.
 
 ## Mantenimiento del criterio de estilo
 
@@ -147,12 +160,14 @@ audit_agent/formato_md.py   Markdown de ida y vuelta (render ↔ parse) de obser
 audit_agent/acciones.py     Las acciones del flujo (extraer, redactar, revisar, corregir, aplicar-cambios, ppt…)
 audit_agent/esquemas.py     Salidas estructuradas del LLM (Pydantic) — formato pivote
 audit_agent/style_checker.py  Reglas deterministas (texto y Markdown)
+audit_agent/lectores.py     Lectura de entrada/ (.md/.txt/.docx/.xlsx/.pdf) a Markdown normalizado
 audit_agent/llm.py          Cliente LLM unificado (kaia | anthropic | dry-run) con trazas
 audit_agent/kaia_client.py  Transporte KAIA (OAuth2 + invoke con output_format_schema)
 audit_agent/reviewer.py     Revisión de texto suelto
 audit_agent/ppt_builder.py  Resumen Ejecutivo PPT
 audit_agent/cli.py          Comandos y menú interactivo
-ejemplos/                   Papel de trabajo, borrador y datos de informe de ejemplo
+ejemplos/                   Papel de trabajo, borrador, datos de informe y entrada sintética
+scripts/                    Generación de ficheros de entrada sintéticos
 tests/                      Suite determinista (pytest)
 docs/referencia/            Proveedor KAIA original de audit-engine (referencia)
 ```
@@ -161,6 +176,6 @@ docs/referencia/            Proveedor KAIA original de audit-engine (referencia)
 
 - Sustituir el PPT autónomo por la plantilla `.potx` corporativa (mismo código;
   asignar `run.text`, nunca `text_frame.text`).
-- Probar con exportaciones reales de Pentana y ajustar `entrada/` (Excel, PDF).
+- Añadir el lector específico del formato real de exportación de Pentana en `lectores.py`.
 - Memoria histórica: sugerir observaciones similares de auditorías cerradas.
 - Interfaz web (Streamlit) sobre las mismas acciones si el equipo no quiere terminal.
