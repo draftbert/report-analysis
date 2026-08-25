@@ -19,11 +19,14 @@ fichero editado por una persona, siempre queda snapshot en historial/.
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import re
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
+from . import __version__
 from .esquemas import (BorradorInforme, Correcciones, ExtraccionObservaciones,
                        Observacion, ObservacionExtraida, PlanCambios)
 from .expediente import Expediente, ExpedienteError
@@ -645,6 +648,66 @@ def accion_ppt(exp: Expediente) -> str:
     return f"Resumen Ejecutivo generado: {ruta} ({len(datos['observaciones'])} observaciones)."
 
 
+# ============================================================ 6b. archivar (retención de evidencia)
+def _sha256(ruta: Path) -> str:
+    h = hashlib.sha256()
+    with open(ruta, "rb") as f:
+        for bloque in iter(lambda: f.read(1 << 20), b""):
+            h.update(bloque)
+    return h.hexdigest()
+
+
+def ficheros_a_archivar(exp: Expediente) -> list[Path]:
+    """Ficheros que forman la evidencia del expediente: metadatos, los tres
+    Markdown de trabajo, revisión y registro de cambios, trazas/, historial/
+    y salidas/. Nunca los zips de archivos anteriores."""
+    ficheros = [exp.archivo(k) for k in ("meta", "observaciones", "informe", "instrucciones", "revision", "cambios")]
+    for d in ("trazas", "historial", "salidas"):
+        ficheros += sorted(p for p in (exp.ruta / d).rglob("*") if p.is_file())
+    return [f for f in ficheros if f.exists() and f.suffix.lower() != ".zip"]
+
+
+def accion_archivar(exp: Expediente) -> str:
+    fecha = datetime.now()
+    destino = exp.ruta / f"{exp.referencia}_archivo_{fecha:%Y%m%d-%H%M%S}.zip"
+    ficheros = ficheros_a_archivar(exp)
+    manifiesto = {
+        "referencia": exp.referencia,
+        "nombre": exp.proyecto.get("nombre", ""),
+        "fecha_archivo": fecha.isoformat(timespec="seconds"),
+        "herramienta": f"revisor-informes {__version__}",
+        "algoritmo_hash": "sha256",
+        "ficheros": [{"ruta": f.relative_to(exp.ruta).as_posix(), "bytes": f.stat().st_size, "sha256": _sha256(f)}
+                     for f in ficheros],
+    }
+    with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in ficheros:
+            z.write(f, f.relative_to(exp.ruta).as_posix())
+        z.writestr("manifest.json", json.dumps(manifiesto, ensure_ascii=False, indent=2))
+    n_trazas = sum(1 for f in ficheros if f.parent.name == "trazas")
+    n_hist = sum(1 for f in ficheros if f.parent.name == "historial")
+    return (f"Archivo de evidencia: {destino}\n  {len(ficheros)} ficheros ({n_trazas} trazas LLM, {n_hist} versiones en "
+            f"historial) + manifest.json con sha256 de cada uno.\n"
+            "  Adjúntalo al expediente al cerrarlo en Pentana; para verificar la integridad después, recalcula los "
+            "sha256 y compáralos con manifest.json.")
+
+
+def verificar_archivo(ruta_zip: Path) -> list[str]:
+    """Recalcula los sha256 del zip contra su manifest.json. Devuelve la lista
+    de discrepancias (vacía = íntegro)."""
+    problemas = []
+    with zipfile.ZipFile(ruta_zip) as z:
+        manifiesto = json.loads(z.read("manifest.json"))
+        nombres = set(z.namelist())
+        for f in manifiesto["ficheros"]:
+            if f["ruta"] not in nombres:
+                problemas.append(f"falta {f['ruta']}")
+                continue
+            if hashlib.sha256(z.read(f["ruta"])).hexdigest() != f["sha256"]:
+                problemas.append(f"hash distinto: {f['ruta']}")
+    return problemas
+
+
 # ============================================================ 7. historial
 def accion_deshacer(exp: Expediente, clave: str = "informe") -> str:
     origen = exp.restaurar(clave)
@@ -689,6 +752,7 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
                         "avisos": sum(h["severidad"] == "aviso" for h in hall),
                         "modificado": datetime.fromtimestamp(exp.archivo("informe").stat().st_mtime),
                         "versiones": len(exp.historial("informe"))}
+    e["archivos"] = sorted(p.name for p in exp.ruta.glob("*_archivo_*.zip"))
     ppt = exp.ruta_ppt()
     if ppt.exists():
         e["ppt"] = {"ruta": ppt, "desactualizado": exp.existe("informe") and
@@ -712,7 +776,13 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
         elif e["ppt"] is None or e["ppt"]["desactualizado"]:
             e["siguiente"] = "`ppt` para generar (o regenerar) el Resumen Ejecutivo"
         else:
-            e["fase"], e["siguiente"] = "4 · Entregable generado", "Seguir editando el informe y regenerar `ppt`, o cerrar."
+            e["fase"] = "4 · Entregable generado"
+            ultimo = e["archivos"][-1] if e["archivos"] else None
+            archivo_actual = ultimo and (exp.ruta / ultimo).stat().st_mtime >= exp.archivo("informe").stat().st_mtime
+            e["siguiente"] = ("Informe emitido y archivado. Seguir editando y regenerar `ppt` + `archivar` si cambia."
+                              if archivo_actual else
+                              "`archivar`: generar el zip de evidencia (trazas, historial, informe, PPT + manifest sha256) "
+                              "para adjuntarlo al expediente al cerrarlo en Pentana")
     return e
 
 
@@ -734,5 +804,7 @@ def accion_estado(exp: Expediente, checker: StyleChecker | None = None, llm_desc
     L.append(f"  Instrucciones pendientes: {'sí' if e['instrucciones_pendientes'] else 'no'}")
     if e["ppt"]:
         L.append(f"  PPT: {e['ppt']['ruta'].name}" + (" (anterior a la última edición del informe)" if e["ppt"]["desactualizado"] else ""))
+    if e.get("archivos"):
+        L.append(f"  Archivos de evidencia: {', '.join(e['archivos'])}")
     L.append(f"  ▶ Siguiente: {e['siguiente']}")
     return "\n".join(L)
