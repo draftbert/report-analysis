@@ -103,3 +103,11 @@ def test_redactar_tras_aprobar_incluye_todo(contexto):
     salida = accion_redactar_conclusiones(contexto)
     assert "Detalle de conclusiones (2)" in salida and "NO incluidas" not in salida
     assert COLETILLA not in contexto.exp.leer("informe")
+
+
+def test_prompt_extraer_pide_una_conclusion_por_prueba_con_ejemplo(contexto):
+    _extraer(contexto)
+    prompt = contexto.llm.llamadas[0][1]
+    assert "UNA conclusión por prueba" in prompt and "EJEMPLO DE REFERENCIA" in prompt
+    assert "Limitaciones en el mantenimiento de los tarifarios" in prompt   # config/ejemplo_conclusion.md
+    assert "no deben reutilizarse" in prompt

@@ -69,7 +69,10 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 #   El auditor los lee y edita hasta que encajen (`--secciones resumen` rehace solo una).
 
 # 2. Conclusiones y sugerencias de mejora
-./revisor extraer                    # recorre todas las pruebas; solo las concluidas CON INCIDENCIAS
+./revisor extraer                    # recorre todas las pruebas; solo las concluidas CON INCIDENCIAS.
+#   Por defecto UNA conclusión por prueba (sintetiza su bloque CONCLUSIONES); varias solo si son
+#   incidencias independientes. El registro y el nivel de detalle se guían por el ejemplo de
+#   referencia config/ejemplo_conclusion.md (editable por el equipo; sus cifras no se reutilizan).
 #   → 01_conclusiones.md: por incidencia, Tipo (conclusion|sugerencia), Prueba, riesgo, Área /
 #     Responsable / Plazo / Ref. recomendación, y los bloques Incidencia / Causa raíz /
 #     Cómo se ha llegado (viñetas con datos) / Consecuencias / Recomendación (varias = varios párrafos).
@@ -203,6 +206,7 @@ modelo evita al redactar.
 
 ```
 config/estilo.yaml          Criterio de estilo (editable por el equipo)
+config/ejemplo_conclusion.md  Ejemplo de referencia de una conclusión (registro objetivo; se inyecta en `extraer`)
 audit_agent/expediente.py   Carpeta de trabajo: ficheros, snapshots, trazas
 audit_agent/formato_md.py   Markdown de ida y vuelta (render ↔ parse) de conclusiones e informe
 audit_agent/acciones.py     Las acciones del flujo (redactar-contexto, extraer, recomendar, redactar-conclusiones, aplicar-cambios, ppt…)
