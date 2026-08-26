@@ -11,7 +11,8 @@ Convenciones (tolerantes a mayúsculas, tildes y espacios):
     - Estado: propuesta | aprobada | descartada
     - Prueba: 2.11 a) …                       (referencia del papel de trabajo)
     - Nivel de riesgo: Alto | Medio | Bajo [ (propuesto por el modelo, sin evidencia en PT) ]
-    - Responsable: ...
+    - Área: ...            - Responsable: ...            - Plazo: ...
+    - Ref. recomendación: TMSCIIF-10   (recomendación abierta de otra auditoría a la que se remite)
     - Fuente: ...
     **Incidencia detectada:** texto (puede ocupar varios párrafos, tablas, listas)
     **Causa raíz:** ...
@@ -45,7 +46,10 @@ ETIQUETA_PROPUESTA = "Propuesta de mejora"   # etiqueta de `recomendacion` cuand
 CAMPOS_META = [
     ("prueba", "Prueba"),
     ("nivel_riesgo", "Nivel de riesgo"),
+    ("area", "Área"),
     ("responsable", "Responsable"),
+    ("plazo", "Plazo"),
+    ("referencia_recomendacion", "Ref. recomendación"),
     ("fuente", "Fuente"),
 ]
 
@@ -65,7 +69,10 @@ _CLAVES.update({
     "estado": "estado", "tipo": "tipo", "notas del auditor": "notas", "notas": "notas",
     _norm(ETIQUETA_PROPUESTA): "recomendacion", "propuesta": "recomendacion",
     "incidencia": "incidencia", "causa": "causa_raiz", "como se ha llegado a ella": "como_se_ha_llegado",
-    "como": "como_se_ha_llegado", "consecuencia": "consecuencias", "nivel": "nivel_riesgo", "riesgo": "nivel_riesgo",
+    "como": "como_se_ha_llegado", "detalles descriptivos": "como_se_ha_llegado", "consecuencia": "consecuencias",
+    "nivel": "nivel_riesgo", "riesgo": "nivel_riesgo", "ref recomendacion": "referencia_recomendacion",
+    "referencia recomendacion": "referencia_recomendacion", "referencia": "referencia_recomendacion",
+    "ref.": "referencia_recomendacion",
 })
 
 
@@ -104,7 +111,8 @@ def _bloque(c: dict, cabecera: str, con_estado: bool, con_notas: bool) -> str:
             continue  # en el informe no se muestra la fuente interna
         if clave == "nivel_riesgo" and c.get("riesgo_propuesto") and valor:
             valor = f"{valor} {COLETILLA_RIESGO_PROPUESTO}"
-        if clave in ("responsable", "nivel_riesgo") and tipo == "sugerencia" and not valor and not con_estado:
+        if clave in ("area", "responsable", "plazo", "nivel_riesgo", "referencia_recomendacion") \
+                and tipo == "sugerencia" and not valor and not con_estado:
             continue
         lineas.append(f"- {etiqueta}: {valor}")
     lineas.append("")
@@ -131,7 +139,9 @@ CABECERA_CONCLUSIONES = """# Detalle de conclusiones y sugerencias de mejora —
 >   mejora sin plan de acción (irá a «Sugerencias de mejora»). Cámbialo si procede.
 > - Corrige el texto directamente y cambia `Estado: propuesta` por `aprobada` o `descartada`.
 > - Recomendación: si la tienes, escríbela en «Recomendación:» y se respetará tal cual
->   (`recomendar` solo le da formato). Si la dejas vacía, `recomendar` la propone.
+>   (`recomendar` solo le da formato). Si la dejas vacía, `recomendar` la propone. Varias
+>   recomendaciones: un párrafo cada una (en el PPT se numeran N.1, N.2…).
+> - Área / Responsable / Plazo / Ref. recomendación: rellénalos si no vienen del papel de trabajo.
 > - Si quieres que el modelo rehaga un bloque, escribe qué cambiar en «Notas del auditor»
 >   y ejecuta `regenerar C-XX`. `revisar-conclusiones` comprueba vocabulario y campos.
 > - Cuando estén aprobadas y con recomendación, ejecuta `redactar-conclusiones`.
@@ -199,8 +209,9 @@ def render_informe(datos: dict, proyecto: dict) -> str:
 # ====================================================================== PARSE
 def _parsear_bloque(lineas: list[str]) -> dict:
     """Parsea las líneas de una conclusión (sin la cabecera) a dict."""
-    c: dict = {"tipo": "conclusion", "estado": "propuesta", "prueba": "", "nivel_riesgo": "", "responsable": "",
-               "fuente": "", "notas": "", "riesgo_propuesto": False}
+    c: dict = {"tipo": "conclusion", "estado": "propuesta", "prueba": "", "nivel_riesgo": "", "area": "",
+               "responsable": "", "plazo": "", "referencia_recomendacion": "", "fuente": "", "notas": "",
+               "riesgo_propuesto": False}
     for clave, _ in CAMPOS_TEXTO:
         c[clave] = ""
     campo_actual: str | None = None

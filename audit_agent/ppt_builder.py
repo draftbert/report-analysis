@@ -31,6 +31,9 @@ from pptx.util import Inches, Pt
 # Paleta sobria
 INK = RGBColor(0x1A, 0x1A, 0x1A)
 GRIS = RGBColor(0x6B, 0x6B, 0x6B)
+GRIS_BANDA = RGBColor(0xA6, 0xA6, 0xA6)
+GRIS_CAJA = RGBColor(0xF2, 0xF2, 0xF2)
+GRIS_CLARO = RGBColor(0xD9, 0xD9, 0xD9)
 BLANCO = RGBColor(0xFF, 0xFF, 0xFF)
 COLOR_RIESGO = {
     "Alto": RGBColor(0xB3, 0x26, 0x1E),
@@ -49,6 +52,14 @@ def _md_plano(texto: str) -> str:
     t = re.sub(r"^\|?\s*-{3,}\s*(\|\s*-{3,}\s*)*\|?\s*$", "", t, flags=re.M)  # separadores de tabla
     t = re.sub(r"^\|\s*(.*?)\s*\|\s*$", lambda m: " · ".join(x.strip() for x in m.group(1).split("|")), t, flags=re.M)
     return re.sub(r"\n{3,}", "\n\n", t).strip()
+
+
+def _altura(texto: str, ancho, tam: float):
+    """Altura estimada de un texto a `tam` puntos en un cuadro de `ancho` EMU
+    (aprox. 0.55·tam puntos por carácter; interlineado 1.25)."""
+    chars_por_linea = max(20, int(ancho / Pt(tam * 0.55)))
+    lineas = sum(max(1, -(-len(l) // chars_por_linea)) for l in texto.splitlines() or [""])
+    return Pt(tam * 1.25) * lineas + Pt(8)
 
 
 def _resumir(texto: str, maximo: int) -> str:
@@ -148,40 +159,73 @@ class ConstructorResumenEjecutivo:
 
     # --------------------------------- 5. Detalle de conclusión / sugerencia
     def detalle_conclusion(self, num: int, c: dict, es_sugerencia: bool = False):
+        """Reproduce la diapositiva corporativa de «Detalle de conclusiones»:
+        banda lateral con el riesgo en vertical, título numerado, cuerpo en
+        prosa (incidencia + causa), caja de «detalles descriptivos», párrafo de
+        consecuencias y columna derecha con recomendación numerada N.1, N.2…,
+        referencia, área, responsable y plazo."""
         s = self._nueva()
-        nivel = str(c.get("nivel_riesgo", "")).capitalize()
-        prefijo = "Sugerencia de mejora" if es_sugerencia else "Conclusión"
-        _caja(s, Inches(0.7), Inches(0.4), Inches(9.8), Inches(0.9),
-              f"{prefijo} {num}: {c.get('titulo', '')}", tam=20, negrita=True)
+        nivel = str(c.get("nivel_riesgo", "")).strip().capitalize()
+        _caja(s, Inches(0.7), Inches(0.25), Inches(11.9), Inches(0.8),
+              "Sugerencias de mejora" if es_sugerencia else "Detalle de conclusiones", tam=30, color=INK)
+        # Línea superior y banda lateral con el riesgo en vertical (letra por línea, como la plantilla)
+        linea = s.shapes.add_shape(1, Inches(0.55), Inches(1.15), Inches(12.2), Pt(1.5))
+        linea.fill.solid(); linea.fill.fore_color.rgb = GRIS_CLARO; linea.line.fill.background()
+        banda = s.shapes.add_shape(1, Inches(0.55), Inches(1.2), Inches(0.32), Inches(5.6))
+        banda.fill.solid(); banda.fill.fore_color.rgb = GRIS_BANDA; banda.line.fill.background()
+        etiqueta = "SUGERENCIA" if es_sugerencia else ("RIESGO\n\n" + (nivel.upper() if nivel else "N/D"))
+        tf = banda.text_frame
+        tf.word_wrap = True
+        tf.margin_left = tf.margin_right = 0
+        for k, letra in enumerate("\n".join(" " if ch == " " else ch for ch in etiqueta.replace("\n", " ")).split("\n")):
+            par = tf.paragraphs[0] if k == 0 else tf.add_paragraph()
+            par.alignment = PP_ALIGN.CENTER
+            r = par.add_run(); r.text = letra; r.font.size = Pt(8); r.font.color.rgb = BLANCO; r.font.name = "Calibri"
+
+        X, W = Inches(1.05), Inches(8.3)   # columna principal
+        _caja(s, X, Inches(1.3), W, Inches(0.55), f"{num:02d} {c.get('titulo', '')}", tam=15, negrita=True)
+        prosa = "\n\n".join(t for t in (_md_plano(c.get("incidencia", "")), _md_plano(c.get("causa_raiz", ""))) if t)
+        y = Inches(1.95)
+        h_prosa = _altura(prosa, W, 11)
+        _caja(s, X, y, W, h_prosa, prosa, tam=11, interlineado=4)
+        y += h_prosa + Inches(0.1)
+        detalles = c.get("como_se_ha_llegado", "").strip()
+        if detalles:
+            items = [re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", l).strip() for l in _md_plano(detalles).splitlines() if l.strip()]
+            cuerpo = "A continuación, se muestran los detalles descriptivos de la situación anterior:\n" + \
+                     "\n".join(f"  / {it}" for it in items)
+            h_det = _altura(cuerpo, W - Inches(0.3), 10.5)
+            caja = s.shapes.add_shape(1, X, y, W, h_det)
+            caja.fill.solid(); caja.fill.fore_color.rgb = GRIS_CAJA
+            caja.line.color.rgb = GRIS_BANDA; caja.line.width = Pt(0.75)
+            _caja(s, X + Inches(0.1), y + Inches(0.05), W - Inches(0.2), h_det - Inches(0.1), cuerpo, tam=10.5, interlineado=3)
+            y += h_det + Inches(0.12)
+        consecuencias = _md_plano(c.get("consecuencias", ""))
+        if consecuencias:
+            _caja(s, X, y, W, min(_altura(consecuencias, W, 11), Inches(6.9) - y), consecuencias, tam=11)
+
+        # Columna derecha: recomendación(es), referencia, área / responsable / plazo
+        XR, WR = Inches(9.55), Inches(1.95)
+        recs = [r.strip() for r in re.split(r"\n\s*\n|\n(?=\s*[-*•]\s)", c.get("recomendacion", "").strip()) if r.strip()]
+        recs = [re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", r) for r in recs]
+        yr = Inches(1.3)
+        for k, rec in enumerate(recs, 1):
+            titulo = f"{'Propuesta' if es_sugerencia else 'Recomendación'} {num}.{k}" if len(recs) > 1 or not es_sugerencia \
+                else "Propuesta de mejora"
+            _caja(s, XR, yr, WR, Inches(0.3), titulo, tam=10.5, negrita=True)
+            yr += Inches(0.3)
+            h = _altura(rec, WR, 9.5)
+            _caja(s, XR, yr, WR, h, rec, tam=9.5)
+            yr += h + Inches(0.08)
+        if c.get("referencia_recomendacion"):
+            _caja(s, XR, yr, WR, Inches(0.3), f"Ref.-{c['referencia_recomendacion']}", tam=9.5, color=GRIS)
         if not es_sugerencia:
-            chip = s.shapes.add_shape(1, Inches(10.9), Inches(0.45), Inches(1.7), Inches(0.5))
-            chip.fill.solid()
-            chip.fill.fore_color.rgb = COLOR_RIESGO.get(nivel, GRIS)
-            chip.line.fill.background()
-            p = chip.text_frame.paragraphs[0]
-            p.alignment = PP_ALIGN.CENTER
-            r = p.add_run()
-            r.text = f"Riesgo {nivel}" if nivel else "Riesgo N/D"
-            r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = BLANCO
-        if c.get("prueba"):
-            _caja(s, Inches(0.7), Inches(1.25), Inches(11.9), Inches(0.35), f"Prueba: {c['prueba']}", tam=11, color=GRIS)
-        bloques = [
-            ("Incidencia detectada", c.get("incidencia", "")),
-            ("Causa raíz", c.get("causa_raiz", "")),
-            ("Cómo se ha llegado", _resumir(_md_plano(c.get("como_se_ha_llegado", "")), 600)),
-            ("Consecuencias", c.get("consecuencias", "")),
-            ("Propuesta de mejora" if es_sugerencia else "Recomendación", c.get("recomendacion", "")),
-        ]
-        y = Inches(1.65)
-        alturas = [Inches(1.05), Inches(0.8), Inches(1.25), Inches(0.8), Inches(1.0)]
-        for (titulo, cuerpo), h in zip(bloques, alturas):
-            _caja(s, Inches(0.7), y, Inches(2.4), Inches(0.4), titulo, tam=12, negrita=True, color=GRIS)
-            _caja(s, Inches(3.2), y, Inches(9.4), h, _md_plano(cuerpo), tam=11)
-            y += h + Inches(0.08)
-        if not es_sugerencia:
-            _caja(s, Inches(0.7), Inches(6.95), Inches(11.9), Inches(0.4),
-                  f"Responsable del plan de acción: {c.get('responsable') or 'Pendiente de asignar'}",
-                  tam=12, negrita=True)
+            XM, WM = Inches(11.6), Inches(1.5)
+            ym = Inches(1.3)
+            for etiqueta, clave in (("Área", "area"), ("Responsable", "responsable"), ("Plazo", "plazo")):
+                _caja(s, XM, ym, WM, Inches(0.3), etiqueta, tam=10, color=GRIS)
+                _caja(s, XM, ym + Inches(0.27), WM, Inches(0.5), c.get(clave) or "Pendiente", tam=10.5)
+                ym += Inches(0.85)
 
     # ----------------------------------------------------------------
     def guardar(self, ruta: str | Path) -> Path:

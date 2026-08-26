@@ -69,8 +69,9 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 
 # 2. Conclusiones y sugerencias de mejora
 ./revisor extraer                    # recorre todas las pruebas; solo las concluidas CON INCIDENCIAS
-#   → 01_conclusiones.md: por incidencia, Tipo (conclusion|sugerencia), Prueba, riesgo, y los bloques
-#     Incidencia / Causa raíz / Cómo se ha llegado / Consecuencias / Recomendación.
+#   → 01_conclusiones.md: por incidencia, Tipo (conclusion|sugerencia), Prueba, riesgo, Área /
+#     Responsable / Plazo / Ref. recomendación, y los bloques Incidencia / Causa raíz /
+#     Cómo se ha llegado (viñetas con datos) / Consecuencias / Recomendación (varias = varios párrafos).
 #   Si el PT no habla de severidad, el riesgo lleva "(propuesto por el modelo, sin evidencia en PT)":
 #   `aprobar` quita la coletilla (el auditor lo ha validado).
 ./revisor aprobar C-01 C-03          # o `aprobar todas`, `descartar C-04`
@@ -91,7 +92,9 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor diff | deshacer | historial     # control de versiones
 
 # 4. Entregable y cierre
-./revisor ppt                        # salidas/ResumenEjecutivo_TEC-2026.pptx
+./revisor ppt                        # salidas/ResumenEjecutivo_TEC-2026.pptx: una diapositiva por conclusión
+#   con el diseño corporativo de «Detalle de conclusiones»: banda de riesgo, título numerado, prosa,
+#   caja de detalles descriptivos, consecuencias, Recomendación N.1/N.2, Ref., Área/Responsable/Plazo
 ./revisor archivar                   # zip de evidencia con manifest sha256
 
 # Texto suelto (p. ej. un párrafo copiado de Pentana), sin expediente:
