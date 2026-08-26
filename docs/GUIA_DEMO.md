@@ -202,8 +202,10 @@ couriers en la introducción.
 ```
 
 **Qué enseñar:** el `.pptx` (carátula, introducción, resumen ejecutivo, índice
-de conclusiones con chip de riesgo, una diapositiva por conclusión con sus
-cinco bloques, sugerencias de mejora); el zip de `archivar` con `trazas/`,
+de conclusiones con chip de riesgo, y **una diapositiva por conclusión con el
+diseño corporativo**: banda de riesgo, título numerado, prosa, caja de detalles
+descriptivos, consecuencias y, a la derecha, Recomendación N.1, Ref., Área /
+Responsable / Plazo; sugerencias de mejora); el zip de `archivar` con `trazas/`,
 `historial/`, informe, PPT y `manifest.json` con sha256 ("esto se adjunta al
 expediente en Pentana"); y una traza JSON medio segundo: prompt, respuesta,
 tokens.

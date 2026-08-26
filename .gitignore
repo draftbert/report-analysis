@@ -15,3 +15,4 @@ expedientes/*/*_archivo_*.zip
 # Salidas generadas en la raíz
 salidas/
 **/calibracion_estilo_trazas/
+docs/referencia/*.png   # capturas internas de referencia, no se versionan

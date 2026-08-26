@@ -252,9 +252,13 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "Reglas:\n"
             "- Una conclusión por incidencia real (no fragmentes ni fusiones); si una prueba tiene varias incidencias "
             "independientes, varias conclusiones, cada una con `prueba` = referencia de la prueba.\n"
-            "- `incidencia`: qué se ha detectado. `causa_raiz`: por qué, inferida del PT (vacía si no se puede). "
-            "`como_se_ha_llegado`: cómo se ha llegado a ella, con los datos, muestras y tablas del PT en Markdown "
-            "(reproduce tablas y listas relevantes; no inventes cifras). `consecuencias`: consecuencia(s).\n"
+            "- Cada conclusión se presenta después en una diapositiva con esta lectura: título numerado; cuerpo en "
+            "prosa (`incidencia`: qué ocurre y cómo se hace hoy; `causa_raiz`: por qué); una caja «detalles "
+            "descriptivos de la situación anterior» (`como_se_ha_llegado`: viñetas con los datos concretos del PT: "
+            "volúmenes, importes, componentes, muestras); y un párrafo de cierre (`consecuencias`: riesgo que genera, "
+            "si se ha materializado y si se ha podido cuantificar). Redacta cada campo para ese uso; no inventes cifras.\n"
+            "- `area`, `responsable`, `plazo`: solo si el PT los indica. `referencia_recomendacion`: código de la "
+            "recomendación abierta a la que se remite (p. ej. TMSCIIF-10), si consta.\n"
             "- `recomendacion`: SOLO si el PT la contiene o referencia (p. ej. una recomendación abierta de otra "
             "auditoría); cópiala literal y marca `recomendacion_del_pt`=true. Si una recomendación se referencia a "
             "nivel de prueba, asígnala ÚNICAMENTE a la(s) conclusión(es) cuya incidencia cubre directamente; no la "
@@ -276,6 +280,8 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
         marca = "✔" if not n_err else f"✖ {n_err} hallazgos"
         nivel = (c["nivel_riesgo"] or "N/D") + ("*" if c.get("riesgo_propuesto") else "")
         rec = "rec. del PT" if c["recomendacion"] else "sin recomendación"
+        if c.get("referencia_recomendacion"):
+            rec += f" (ref. {c['referencia_recomendacion']})"
         lineas.append(f"  {c['id']}  [{c['tipo'][:4]}] [{nivel:6}] {c['titulo'][:60]}  ({c['prueba'][:18]}) {marca} · {rec}")
     if any(c.get("riesgo_propuesto") for c in conclusiones):
         lineas.append("  (*) nivel de riesgo propuesto por el modelo sin evidencia en el PT: valídalo al aprobar "

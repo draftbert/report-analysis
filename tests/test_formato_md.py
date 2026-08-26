@@ -48,3 +48,15 @@ def test_informe_round_trip_y_pendientes():
     assert back["sugerencias"][0]["recomendacion"] == "Automatizar la alerta"
     vacio = parsear_informe(render_informe({"introduccion": "", "resumen_ejecutivo": ""}, PROY))
     assert vacio == {"introduccion": "", "resumen_ejecutivo": "", "conclusiones": [], "sugerencias": []}
+
+
+def test_metadatos_plan_de_accion_round_trip():
+    c = {**C1, "area": "FLF", "responsable": "A. Veiga", "plazo": "Fuera de plazo", "referencia_recomendacion": "TMSCIIF-10",
+         "recomendacion": "Rec 1.\n\nRec 2."}
+    md = render_conclusiones([c], PROY)
+    assert "- Área: FLF" in md and "- Plazo: Fuera de plazo" in md and "- Ref. recomendación: TMSCIIF-10" in md
+    back = parsear_conclusiones(md)[0]
+    assert (back["area"], back["responsable"], back["plazo"], back["referencia_recomendacion"]) == ("FLF", "A. Veiga", "Fuera de plazo", "TMSCIIF-10")
+    assert back["recomendacion"] == "Rec 1.\n\nRec 2."
+    inf = parsear_informe(render_informe({"introduccion": "I", "resumen_ejecutivo": "R", "conclusiones": [c], "sugerencias": []}, PROY))
+    assert inf["conclusiones"][0]["plazo"] == "Fuera de plazo" and inf["conclusiones"][0]["referencia_recomendacion"] == "TMSCIIF-10"
