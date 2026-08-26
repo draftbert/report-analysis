@@ -13,3 +13,6 @@ openpyxl>=3.1            # lectura de .xlsx en entrada/
 pdfplumber>=0.11         # lectura de .pdf con capa de texto en entrada/
 pytest>=8.0              # tests deterministas (tests/)
 # Opcional (proveedor alternativo a KAIA): pip install anthropic
+pymupdf>=1.24             # extractor de PDF (audit_agent/extractores/pdf_.py)
+pytesseract>=0.3.10       # OCR opcional; requiere el binario tesseract-ocr + tesseract-ocr-spa en el sistema
+Pillow>=10.0

@@ -131,17 +131,28 @@ Sin proveedor configurado, todo lo determinista sigue funcionando
 
 `contexto/` (design thinking, planificación: alimenta introducción y resumen, y
 solo orienta a `extraer`) y `papeles_trabajo/` (papel de trabajo final: fuente de
-las conclusiones) admiten `.md`, `.txt` (incluido texto pegado desde Excel: se normalizan
-tabulaciones y celdas entre comillas), `.docx` (tablas conservadas como tablas Markdown),
-`.xlsx` (cada hoja como sección; bloques tabulares como tablas, celdas largas como
-párrafos) y `.pdf` con capa de texto (sin OCR: un PDF escaneado da un error claro
-pidiendo otra exportación). La capa de lectura está en `audit_agent/lectores.py`:
-dada una ruta devuelve Markdown normalizado conservando la estructura que exista,
-sin inventar secciones. Cada `extraer` deja en `trazas/*_extraer-entrada.json` de qué carpeta viene
-cada documento, qué lector se usó y el texto exacto enviado al modelo, para auditar la fidelidad de la
-lectura. Cuando se conozca el formato real de Pentana, añadir un lector es una
-función más registrada en `LECTORES`. `scripts/generar_ejemplos_entrada.py` genera
-los ficheros sintéticos de `ejemplos/entrada_sintetica/` usados en los tests.
+las conclusiones) admiten `.md` y `.txt` (incluido texto pegado desde Excel: se
+normalizan tabulaciones y celdas entre comillas) y, a través de los extractores de
+`audit_agent/extractores/`, `.docx`, `.xlsx`, `.pdf` y `.pptx`:
+
+- **DOCX**: recorrido en el orden real del documento (párrafos y tablas
+  intercalados), `Heading n` → `#`×n, listas, tablas Markdown, imágenes con OCR.
+- **XLSX**: una sección por hoja; la primera fila no vacía es la cabecera de la
+  tabla; valores calculados (no fórmulas).
+- **PDF**: PyMuPDF a nivel de línea (tamaño y negrita para detectar encabezados;
+  numeración de epígrafes; cabeceras/pies repetidos descartados; tablas
+  detectadas y validadas; columnas reales por recurrencia). Páginas sin texto →
+  OCR con Tesseract si está instalado (`apt install tesseract-ocr tesseract-ocr-spa`);
+  si no hay texto ni OCR, error claro pidiendo otra exportación.
+- **PPTX**: una sección por diapositiva (título de la diapositiva), cuadros,
+  tablas, notas del orador e imágenes con OCR.
+
+Los extractores producen bloques tipados (`models.py`) y un único renderizador
+(`markdown.py`) los vuelca a Markdown, igual para todos los formatos. Cada
+`extraer`/`redactar-contexto` deja en `trazas/*-entrada.json` de qué carpeta viene
+cada documento, qué lector se usó y el texto exacto enviado al modelo.
+`scripts/generar_ejemplos_entrada.py` genera los ficheros sintéticos de
+`ejemplos/entrada_sintetica/` usados en los tests.
 
 ## Trazabilidad y retención
 
@@ -224,7 +235,8 @@ audit_agent/formato_md.py   Markdown de ida y vuelta (render ↔ parse) de concl
 audit_agent/acciones.py     Las acciones del flujo (redactar-contexto, extraer, recomendar, redactar-conclusiones, aplicar-cambios, ppt…)
 audit_agent/esquemas.py     Salidas estructuradas del LLM (Pydantic) — formato pivote
 audit_agent/style_checker.py  Reglas deterministas (texto y Markdown)
-audit_agent/lectores.py     Lectura de contexto/ y papeles_trabajo/ (.md/.txt/.docx/.xlsx/.pdf/.pptx) a Markdown
+audit_agent/lectores.py     Lectura de contexto/ y papeles_trabajo/ a Markdown (.md/.txt aquí; el resto vía extractores)
+audit_agent/extractores/    Extractores DOCX/PDF/PPTX/XLSX (bloques tipados + Markdown + OCR)
 audit_agent/calibracion.py  Calibración de estilo.yaml contra informes aprobados
 audit_agent/llm.py          Cliente LLM unificado (kaia | anthropic | dry-run) con trazas
 audit_agent/kaia_client.py  Transporte KAIA (OAuth2 + invoke con output_format_schema)

@@ -24,17 +24,26 @@ def test_lectura_conserva_contenido(ext, lector):
 
 def test_docx_conserva_estructura_y_tablas():
     texto = leer(SINTETICOS / "papel_trabajo_compras.docx").texto
-    assert "## Papel de trabajo" in texto and "#### Resultados" in texto
-    assert "| Ref. | Resultado | Evidencia |" in texto and "|---|---|---|" in texto
+    assert "# Papel de trabajo" in texto and "### Resultados" in texto   # Heading 1..3 -> #..###
+    assert "| Ref. | Resultado | Evidencia |" in texto and "| --- | --- | --- |" in texto
     assert "| R2 |" in texto
-    assert "- Extracto del módulo de compras (Anexo E1)" in texto  # viñeta
+    assert "- Extracto del módulo de compras (Anexo E1)" in texto  # viñeta (List Bullet)
 
 
 def test_xlsx_hojas_como_secciones_y_tabla():
     texto = leer(SINTETICOS / "papel_trabajo_compras.xlsx").texto
-    assert "## Hoja: Tarea 3.2" in texto and "## Hoja: Resultados" in texto
-    assert "| Ref. | Resultado | Evidencia |" in texto
-    assert "### Prueba realizada" in texto
+    assert "# Tarea 3.2" in texto and "# Resultados" in texto           # una sección por hoja
+    assert "| Ref. | Resultado | Evidencia |" in texto                   # primera fila = cabecera
+    assert "Prueba realizada" in texto
+
+
+def test_extractores_directos():
+    from audit_agent.extractores import a_markdown, extraer_paginas
+    from audit_agent.extractores.models import Heading, Table
+    paginas = extraer_paginas(SINTETICOS / "papel_trabajo_compras.docx")
+    assert len(paginas) == 1 and isinstance(paginas[0].blocks[0], Heading) and paginas[0].blocks[0].level == 1
+    assert any(isinstance(b, Table) and b.headers == ["Ref.", "Resultado", "Evidencia"] for b in paginas[0].blocks)
+    assert a_markdown(SINTETICOS / "papel_trabajo_compras.xlsx").startswith("# Tarea 3.2")
 
 
 def test_pdf_sin_texto_error_claro(tmp_path):
@@ -97,7 +106,7 @@ def test_pptx_texto_por_diapositiva(tmp_path):
     ruta = tmp_path / "informe.pptx"
     prs.save(str(ruta))
     doc = leer(ruta)
-    assert doc.lector == "pptx" and "## Diapositiva 1" in doc.texto
+    assert doc.lector == "pptx" and "# Diapositiva 1" in doc.texto
     assert "Resumen ejecutivo" in doc.texto and "| Área | Plazo |" in doc.texto and "| Compras | 30/09/2025 |" in doc.texto
 
 
