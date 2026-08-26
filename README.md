@@ -35,7 +35,8 @@ cualquier editor (VS Code es ideal: vista previa Markdown + terminal al lado):
 ```
 expedientes/CNC-2026-03/
   expediente.yaml         nombre, referencia, fecha, distribución, notas para el modelo
-  entrada/                papel de trabajo final, contexto de la auditoría, anexos (.md, .txt, .docx, .xlsx, .pdf)
+  contexto/               design thinking, planificación, motivo y alcance previsto (opcional; .md/.txt/.docx/.xlsx/.pdf/.pptx)
+  papeles_trabajo/        papel de trabajo final con todas las pruebas (fuente de las conclusiones)
   01_conclusiones.md      conclusiones y sugerencias propuestas → el auditor edita, aprueba y recomienda
   02_informe.md           el informe: introducción · resumen ejecutivo · detalle de conclusiones · sugerencias
                           (cada apartado se escribe como se leerá en su diapositiva; `ppt` lo exporta 1:1)
@@ -44,7 +45,7 @@ expedientes/CNC-2026-03/
   cambios_aplicados.md    qué cambios pidió el modelo y cuáles se aplicaron
   historial/              snapshot automático antes de cada sobreescritura (`diff`, `deshacer`)
   salidas/                ResumenEjecutivo_<REF>.pptx
-  trazas/                 una entrada JSON por llamada al LLM (y el texto leído de entrada/)
+  trazas/                 una entrada JSON por llamada al LLM (y el texto leído de contexto/ y papeles_trabajo/)
   <REF>_archivo_<fecha>.zip  evidencia archivada al cierre (`archivar`)
 ```
 
@@ -58,14 +59,15 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ```bash
 ./revisor nuevo expedientes/TEC-2026 --nombre "Auditoría de Transporte e-Commerce" \
          --referencia TEC-2026 --distribucion "Dirección de Transporte, Comité de Auditoría"
-#   → copia a entrada/ el papel de trabajo final (todas las pruebas), el contexto de la
-#     auditoría, anexos, design thinking… Se admite texto pegado desde Excel.
+#   → al empezar la auditoría: design thinking / memorando de planificación en contexto/
+#   → al terminar el trabajo de campo: papel de trabajo final (todas las pruebas) en papeles_trabajo/
+#     Se admite texto pegado desde Excel.
 
 ./revisor estado            # en cualquier momento: fase actual y siguiente paso sugerido
 ./revisor menu              # lo mismo, con menú numerado
 
 # 1. Contexto del informe
-./revisor redactar-contexto          # introducción + resumen ejecutivo desde entrada/ → 02_informe.md
+./revisor redactar-contexto          # introducción + resumen ejecutivo desde contexto/ y papeles_trabajo/ → 02_informe.md
 #   El auditor los lee y edita hasta que encajen (`--secciones resumen` rehace solo una).
 
 # 2. Conclusiones y sugerencias de mejora
@@ -125,16 +127,18 @@ Con varios expedientes, fija el activo con `./revisor usar <ruta>` o pásalo con
 Sin proveedor configurado, todo lo determinista sigue funcionando
 (`estado`, `revisar`, `revisar-conclusiones`, `aprobar`, `redactar-conclusiones`, `diff`, `deshacer`, `ppt`, `archivar`).
 
-## Entrada: exportaciones de Pentana
+## Entrada: contexto y papeles de trabajo
 
-`entrada/` admite `.md`, `.txt` (incluido texto pegado desde Excel: se normalizan
+`contexto/` (design thinking, planificación: alimenta introducción y resumen, y
+solo orienta a `extraer`) y `papeles_trabajo/` (papel de trabajo final: fuente de
+las conclusiones) admiten `.md`, `.txt` (incluido texto pegado desde Excel: se normalizan
 tabulaciones y celdas entre comillas), `.docx` (tablas conservadas como tablas Markdown),
 `.xlsx` (cada hoja como sección; bloques tabulares como tablas, celdas largas como
 párrafos) y `.pdf` con capa de texto (sin OCR: un PDF escaneado da un error claro
 pidiendo otra exportación). La capa de lectura está en `audit_agent/lectores.py`:
 dada una ruta devuelve Markdown normalizado conservando la estructura que exista,
-sin inventar secciones. Cada `extraer` deja en `trazas/*_extraer-entrada.json` qué
-lector se usó y el texto exacto enviado al modelo, para auditar la fidelidad de la
+sin inventar secciones. Cada `extraer` deja en `trazas/*_extraer-entrada.json` de qué carpeta viene
+cada documento, qué lector se usó y el texto exacto enviado al modelo, para auditar la fidelidad de la
 lectura. Cuando se conozca el formato real de Pentana, añadir un lector es una
 función más registrada en `LECTORES`. `scripts/generar_ejemplos_entrada.py` genera
 los ficheros sintéticos de `ejemplos/entrada_sintetica/` usados en los tests.
@@ -143,7 +147,7 @@ los ficheros sintéticos de `ejemplos/entrada_sintetica/` usados en los tests.
 
 - `trazas/` guarda, por cada llamada al modelo, un JSON con fecha, acción, modelo,
   prompt completo, respuesta estructurada y tokens; y por cada lectura de
-  `entrada/`, el texto normalizado enviado. Es la evidencia de **cómo se redactó
+  `contexto/` y `papeles_trabajo/`, el texto normalizado enviado. Es la evidencia de **cómo se redactó
   cada conclusión**.
 - `historial/` guarda cada versión anterior de los ficheros de trabajo antes de que
   la herramienta los sobreescriba (`diff`, `deshacer`).
@@ -220,14 +224,14 @@ audit_agent/formato_md.py   Markdown de ida y vuelta (render ↔ parse) de concl
 audit_agent/acciones.py     Las acciones del flujo (redactar-contexto, extraer, recomendar, redactar-conclusiones, aplicar-cambios, ppt…)
 audit_agent/esquemas.py     Salidas estructuradas del LLM (Pydantic) — formato pivote
 audit_agent/style_checker.py  Reglas deterministas (texto y Markdown)
-audit_agent/lectores.py     Lectura de entrada/ (.md/.txt/.docx/.xlsx/.pdf) a Markdown normalizado
+audit_agent/lectores.py     Lectura de contexto/ y papeles_trabajo/ (.md/.txt/.docx/.xlsx/.pdf/.pptx) a Markdown
 audit_agent/calibracion.py  Calibración de estilo.yaml contra informes aprobados
 audit_agent/llm.py          Cliente LLM unificado (kaia | anthropic | dry-run) con trazas
 audit_agent/kaia_client.py  Transporte KAIA (OAuth2 + invoke con output_format_schema)
 audit_agent/reviewer.py     Revisión de texto suelto
 audit_agent/ppt_builder.py  Presentación del informe (PPT)
 audit_agent/cli.py          Comandos y menú interactivo
-ejemplos/                   Papel de trabajo real (tarifarios), borrador, entrada sintética y corpus de calibración
+ejemplos/                   Papel de trabajo real (tarifarios), contexto de ejemplo, borrador, entrada sintética y corpus
 scripts/                    Generación de ficheros de entrada sintéticos
 tests/                      Suite determinista (pytest)
 docs/referencia/            Proveedor KAIA original de audit-engine (referencia)

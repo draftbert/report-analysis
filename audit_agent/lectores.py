@@ -31,6 +31,7 @@ class Documento:
     lector: str
     texto: str        # Markdown normalizado
     avisos: list[str]
+    carpeta: str = ""  # contexto | papeles_trabajo (lo rellena el expediente)
 
 
 # ------------------------------------------------------------------ utilidades

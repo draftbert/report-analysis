@@ -111,30 +111,47 @@ def _contexto_proyecto(exp: Expediente) -> str:
     return "\n".join(lineas)
 
 
-def _cargar_entrada(exp: Expediente, accion: str) -> list[Documento]:
-    """Lee entrada/ con la capa de lectores y deja en trazas/ qué lector se
-    usó y el texto normalizado exacto que se envía al modelo (auditoría de
-    la fidelidad de la lectura)."""
-    docs = exp.leer_entrada()
-    if not docs:
-        raise ExpedienteError(f"No hay papeles de trabajo en {exp.ruta / 'entrada'} "
-                              f"(formatos: {', '.join(EXT_ENTRADA)}).")
+def _cargar_entrada(exp: Expediente, accion: str, carpetas: tuple[str, ...] = ("contexto", "papeles_trabajo"),
+                    requerir: str = "papeles_trabajo") -> list[Documento]:
+    """Lee las carpetas de documentos indicadas con la capa de lectores y deja
+    en trazas/ qué lector se usó y el texto normalizado exacto que se envía al
+    modelo (auditoría de la fidelidad de la lectura). `requerir` es la carpeta
+    que no puede estar vacía."""
+    docs = []
+    for carpeta in carpetas:
+        docs += exp.leer_documentos(carpeta)
+    if requerir and not any(d.carpeta == requerir for d in docs):
+        raise ExpedienteError(f"No hay documentos en {exp.ruta / requerir} (formatos: {', '.join(EXT_ENTRADA)}).")
     exp.trazar(f"{accion}-entrada", {
         "fecha": datetime.now().isoformat(timespec="seconds"), "accion": accion,
-        "documentos": [{"nombre": d.nombre, "lector": d.lector, "avisos": d.avisos,
+        "documentos": [{"carpeta": d.carpeta, "nombre": d.nombre, "lector": d.lector, "avisos": d.avisos,
                         "caracteres": len(d.texto), "texto_normalizado": d.texto} for d in docs]})
     return docs
 
 
+ETIQUETA_CARPETA = {"contexto": "CONTEXTO DE LA AUDITORÍA", "papeles_trabajo": "PAPEL DE TRABAJO"}
+
+
 def _texto_entrada(docs: list[Documento]) -> str:
+    """Documentos agrupados por carpeta, con cabecera que dice qué es cada uno."""
     partes, total = [], 0
-    for d in docs:
-        texto = d.texto
-        if total + len(texto) > MAX_CHARS_ENTRADA:
-            texto = texto[: max(0, MAX_CHARS_ENTRADA - total)] + "\n[... documento truncado ...]"
-        total += len(texto)
-        partes.append(f"===== DOCUMENTO: {d.nombre} (lector: {d.lector}) =====\n{texto.strip()}\n")
+    for carpeta in ("contexto", "papeles_trabajo", ""):
+        grupo = [d for d in docs if (d.carpeta or "") == carpeta]
+        if not grupo:
+            continue
+        if carpeta:
+            partes.append(f"########## {ETIQUETA_CARPETA[carpeta]} ##########")
+        for d in grupo:
+            texto = d.texto
+            if total + len(texto) > MAX_CHARS_ENTRADA:
+                texto = texto[: max(0, MAX_CHARS_ENTRADA - total)] + "\n[... documento truncado ...]"
+            total += len(texto)
+            partes.append(f"===== DOCUMENTO: {d.nombre} (lector: {d.lector}) =====\n{texto.strip()}\n")
     return "\n".join(partes)
+
+
+def _resumen_entrada(docs: list[Documento]) -> str:
+    return ", ".join(f"{d.nombre} [{d.carpeta or 'entrada'}, {d.lector}]" for d in docs)
 
 
 def _documentos_entrada(exp: Expediente, accion: str = "lectura") -> str:
@@ -236,8 +253,10 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
     plan = textos["plan_auditoria"].format(anio=anio)
     user = (f"{_contexto_proyecto(exp)}\n\n"
             "Redacta la INTRODUCCIÓN y el RESUMEN EJECUTIVO del informe de auditoría interna a partir de los "
-            "documentos de entrada (papel de trabajo final con todas las pruebas, contexto de la auditoría, anexos), "
-            "con la estructura de los informes aprobados del departamento.\n"
+            "documentos de entrada, con la estructura de los informes aprobados del departamento. Los documentos de "
+            "CONTEXTO DE LA AUDITORÍA (design thinking, planificación, motivo, riesgos, alcance previsto, magnitudes) "
+            "son la fuente principal de Contexto, Objetivo, Riesgos a cubrir, Alcance y Principales magnitudes; el "
+            "PAPEL DE TRABAJO aporta las pruebas realizadas y las conclusiones. Si no hay contexto, usa solo el PT.\n"
             "INTRODUCCIÓN (Markdown): empieza con este párrafo literal: «" + plan + "». Después, bloques con etiqueta "
             "en negrita: **Contexto:** (por qué se hace la auditoría, situación del proceso); **Objetivo de la "
             "auditoría:** (una frase, seguida de «Entre otros, los principales aspectos que se han revisado están "
@@ -253,8 +272,9 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
             "(una o dos frases: debilidad + efecto), en primera persona del plural cuando narre actuaciones del "
             "equipo, variando el arranque de cada viñeta (no repitas «Durante nuestra revisión hemos identificado» en "
             "todas: empieza por la debilidad, el proceso o el efecto); (4) párrafo final de valoración (madurez por ámbito si procede y "
-            "referencia a recomendaciones abiertas si consta). Sin reproducir campos uno a uno ni copiar "
-            "recomendaciones completas; sin inventar cifras.\n"
+            "referencia a recomendaciones abiertas si consta). Solo párrafos y viñetas: sin subtítulos ni etiquetas "
+            "(«Contexto», «Valoración»…). Sin reproducir campos uno a uno ni copiar recomendaciones completas; sin "
+            "inventar cifras.\n"
             "EVALUACIÓN GLOBAL: uno de " + " / ".join(textos["escala_evaluacion_global"]) + ", coherente con el "
             "resumen; vacío si la evidencia no permite sostenerla.\n\n"
             f"DOCUMENTOS DE ENTRADA:\n{_texto_entrada(docs)}{conclusiones_txt}")
@@ -270,8 +290,13 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
     snap = exp.escribir("informe", render_informe(datos, exp.proyecto), "redactar-contexto")
     hall = revisar_markdown(ctx.checker, exp.leer("informe"))
     errores = sum(h["severidad"] == "error" for h in hall)
+    n_ctx = sum(d.carpeta == "contexto" for d in docs)
     msg = [f"Introducción y resumen ejecutivo {'actualizados' if ya_hay else 'redactados'} en {exp.archivo('informe').name}"
-           + (f" (con {len(aprobadas)} conclusiones validadas como base del resumen)." if aprobadas else " a partir de entrada/.")]
+           + (f" (con {len(aprobadas)} conclusiones validadas como base del resumen)." if aprobadas else
+              f" a partir de {n_ctx} documento(s) de contexto y {len(docs) - n_ctx} papel(es) de trabajo.")]
+    if not n_ctx:
+        msg.append("Sin documentos en contexto/: la introducción se ha redactado solo con el papel de trabajo. Si tienes "
+                   "design thinking o memorando de planificación, déjalo en contexto/ y repite con --forzar.")
     if snap:
         msg.append(f"Versión anterior en historial/{snap.name}.")
     msg.append(f"Revisión determinista: {errores} errores, {len(hall) - errores} avisos" + (" ✔" if not hall else "."))
@@ -288,7 +313,8 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
     campos = "\n".join(f"- {k}: {v.description}" for k, v in ConclusionExtraida.model_fields.items())
     docs = _cargar_entrada(exp, "extraer")
     user = (f"{_contexto_proyecto(exp)}\n\n"
-            "Los documentos de entrada contienen el papel de trabajo final de la auditoría: una o varias PRUEBAS "
+            "Los documentos de CONTEXTO DE LA AUDITORÍA (si los hay) solo sirven para entender el motivo y el alcance: "
+            "NO generan conclusiones. El PAPEL DE TRABAJO contiene el papel de trabajo final de la auditoría: una o varias PRUEBAS "
             "numeradas (p. ej. «2.11. …»), cada una con CONTEXTO, OBJETIVO, PRUEBAS REALIZADAS (apartados a), b)…) y "
             "CONCLUSIONES, donde se indica si la prueba se concluye CON INCIDENCIAS o sin ellas.\n"
             "Recorre TODAS las pruebas de todos los documentos. Solo las concluidas CON INCIDENCIAS generan "
@@ -344,8 +370,7 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
         lineas.append("Pruebas sin incidencias: " + "; ".join(res.pruebas_sin_incidencia))
     if res.notas.strip():
         lineas.append(f"Notas del modelo: {res.notas.strip()}")
-    lineas.append("Entrada leída: " + ", ".join(f"{d.nombre} [{d.lector}]" for d in docs)
-                  + " — texto normalizado guardado en trazas/.")
+    lineas.append("Entrada leída: " + _resumen_entrada(docs) + " — texto normalizado guardado en trazas/.")
     lineas.append("\nSiguiente: revisa cada bloque, ajusta `Tipo:` si procede y marca `Estado: aprobada` (o `aprobar`); "
                   "después `recomendar` para las que no tengan recomendación.")
     return "\n".join(lineas)
@@ -980,7 +1005,8 @@ def accion_historial(exp: Expediente) -> str:
 # ============================================================ 8. estado
 def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> dict:
     e: dict = {"referencia": exp.referencia, "nombre": exp.proyecto.get("nombre", ""),
-               "entrada": [p.name for p in exp.ficheros_entrada()],
+               "contexto": [p.name for p in exp.ficheros("contexto")],
+               "papeles": [p.name for p in exp.ficheros("papeles_trabajo")],
                "conclusiones": None, "informe": None, "instrucciones_pendientes": bool(exp.instrucciones_pendientes()),
                "ppt": None, "siguiente": ""}
     if exp.existe("conclusiones"):
@@ -1010,8 +1036,10 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
                     ppt.stat().st_mtime < exp.archivo("informe").stat().st_mtime}
 
     c, inf = e["conclusiones"], e["informe"]
-    if not e["entrada"]:
-        e["fase"], e["siguiente"] = "0 · Sin entrada", f"Copia el papel de trabajo final, contexto y anexos a {exp.ruta / 'entrada'}"
+    if not e["papeles"]:
+        e["fase"] = "0 · Sin papeles de trabajo"
+        e["siguiente"] = (f"Copia el papel de trabajo final a {exp.ruta / 'papeles_trabajo'}"
+                          + ("" if e["contexto"] else f" y, si lo tienes, el design thinking / contexto a {exp.ruta / 'contexto'}"))
     elif inf is None or not inf["contexto"]:
         e["fase"], e["siguiente"] = "1 · Contexto del informe", "`redactar-contexto`: introducción y resumen ejecutivo a partir de entrada/ (luego valídalos)"
     elif c is None:
@@ -1053,7 +1081,8 @@ def accion_estado(exp: Expediente, checker: StyleChecker | None = None, llm_desc
          f"  Fase: {e['fase']}"]
     if llm_desc:
         L.append(f"  LLM: {llm_desc}")
-    L.append(f"  Entrada: {len(e['entrada'])} documento(s)" + (f" — {', '.join(e['entrada'])}" if e["entrada"] else ""))
+    L.append(f"  Contexto: {len(e['contexto'])} documento(s)" + (f" — {', '.join(e['contexto'])}" if e["contexto"] else " (opcional: design thinking, planificación)"))
+    L.append(f"  Papeles de trabajo: {len(e['papeles'])} documento(s)" + (f" — {', '.join(e['papeles'])}" if e["papeles"] else ""))
     if e["conclusiones"]:
         c = e["conclusiones"]
         L.append(f"  Conclusiones: {c['total']} ({c['sugerencias']} sugerencias de mejora) — aprobadas {c['aprobada']}, "

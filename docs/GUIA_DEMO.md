@@ -37,26 +37,28 @@ rm -rf expedientes/DEMO-VIVO && rm -f .expediente_activo
 
 ## 1. Crear el expediente y la entrada (2 min)
 
-**Qué decir:** "Cada auditoría es una carpeta. Cuando termina el trabajo de
-campo, el papel de trabajo final (todas las pruebas), el contexto de la
-auditoría y los anexos se dejan en `entrada/`; el resto lo va generando la
-herramienta y lo edita el auditor."
+**Qué decir:** "Cada auditoría es una carpeta. Al empezar, el design thinking o
+el memorando de planificación va a `contexto/`; cuando termina el trabajo de
+campo, el papel de trabajo final (todas las pruebas) va a `papeles_trabajo/`;
+el resto lo va generando la herramienta y lo edita el auditor."
 
 ```bash
 ./revisor nuevo expedientes/DEMO-VIVO --nombre "Auditoría de Transporte e-Commerce: tarifarios y SCA" \
     --referencia DEMO-VIVO --fecha "Junio 2026" \
     --distribucion "Dirección de Transporte e-Commerce, Dirección Financiera, Comité de Auditoría"
-cp ejemplos/papel_trabajo_tarifarios.txt expedientes/DEMO-VIVO/entrada/
+cp ejemplos/contexto_auditoria_tarifarios.md expedientes/DEMO-VIVO/contexto/
+cp ejemplos/papel_trabajo_tarifarios.txt expedientes/DEMO-VIVO/papeles_trabajo/
 ./revisor estado
 ```
 
 **Qué enseñar:** la carpeta en el explorador y la salida de `estado`:
-`Fase: 1 · Contexto del informe` y el **siguiente paso sugerido**. Abre
-`entrada/papel_trabajo_tarifarios.txt`: es la prueba 2.11 tal cual se pegó
+`Fase: 1 · Contexto del informe`, los documentos de cada carpeta y el
+**siguiente paso sugerido**. Abre `contexto/contexto_auditoria_tarifarios.md`
+(el design thinking) y `papeles_trabajo/papel_trabajo_tarifarios.txt`: es la prueba 2.11 tal cual se pegó
 desde Excel (contexto, objetivo, pruebas realizadas, conclusiones "CON
 INCIDENCIAS" y referencia a la recomendación abierta TMSCIIF-10).
 
-> Si preguntan por formatos: `entrada/` admite Word, Excel y PDF con texto, y
+> Si preguntan por formatos: las dos carpetas admiten Word, Excel, PDF con texto, PowerPoint y
 > texto pegado desde Excel (se normaliza solo).
 
 ---
@@ -69,7 +71,8 @@ INCIDENCIAS" y referencia a la recomendación abierta TMSCIIF-10).
 
 **Mientras responde (≈30 s), qué decir:** "El informe tiene cuatro partes:
 introducción, resumen ejecutivo, detalle de conclusiones y sugerencias de
-mejora. Empezamos por las dos primeras, que salen del contexto y del papel de
+mejora. Empezamos por las dos primeras: el contexto, objetivo, riesgos y
+magnitudes salen del design thinking; las pruebas y conclusiones, del papel de
 trabajo. El auditor las lee y las deja a su gusto antes de seguir."
 
 **Qué enseñar:** `02_informe.md` en vista previa: introducción y resumen ya

@@ -26,9 +26,11 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 
 ## Mapa
 `cli.py` (comandos/menú) → `acciones.py` (flujo) → `expediente.py` (ficheros) + `formato_md.py`
-(Markdown ↔ dict) + `lectores.py` (entrada/ → Markdown) + `llm.py`/`kaia_client.py` (modelo) +
+(Markdown ↔ dict) + `lectores.py` (contexto/ y papeles_trabajo/ → Markdown) + `llm.py`/`kaia_client.py` (modelo) +
 `style_checker.py` (reglas) + `ppt_builder.py` + `calibracion.py` (estilo.yaml vs informes aprobados).
 
+- Entrada: `contexto/` (design thinking; alimenta intro/resumen, solo orienta a extraer) y `papeles_trabajo/`
+  (fuente de las conclusiones). `entrada/` antiguo se lee como papeles_trabajo.
 - Flujo: redactar-contexto (intro+resumen) → extraer (conclusiones) → aprobar → recomendar →
   redactar-conclusiones → aplicar-cambios/revisar/corregir → ppt → archivar.
 - Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;
