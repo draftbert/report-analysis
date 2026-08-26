@@ -68,22 +68,28 @@ reglas:
   requiere_nivel_riesgo: true      # toda observación debe tener Alto/Medio/Bajo
   niveles_riesgo_validos: ["Alto", "Medio", "Bajo"]
 
-# Estructura mínima exigible a una observación completa
-# (modelo de las "4C + recomendación")
-estructura_observacion:
+# Estructura exigible a cada conclusión del detalle de conclusiones
+# (incidencia -> causa raíz -> cómo se ha llegado -> consecuencias -> recomendación).
+# `requerido: false` = se avisa si falta, pero no es error hasta redactar el informe.
+estructura_conclusion:
   - campo: "titulo"
-    descripcion: "Título breve de la observación"
-  - campo: "condicion"
-    descripcion: "Qué se ha observado (hecho objetivo, con datos de la muestra)"
-  - campo: "criterio"
-    descripcion: "Contra qué se compara (norma, política interna, buena práctica)"
+    descripcion: "Título breve de la incidencia"
+    requerido: true
+  - campo: "incidencia"
+    descripcion: "Qué incidencia se ha detectado (hecho objetivo, con datos del papel de trabajo)"
+    requerido: true
   - campo: "causa_raiz"
-    descripcion: "Por qué ocurre"
-  - campo: "efecto"
-    descripcion: "Riesgo/impacto de la debilidad"
+    descripcion: "Por qué ha pasado (causa raíz inferida del papel de trabajo)"
+    requerido: true
+  - campo: "como_se_ha_llegado"
+    descripcion: "Cómo se ha llegado a ella (procedimiento, datos, tablas)"
+    requerido: true
+  - campo: "consecuencias"
+    descripcion: "Consecuencia o consecuencias de la incidencia"
+    requerido: true
   - campo: "recomendacion"
-    descripcion: "Acción propuesta"
+    descripcion: "Recomendación (aportada por el auditor o propuesta con `recomendar`)"
+    requerido: false
   - campo: "nivel_riesgo"
     descripcion: "Alto / Medio / Bajo"
-  - campo: "responsable"
-    descripcion: "Área o rol responsable del plan de acción"
+    requerido: false

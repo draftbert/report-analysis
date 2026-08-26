@@ -63,10 +63,20 @@ def test_expediente_lee_entrada_con_lectores(expediente_tmp):
 
 def test_extraer_registra_lector_y_texto_en_trazas(contexto):
     from audit_agent.acciones import accion_extraer
-    from audit_agent.esquemas import ExtraccionObservaciones
+    from audit_agent.esquemas import ExtraccionConclusiones
     import json
-    contexto.llm.respuestas["extraer"] = ExtraccionObservaciones(observaciones=[], notas="")
+    contexto.llm.respuestas["extraer"] = ExtraccionConclusiones(conclusiones=[])
     accion_extraer(contexto)
     traza = next(contexto.exp.ruta.glob("trazas/*_extraer-entrada.json"))
     d = json.loads(traza.read_text(encoding="utf-8"))
     assert d["documentos"][0]["lector"] == "texto" and "6 de los 45 pedidos" in d["documentos"][0]["texto_normalizado"]
+
+
+def test_txt_pegado_desde_excel_se_normaliza():
+    doc = leer(RAIZ / "ejemplos" / "papel_trabajo_tarifarios.txt")
+    assert doc.lector == "texto" and any("Excel" in a for a in doc.avisos)
+    assert "\t" not in doc.texto and "\n\n\n" not in doc.texto
+    assert '"zona remota"' in doc.texto                      # "" -> "
+    assert "Debilidades del algoritmo CPF\nA raíz" in doc.texto  # comilla de apertura de celda eliminada
+    assert "CON INCIDENCIAS" in doc.texto and "TMSCIIF-10" in doc.texto
+    assert doc.texto.count('"') % 2 == 0

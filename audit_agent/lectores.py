@@ -55,8 +55,33 @@ def _limpiar(texto: str) -> str:
 
 
 # ------------------------------------------------------------------ lectores
+def _desexcelizar(texto: str) -> str:
+    """Normaliza texto pegado desde Excel (caso real de los papeles de trabajo):
+    tabulaciones de celdas vacías al final de línea, celdas multilínea entre
+    comillas (con `""` como comilla literal) y ráfagas de líneas en blanco."""
+    lineas = [l.rstrip("\t ") for l in texto.replace("\r\n", "\n").split("\n")]
+    salida: list[str] = []
+    en_celda = False
+    for l in lineas:
+        if not en_celda and l.startswith('"') and not (len(l) > 1 and l.endswith('"') and l.count('"') % 2 == 0):
+            en_celda = True
+            l = l[1:]
+        elif not en_celda and l.startswith('"') and l.endswith('"') and len(l) > 1:
+            l = l[1:-1]
+        elif en_celda and l.endswith('"') and (len(l) - len(l.rstrip('"'))) % 2 == 1:
+            en_celda = False
+            l = l[:-1]
+        salida.append(l.replace('""', '"'))
+    return "\n".join(salida)
+
+
 def _leer_texto(ruta: Path) -> tuple[str, list[str]]:
-    return _limpiar(ruta.read_text(encoding="utf-8", errors="replace")), []
+    bruto = ruta.read_text(encoding="utf-8", errors="replace")
+    avisos = []
+    if "\t" in bruto or re.search(r'^"', bruto, re.M):
+        bruto = _desexcelizar(bruto)
+        avisos.append("Texto pegado desde Excel: se han normalizado tabulaciones y celdas entre comillas.")
+    return _limpiar(bruto), avisos
 
 
 def _leer_docx(ruta: Path) -> tuple[str, list[str]]:

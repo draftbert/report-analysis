@@ -1,11 +1,15 @@
-# Revisor de informes de auditoría interna — v0.2 (espacio de trabajo)
+# Revisor de informes de auditoría interna — v0.3 (espacio de trabajo)
 
-Herramienta de apoyo a las fases 7–9 del proceso de auditoría: a partir de los
-papeles de trabajo exportados de Pentana, **propone observaciones y
-recomendaciones**, **redacta el informe** con las que el auditor aprueba, y
-acompaña la edición durante los días que dure el trabajo: revisión de
-vocabulario prohibido, reescritura dirigida, aplicación de comentarios de una
-reunión, historial de versiones y generación del Resumen Ejecutivo en PowerPoint.
+Herramienta de apoyo a la redacción del informe una vez terminado el trabajo de
+campo: a partir del **papel de trabajo final** (todas las pruebas, con su
+contexto, objetivo, pruebas realizadas y conclusiones) y del contexto de la
+auditoría, redacta la **introducción y el resumen ejecutivo**, extrae el
+**detalle de conclusiones** (incidencia detectada → causa raíz → cómo se ha
+llegado → consecuencias) y las **sugerencias de mejora**, gestiona las
+**recomendaciones** respetando las del auditor, y acompaña la edición durante
+los días que dure el trabajo: vocabulario prohibido, reescritura dirigida,
+aplicación de comentarios de una reunión, historial de versiones, PowerPoint y
+archivo de evidencia.
 
 **Principio:** el modelo propone, el auditor decide. Nada se escribe en Pentana
 ni se emite sin revisión humana. Las reglas de estilo son deterministas
@@ -31,9 +35,9 @@ cualquier editor (VS Code es ideal: vista previa Markdown + terminal al lado):
 ```
 expedientes/CNC-2026-03/
   expediente.yaml         nombre, referencia, fecha, distribución, notas para el modelo
-  entrada/                papeles de trabajo de Pentana (.md, .txt, .docx, .xlsx, .pdf con texto)
-  01_observaciones.md     propuestas del modelo → el auditor edita y marca `Estado: aprobada`
-  02_informe.md           texto del informe → se edita durante días
+  entrada/                papel de trabajo final, contexto de la auditoría, anexos (.md, .txt, .docx, .xlsx, .pdf)
+  01_conclusiones.md      conclusiones y sugerencias propuestas → el auditor edita, aprueba y recomienda
+  02_informe.md           introducción · resumen ejecutivo · detalle de conclusiones · sugerencias de mejora
   03_instrucciones.md     buzón: pega la transcripción / comentarios → `aplicar-cambios`
   revision.md             hallazgos de vocabulario y estilo (acumulado)
   cambios_aplicados.md    qué cambios pidió el modelo y cuáles se aplicaron
@@ -45,46 +49,57 @@ expedientes/CNC-2026-03/
 
 ## Flujo de trabajo
 
+Estructura del informe: **Introducción → Resumen ejecutivo → Detalle de
+conclusiones → Sugerencias de mejora**. Cada conclusión sigue siempre la misma
+estructura: qué incidencia se ha detectado, por qué ha pasado (causa raíz),
+cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
+
 ```bash
-./revisor nuevo expedientes/CNC-2026-03 --nombre "Auditoría de Compras No Comerciales" \
-         --referencia CNC-2026-03 --distribucion "Dirección de Compras, Comité de Auditoría"
-#   → copia los papeles de trabajo a expedientes/CNC-2026-03/entrada/
+./revisor nuevo expedientes/TEC-2026 --nombre "Auditoría de Transporte e-Commerce" \
+         --referencia TEC-2026 --distribucion "Dirección de Transporte, Comité de Auditoría"
+#   → copia a entrada/ el papel de trabajo final (todas las pruebas), el contexto de la
+#     auditoría, anexos, design thinking… Se admite texto pegado desde Excel.
 
 ./revisor estado            # en cualquier momento: fase actual y siguiente paso sugerido
-./revisor menu              # lo mismo, con menú numerado (para no memorizar comandos)
+./revisor menu              # lo mismo, con menú numerado
 
-# 1. Observaciones y recomendaciones
-./revisor extraer           # el modelo propone → 01_observaciones.md
-#   El auditor lee, corrige el texto, y en cada bloque pone Estado: aprobada / descartada.
-#   Si el papel de trabajo no habla de severidad, el nivel de riesgo aparece como
-#   "Medio (propuesto por el modelo, sin evidencia en PT)": `aprobar` quita la coletilla
-#   (el auditor lo ha validado) y `redactar` no admite observaciones que la conserven.
-#   Si quiere que el modelo rehaga una: escribe en «Notas del auditor» y…
-./revisor regenerar-obs OBS-02
-./revisor aprobar OBS-01 OBS-03      # o `aprobar todas`, `descartar OBS-04`
-./revisor revisar-obs                # vocabulario prohibido + campos vacíos (sin LLM)
-./revisor corregir-obs               # el modelo corrige solo lo señalado y se re-verifica
+# 1. Contexto del informe
+./revisor redactar-contexto          # introducción + resumen ejecutivo desde entrada/ → 02_informe.md
+#   El auditor los lee y edita hasta que encajen (`--secciones resumen` rehace solo una).
 
-# 2. Informe
-./revisor redactar                   # con las aprobadas → 02_informe.md
-./revisor redactar --secciones evaluacion proximos   # rehacer solo algunas secciones
-#   ... días de edición del informe en el editor ...
-./revisor revisar                    # vocabulario prohibido y estilo, con nº de línea → revision.md
-./revisor corregir [--avisos]        # reescribe solo los párrafos con errores; muestra el diff
-#   Pega en 03_instrucciones.md la transcripción de la reunión / comentarios del Gerente y…
+# 2. Conclusiones y sugerencias de mejora
+./revisor extraer                    # recorre todas las pruebas; solo las concluidas CON INCIDENCIAS
+#   → 01_conclusiones.md: por incidencia, Tipo (conclusion|sugerencia), Prueba, riesgo, y los bloques
+#     Incidencia / Causa raíz / Cómo se ha llegado / Consecuencias / Recomendación.
+#   Si el PT no habla de severidad, el riesgo lleva "(propuesto por el modelo, sin evidencia en PT)":
+#   `aprobar` quita la coletilla (el auditor lo ha validado).
+./revisor aprobar C-01 C-03          # o `aprobar todas`, `descartar C-04`
+./revisor recomendar                 # por cada aprobada sin recomendación pregunta al auditor:
+#   si la tiene, se registra tal cual (100 % respetada; `--formatear` solo le da formato y se verifica
+#   que conserva la base); si no, el modelo la propone y, si procede, una sugerencia de mejora.
+#   `--auto` no pregunta. Las recomendaciones que ya vienen del PT se respetan siempre.
+./revisor revisar-conclusiones       # vocabulario prohibido + campos (sin LLM)
+./revisor corregir-conclusiones      # el modelo corrige solo lo señalado (nunca la recomendación)
+./revisor regenerar C-02             # rehace una según «Notas del auditor»
+./revisor redactar-conclusiones      # vuelca las aprobadas al informe TAL CUAL (sin modelo)
+./revisor redactar-contexto --secciones resumen   # opcional: resumen ejecutivo con las conclusiones validadas
+
+# 3. Cambios durante la revisión (Gerente, Directora, reunión con el área)
+#   Pega en 03_instrucciones.md la transcripción / comentarios y…
 ./revisor aplicar-cambios [--solo-plan]   # cambios concretos, aplicados y registrados
-./revisor diff | deshacer | historial     # control de versiones del informe
+./revisor revisar | corregir [--avisos]   # vocabulario prohibido y estilo del informe
+./revisor diff | deshacer | historial     # control de versiones
 
-# 3. Entregable y cierre
-./revisor ppt                        # salidas/ResumenEjecutivo_CNC-2026-03.pptx
-./revisor archivar                   # zip de evidencia con manifest sha256 (ver Trazabilidad y retención)
+# 4. Entregable y cierre
+./revisor ppt                        # salidas/ResumenEjecutivo_TEC-2026.pptx
+./revisor archivar                   # zip de evidencia con manifest sha256
 
-# Texto suelto (p. ej. una observación copiada de Pentana), sin expediente:
+# Texto suelto (p. ej. un párrafo copiado de Pentana), sin expediente:
 ./revisor revisar-texto --fichero borrador.txt [--sin-llm]
 ```
 
-`.venv/bin/python demo.py` ejecuta el flujo completo sobre el ejemplo incluido
-(crea `expedientes/DEMO-CNC-2026-03`).
+`.venv/bin/python demo.py` ejecuta el flujo completo sobre el papel de trabajo de
+ejemplo `ejemplos/papel_trabajo_tarifarios.txt` (crea `expedientes/DEMO-TEC-2026`).
 
 Con varios expedientes, fija el activo con `./revisor usar <ruta>` o pásalo con `-e <ruta>`.
 
@@ -99,11 +114,12 @@ Con varios expedientes, fija el activo con `./revisor usar <ruta>` o pásalo con
 | `LLM_PROVEEDOR` | `kaia` (defecto si hay credenciales), `anthropic` (requiere `ANTHROPIC_API_KEY` y `pip install anthropic`) o `dry-run` |
 
 Sin proveedor configurado, todo lo determinista sigue funcionando
-(`estado`, `revisar`, `revisar-obs`, `aprobar`, `diff`, `deshacer`, `ppt`).
+(`estado`, `revisar`, `revisar-conclusiones`, `aprobar`, `redactar-conclusiones`, `diff`, `deshacer`, `ppt`, `archivar`).
 
 ## Entrada: exportaciones de Pentana
 
-`entrada/` admite `.md`, `.txt`, `.docx` (tablas conservadas como tablas Markdown),
+`entrada/` admite `.md`, `.txt` (incluido texto pegado desde Excel: se normalizan
+tabulaciones y celdas entre comillas), `.docx` (tablas conservadas como tablas Markdown),
 `.xlsx` (cada hoja como sección; bloques tabulares como tablas, celdas largas como
 párrafos) y `.pdf` con capa de texto (sin OCR: un PDF escaneado da un error claro
 pidiendo otra exportación). La capa de lectura está en `audit_agent/lectores.py`:
@@ -119,7 +135,7 @@ los ficheros sintéticos de `ejemplos/entrada_sintetica/` usados en los tests.
 - `trazas/` guarda, por cada llamada al modelo, un JSON con fecha, acción, modelo,
   prompt completo, respuesta estructurada y tokens; y por cada lectura de
   `entrada/`, el texto normalizado enviado. Es la evidencia de **cómo se redactó
-  cada observación**.
+  cada conclusión**.
 - `historial/` guarda cada versión anterior de los ficheros de trabajo antes de que
   la herramienta los sobreescriba (`diff`, `deshacer`).
 - Ninguna de las dos carpetas se versiona en git (`.gitignore`): contienen datos del
@@ -164,7 +180,8 @@ edita el YAML a mano. Ejemplo con el corpus de prueba del repo:
 ```
 
 Deterministas y sin red (el LLM se sustituye por respuestas preparadas):
-riesgo propuesto/validado, suite de sustituciones ambiguas de `aplicar-cambios`
+formato Markdown de ida y vuelta, riesgo propuesto/validado, recomendaciones (respeto de las del
+auditor), suite de sustituciones ambiguas de `aplicar-cambios`
 (`tests/test_aplicar_cambios.py`, que crece con cada caso raro visto en uso real),
 archivado con hashes y lectores de entrada.
 
@@ -172,7 +189,7 @@ archivado con hashes y lectores de entrada.
 
 Todo el criterio vive en `config/estilo.yaml`: palabras prohibidas con
 sugerencia y motivo, expresiones en primera persona, longitud máxima de frase y
-estructura obligatoria de la observación. Se inyecta automáticamente en los
+estructura obligatoria de la conclusión. Se inyecta automáticamente en los
 prompts, así que ampliar el YAML cambia a la vez lo que se detecta y lo que el
 modelo evita al redactar.
 
@@ -181,8 +198,8 @@ modelo evita al redactar.
 ```
 config/estilo.yaml          Criterio de estilo (editable por el equipo)
 audit_agent/expediente.py   Carpeta de trabajo: ficheros, snapshots, trazas
-audit_agent/formato_md.py   Markdown de ida y vuelta (render ↔ parse) de observaciones e informe
-audit_agent/acciones.py     Las acciones del flujo (extraer, redactar, revisar, corregir, aplicar-cambios, ppt…)
+audit_agent/formato_md.py   Markdown de ida y vuelta (render ↔ parse) de conclusiones e informe
+audit_agent/acciones.py     Las acciones del flujo (redactar-contexto, extraer, recomendar, redactar-conclusiones, aplicar-cambios, ppt…)
 audit_agent/esquemas.py     Salidas estructuradas del LLM (Pydantic) — formato pivote
 audit_agent/style_checker.py  Reglas deterministas (texto y Markdown)
 audit_agent/lectores.py     Lectura de entrada/ (.md/.txt/.docx/.xlsx/.pdf) a Markdown normalizado
@@ -190,9 +207,9 @@ audit_agent/calibracion.py  Calibración de estilo.yaml contra informes aprobado
 audit_agent/llm.py          Cliente LLM unificado (kaia | anthropic | dry-run) con trazas
 audit_agent/kaia_client.py  Transporte KAIA (OAuth2 + invoke con output_format_schema)
 audit_agent/reviewer.py     Revisión de texto suelto
-audit_agent/ppt_builder.py  Resumen Ejecutivo PPT
+audit_agent/ppt_builder.py  Presentación del informe (PPT)
 audit_agent/cli.py          Comandos y menú interactivo
-ejemplos/                   Papel de trabajo, borrador, datos de informe, entrada sintética y corpus de calibración
+ejemplos/                   Papel de trabajo real (tarifarios), borrador, entrada sintética y corpus de calibración
 scripts/                    Generación de ficheros de entrada sintéticos
 tests/                      Suite determinista (pytest)
 docs/referencia/            Proveedor KAIA original de audit-engine (referencia)
@@ -204,5 +221,5 @@ docs/referencia/            Proveedor KAIA original de audit-engine (referencia)
   asignar `run.text`, nunca `text_frame.text`).
 - Añadir el lector específico del formato real de exportación de Pentana en `lectores.py`.
 - Calibrar `estilo.yaml` con informes aprobados reales (`calibrar-estilo`).
-- Memoria histórica: sugerir observaciones similares de auditorías cerradas.
+- Memoria histórica: sugerir conclusiones similares de auditorías cerradas.
 - Interfaz web (Streamlit) sobre las mismas acciones si el equipo no quiere terminal.

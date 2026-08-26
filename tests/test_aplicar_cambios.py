@@ -29,45 +29,44 @@ from audit_agent.formato_md import parsear_informe
 def _obs(n, titulo, nivel="Medio", resp="Dirección de Compras", causa="Control manual."):
     return f"""### {n}. {titulo}
 
+- Prueba: 2.11 a)
 - Nivel de riesgo: {nivel}
 - Responsable: {resp}
 
-**Condición:** En la muestra analizada se identificaron incidencias.
-
-**Criterio:** Política de Compras.
+**Incidencia detectada:** En la muestra analizada se identificaron incidencias.
 
 **Causa raíz:** {causa}
 
-**Efecto:** Riesgo de gasto sin control.
+**Cómo se ha llegado:** Política de Compras.
+
+**Consecuencias:** Riesgo de gasto sin control.
 
 **Recomendación:** Implantar un control automático en el sistema.
 """
 
 
-INFORME = f"""# Resumen Ejecutivo — Prueba
+INFORME = f"""# Informe — Prueba
 
-## Objetivo
+## Introducción
 
 Evaluar el proceso de compras.
 
-## Alcance
+## Resumen ejecutivo
 
 Pedidos de enero a marzo. Se recomienda revisar el alcance en próximos trabajos.
 
-## Principales observaciones
+## Detalle de conclusiones
 
 {_obs(1, "Ausencia de ofertas comparativas")}
 {_obs(2, "Falta de segregación de funciones")}
 {_obs(3, "Falta de segregación de funciones", resp="Dirección de Sistemas")}
-## Evaluación global
+## Sugerencias de mejora
 
-- Gobierno: Razonable — Impacto Bajo
+### 1. Seguimiento en hoja de cálculo
 
-Se recomienda revisar el alcance en próximos trabajos. Conclusión final.
+**Incidencia detectada:** Se recomienda revisar el alcance en próximos trabajos. Conclusión final.
 
-## Próximos pasos
-
-Seguimiento en 2027.
+**Propuesta de mejora:** Seguimiento en 2027.
 """
 
 
@@ -76,7 +75,7 @@ def _cambio(seccion, original, nuevo, motivo="m", insertar_tras=""):
 
 
 def _obs_dict(texto):
-    return {o["numero"]: o for o in parsear_informe(texto)["observaciones"]}
+    return {o["numero"]: o for o in parsear_informe(texto)["conclusiones"]}
 
 
 # 1. Dos observaciones con el mismo título exacto: el número de la cabecera decide
@@ -96,12 +95,12 @@ def test_mismo_titulo_distinto_numero():
 # 2. El texto a sustituir aparece en dos secciones distintas
 def test_texto_en_dos_secciones_con_seccion_indicada():
     frase = "Se recomienda revisar el alcance en próximos trabajos."
-    plan = PlanCambios(cambios=[_cambio("## Evaluación global", frase, "Se recomienda ampliar el alcance.")], pendientes=[])
+    plan = PlanCambios(cambios=[_cambio("## Sugerencias de mejora", frase, "Se recomienda ampliar el alcance.")], pendientes=[])
     nuevo, filas = aplicar_plan(INFORME, plan)
     assert filas[0]["estado"] == "aplicado"
     datos = parsear_informe(nuevo)
-    assert "ampliar" in datos["evaluacion_global"]["conclusion"]
-    assert frase in datos["alcance"]  # la otra sección queda intacta
+    assert "ampliar" in datos["sugerencias"][0]["incidencia"]
+    assert frase in datos["resumen_ejecutivo"]  # la otra sección queda intacta
 
 
 def test_texto_en_dos_secciones_sin_seccion_es_ambiguo():
@@ -130,8 +129,8 @@ def test_dos_cambios_cada_uno_en_su_seccion():
 def test_texto_inexistente_no_se_aproxima():
     plan = PlanCambios(cambios=[
         _cambio("### 1. Ausencia de ofertas comparativas", "**Causa raíz:** Control manual y falta de formación del personal.", "**Causa raíz:** X"),
-        _cambio("## Próximos pasos", "Seguimiento en 2028.", "Seguimiento en 2029."),
-        _cambio("## Objetivo", "Evaluar el proceso de ventas.", "Evaluar el proceso de tesorería."),
+        _cambio("## Sugerencias de mejora", "Seguimiento en 2028.", "Seguimiento en 2029."),
+        _cambio("## Introducción", "Evaluar el proceso de ventas.", "Evaluar el proceso de tesorería."),
     ], pendientes=[])
     nuevo, filas = aplicar_plan(INFORME, plan)
     assert all(f["estado"] == "NO APLICADO" for f in filas), filas
@@ -141,19 +140,19 @@ def test_texto_inexistente_no_se_aproxima():
 
 def test_diferencias_minimas_si_se_aproximan():
     # Solo tildes/espacios: el modelo copió "Politica" sin tilde
-    plan = PlanCambios(cambios=[_cambio("### 1. Ausencia de ofertas comparativas", "**Criterio:** Politica de Compras.", "**Criterio:** Política de Compras v4.2.")], pendientes=[])
+    plan = PlanCambios(cambios=[_cambio("### 1. Ausencia de ofertas comparativas", "**Como se ha llegado:** Politica de Compras.", "**Cómo se ha llegado:** Política de Compras v4.2.")], pendientes=[])
     nuevo, filas = aplicar_plan(INFORME, plan)
     assert filas[0]["estado"] == "aplicado (coincidencia aproximada)"
-    assert _obs_dict(nuevo)[1]["criterio"] == "Política de Compras v4.2."
+    assert _obs_dict(nuevo)[1]["como_se_ha_llegado"] == "Política de Compras v4.2."
 
 
 # 5. Texto repetido DENTRO de la misma sección: ambiguo, con motivo claro
 def test_repetido_en_la_misma_seccion():
     texto = INFORME.replace("Seguimiento en 2027.", "Seguimiento en 2027. Se comunicará al área. Seguimiento en 2027.")
-    plan = PlanCambios(cambios=[_cambio("## Próximos pasos", "Seguimiento en 2027.", "Seguimiento en T1 2027.")], pendientes=[])
+    plan = PlanCambios(cambios=[_cambio("## Sugerencias de mejora", "Seguimiento en 2027.", "Seguimiento en T1 2027.")], pendientes=[])
     nuevo, filas = aplicar_plan(texto, plan)
     assert filas[0]["estado"] == "NO APLICADO"
-    assert "ambiguo" in filas[0]["detalle"] and "2 veces" in filas[0]["detalle"] and "Próximos pasos" in filas[0]["detalle"]
+    assert "ambiguo" in filas[0]["detalle"] and "2 veces" in filas[0]["detalle"] and "Sugerencias de mejora" in filas[0]["detalle"]
     assert nuevo == texto
 
 
@@ -176,18 +175,18 @@ def test_cambios_encadenados_no_son_conflicto():
     """Dos cambios distintos en la misma sección (fragmentos diferentes) no
     interfieren aunque el segundo se localice sobre el texto ya modificado."""
     plan = PlanCambios(cambios=[
-        _cambio("## Próximos pasos", "Seguimiento en 2027.", "Seguimiento en el primer trimestre de 2027."),
-        _cambio("## Próximos pasos", "", "Se informará al Comité de Auditoría.", insertar_tras="Seguimiento en el primer trimestre de 2027."),
+        _cambio("## Sugerencias de mejora", "Seguimiento en 2027.", "Seguimiento en el primer trimestre de 2027."),
+        _cambio("## Sugerencias de mejora", "", "Se informará al Comité de Auditoría.", insertar_tras="Seguimiento en el primer trimestre de 2027."),
     ], pendientes=[])
     nuevo, filas = aplicar_plan(INFORME, plan)
     assert [f["estado"] for f in filas] == ["aplicado", "insertado"]
-    assert "Comité de Auditoría" in parsear_informe(nuevo)["proximos_pasos"]
+    assert "Comité de Auditoría" in parsear_informe(nuevo)["sugerencias"][0]["recomendacion"]
 
 
 # 7. Sección indicada por el modelo que no existe
 def test_seccion_inexistente():
     plan = PlanCambios(cambios=[
-        _cambio("### 4. Observación fantasma", "- Nivel de riesgo: Medio", "- Nivel de riesgo: Alto"),
+        _cambio("### 4. Conclusión fantasma", "- Nivel de riesgo: Medio", "- Nivel de riesgo: Alto"),
         _cambio("## Anexos", "Seguimiento en 2027.", "X"),
     ], pendientes=[])
     nuevo, filas = aplicar_plan(INFORME, plan)
@@ -210,10 +209,10 @@ def test_regresion_lineas_identicas_entre_observaciones():
 
 
 def test_eliminacion():
-    plan = PlanCambios(cambios=[_cambio("## Alcance", "Se recomienda revisar el alcance en próximos trabajos.", "")], pendientes=[])
+    plan = PlanCambios(cambios=[_cambio("## Resumen ejecutivo", "Se recomienda revisar el alcance en próximos trabajos.", "")], pendientes=[])
     nuevo, filas = aplicar_plan(INFORME, plan)
     assert filas[0]["estado"] == "eliminado"
-    assert parsear_informe(nuevo)["alcance"] == "Pedidos de enero a marzo."
+    assert parsear_informe(nuevo)["resumen_ejecutivo"] == "Pedidos de enero a marzo."
 
 
 # Regresión (visto en vivo con KAIA, 2026-08-25): el backend omitió `insertar_tras`
@@ -221,7 +220,7 @@ def test_eliminacion():
 # y el schema que viaja debe seguir pidiendo el campo.
 def test_respuesta_sin_insertar_tras_se_acepta():
     from audit_agent.kaia_client import schema_para
-    bruto = {"cambios": [{"seccion": "## Próximos pasos", "motivo": "m", "texto_original": "Seguimiento en 2027.",
+    bruto = {"cambios": [{"seccion": "## Sugerencias de mejora", "motivo": "m", "texto_original": "Seguimiento en 2027.",
                           "texto_nuevo": "Seguimiento en T1 2027."}]}
     plan = PlanCambios.model_validate(bruto)
     assert plan.cambios[0].insertar_tras == "" and plan.pendientes == []

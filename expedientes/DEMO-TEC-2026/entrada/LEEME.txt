@@ -1,0 +1,3 @@
+Deja aquí el papel de trabajo final (todas las pruebas), el contexto de la auditoría, anexos, design
+thinking… (.md, .txt, .docx, .xlsx o .pdf con texto). Todo lo que hay aquí se envía al modelo en
+`redactar-contexto` y `extraer`.

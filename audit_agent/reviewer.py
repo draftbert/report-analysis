@@ -1,5 +1,5 @@
 """
-Revisión de un texto suelto (fuera de expediente): p. ej. una observación
+Revisión de un texto suelto (fuera de expediente): p. ej. una conclusión
 copiada de Pentana. Reglas deterministas -> reescritura dirigida por LLM ->
 verificación con las mismas reglas. La persona ve original + hallazgos +
 propuesta y decide.
@@ -13,12 +13,12 @@ from .llm import ClienteLLM
 from .style_checker import StyleChecker, reglas_como_texto
 
 SYSTEM_REVISOR = """Eres un revisor experto de informes de auditoría interna.
-Reescribes textos de observaciones para que cumplan el estilo corporativo:
+Reescribes textos de conclusiones e incidencias para que cumplan el estilo corporativo:
 - Impersonal ("se ha observado", "se recomienda"), sin primera persona.
 - Orientado a proceso, nunca a personas: sin culpabilizar.
 - Objetivo y soportado por evidencia: sin absolutos ni juicios de valor.
 - La severidad se expresa solo mediante el nivel de riesgo (Alto/Medio/Bajo).
-- Frases cortas y claras. Terminología: "observación", "debilidad", "recomendación".
+- Frases cortas y claras. Terminología: "incidencia", "conclusión", "debilidad", "recomendación".
 - Conserva TODOS los datos objetivos (cifras, fechas, muestras, referencias): no inventes ni elimines hechos.
 
 {reglas}"""

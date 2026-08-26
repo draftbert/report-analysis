@@ -1,14 +1,14 @@
 """
-Generador del Resumen Ejecutivo en PowerPoint (python-pptx).
+Generador de la presentación del informe en PowerPoint (python-pptx).
 
-Sigue la estructura de la plantilla descrita en el procedimiento:
+Estructura del informe de auditoría interna:
   1. Carátula (proyecto, distribución, fecha, referencia, confidencialidad)
-  2. Objetivo y alcance
-  3. Principales magnitudes / contexto
-  4. Principales observaciones (índice)
-  5..N. Detalle de cada observación (riesgo, descripción, recomendación, responsable)
-  N+1. Evaluación global
-  N+2. Próximos pasos
+  2. Introducción
+  3. Resumen ejecutivo
+  4. Detalle de conclusiones (índice)
+  5..N. Detalle de cada conclusión (incidencia, causa raíz, cómo se ha llegado,
+        consecuencias, recomendación, responsable)
+  N+1.. Sugerencias de mejora
 
 NOTA para producción: lo ideal es partir de la .potx corporativa real y
 rellenarla (python-pptx puede abrir la plantilla con Presentation("plantilla.pptx")
@@ -20,6 +20,7 @@ una plantilla (colapsa el formato); asignar run.text en su lugar.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from pptx import Presentation
@@ -38,6 +39,20 @@ COLOR_RIESGO = {
 }
 
 ANCHO, ALTO = Inches(13.333), Inches(7.5)
+
+
+def _md_plano(texto: str) -> str:
+    """Markdown sencillo -> texto para la diapositiva (negritas, viñetas, tablas)."""
+    t = re.sub(r"\*\*([^*]+)\*\*", r"\1", texto or "")
+    t = re.sub(r"^\s*#+\s*", "", t, flags=re.M)
+    t = re.sub(r"^\s*[-*]\s+", "• ", t, flags=re.M)
+    t = re.sub(r"^\|?\s*-{3,}\s*(\|\s*-{3,}\s*)*\|?\s*$", "", t, flags=re.M)  # separadores de tabla
+    t = re.sub(r"^\|\s*(.*?)\s*\|\s*$", lambda m: " · ".join(x.strip() for x in m.group(1).split("|")), t, flags=re.M)
+    return re.sub(r"\n{3,}", "\n\n", t).strip()
+
+
+def _resumir(texto: str, maximo: int) -> str:
+    return texto if len(texto) <= maximo else texto[:maximo].rsplit(" ", 1)[0] + " […]"
 
 
 def _caja(slide, x, y, w, h, texto, tam=14, negrita=False, color=INK,
@@ -82,49 +97,39 @@ class ConstructorResumenEjecutivo:
         _caja(s, Inches(0.9), Inches(2.2), Inches(11.5), Inches(1.6),
               proyecto, tam=40, negrita=True, color=BLANCO)
         _caja(s, Inches(0.9), Inches(3.9), Inches(11.5), Inches(0.5),
-              "Resumen Ejecutivo — Auditoría Interna", tam=18, color=RGBColor(0xB8, 0xC7, 0xD4))
+              "Informe de Auditoría Interna", tam=18, color=RGBColor(0xB8, 0xC7, 0xD4))
         _caja(s, Inches(0.9), Inches(5.6), Inches(7.0), Inches(1.4),
               f"Referencia: {referencia}\n{fecha}\nDistribución: {', '.join(distribucion)}",
               tam=12, color=RGBColor(0xB8, 0xC7, 0xD4), interlineado=4)
         _caja(s, Inches(0.9), Inches(6.9), Inches(11.5), Inches(0.4),
               "CONFIDENCIAL — Uso interno", tam=10, color=RGBColor(0x8A, 0x9B, 0xAA))
 
-    # -------------------------------------------- 2. Objetivo y alcance
-    def objetivo_alcance(self, objetivo: str, alcance: str):
-        s = self._nueva()
-        _caja(s, Inches(0.7), Inches(0.5), Inches(11.9), Inches(0.7),
-              "Objetivo y alcance", tam=28, negrita=True)
-        _caja(s, Inches(0.7), Inches(1.6), Inches(11.9), Inches(0.4),
-              "Objetivo", tam=15, negrita=True, color=GRIS)
-        _caja(s, Inches(0.7), Inches(2.1), Inches(11.9), Inches(1.6), objetivo, tam=14)
-        _caja(s, Inches(0.7), Inches(3.9), Inches(11.9), Inches(0.4),
-              "Alcance", tam=15, negrita=True, color=GRIS)
-        _caja(s, Inches(0.7), Inches(4.4), Inches(11.9), Inches(2.4), alcance, tam=14)
+    # --------------------------------------------- 2/3. Texto largo (introducción, resumen)
+    def texto_largo(self, titulo: str, texto: str, tam: float = 13):
+        """Una o varias diapositivas con un texto Markdown sencillo (párrafos y viñetas)."""
+        parrafos = [p.strip() for p in re.split(r"\n\s*\n", _md_plano(texto)) if p.strip()]
+        paginas, actual, largo = [], [], 0
+        for par in parrafos:
+            if actual and largo + len(par) > 1500:
+                paginas.append(actual)
+                actual, largo = [], 0
+            actual.append(par)
+            largo += len(par)
+        if actual:
+            paginas.append(actual)
+        for n, pagina in enumerate(paginas or [[""]], 1):
+            s = self._nueva()
+            sufijo = f" ({n}/{len(paginas)})" if len(paginas) > 1 else ""
+            _caja(s, Inches(0.7), Inches(0.5), Inches(11.9), Inches(0.7), titulo + sufijo, tam=28, negrita=True)
+            _caja(s, Inches(0.7), Inches(1.5), Inches(11.9), Inches(5.6), "\n\n".join(pagina), tam=tam, interlineado=6)
 
-    # ------------------------------------- 3. Magnitudes / contexto
-    def contexto(self, texto: str, magnitudes: list[tuple[str, str]] | None = None):
+    # ------------------------------- 4. Índice de conclusiones
+    def indice_conclusiones(self, conclusiones: list[dict], titulo: str = "Detalle de conclusiones"):
         s = self._nueva()
-        _caja(s, Inches(0.7), Inches(0.5), Inches(11.9), Inches(0.7),
-              "Principales magnitudes y contexto", tam=28, negrita=True)
-        if magnitudes:
-            n = len(magnitudes)
-            w = Inches(11.9 / max(n, 1))
-            for i, (valor, etiqueta) in enumerate(magnitudes):
-                x = Inches(0.7) + i * w
-                _caja(s, x, Inches(1.7), w - Inches(0.3), Inches(0.8),
-                      valor, tam=32, negrita=True, alineacion=PP_ALIGN.CENTER)
-                _caja(s, x, Inches(2.5), w - Inches(0.3), Inches(0.6),
-                      etiqueta, tam=12, color=GRIS, alineacion=PP_ALIGN.CENTER)
-        _caja(s, Inches(0.7), Inches(3.5), Inches(11.9), Inches(3.4), texto, tam=14)
-
-    # ------------------------------- 4. Índice de observaciones
-    def indice_observaciones(self, observaciones: list[dict]):
-        s = self._nueva()
-        _caja(s, Inches(0.7), Inches(0.5), Inches(11.9), Inches(0.7),
-              "Principales observaciones", tam=28, negrita=True)
+        _caja(s, Inches(0.7), Inches(0.5), Inches(11.9), Inches(0.7), titulo, tam=28, negrita=True)
         y = Inches(1.7)
-        for i, obs in enumerate(observaciones, 1):
-            nivel = str(obs.get("nivel_riesgo", "")).capitalize()
+        for i, c in enumerate(conclusiones, 1):
+            nivel = str(c.get("nivel_riesgo", "")).capitalize()
             chip = s.shapes.add_shape(1, Inches(0.7), y, Inches(1.0), Inches(0.45))
             chip.fill.solid()
             chip.fill.fore_color.rgb = COLOR_RIESGO.get(nivel, GRIS)
@@ -138,69 +143,45 @@ class ConstructorResumenEjecutivo:
             r.font.bold = True
             r.font.color.rgb = BLANCO
             _caja(s, Inches(1.9), y, Inches(10.6), Inches(0.5),
-                  f"{i}. {obs.get('titulo', '(sin título)')}", tam=15)
-            y += Inches(0.65)
+                  f"{i}. {c.get('titulo', '(sin título)')}" + (f"  ·  {c['prueba']}" if c.get("prueba") else ""), tam=14)
+            y += Inches(0.6)
 
-    # --------------------------------- 5. Detalle de observación
-    def detalle_observacion(self, num: int, obs: dict):
+    # --------------------------------- 5. Detalle de conclusión / sugerencia
+    def detalle_conclusion(self, num: int, c: dict, es_sugerencia: bool = False):
         s = self._nueva()
-        nivel = str(obs.get("nivel_riesgo", "")).capitalize()
-        _caja(s, Inches(0.7), Inches(0.5), Inches(9.8), Inches(1.0),
-              f"Observación {num}: {obs.get('titulo', '')}", tam=22, negrita=True)
-        chip = s.shapes.add_shape(1, Inches(10.9), Inches(0.55), Inches(1.7), Inches(0.5))
-        chip.fill.solid()
-        chip.fill.fore_color.rgb = COLOR_RIESGO.get(nivel, GRIS)
-        chip.line.fill.background()
-        p = chip.text_frame.paragraphs[0]
-        p.alignment = PP_ALIGN.CENTER
-        r = p.add_run()
-        r.text = f"Riesgo {nivel}" if nivel else "Riesgo N/D"
-        r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = BLANCO
-
+        nivel = str(c.get("nivel_riesgo", "")).capitalize()
+        prefijo = "Sugerencia de mejora" if es_sugerencia else "Conclusión"
+        _caja(s, Inches(0.7), Inches(0.4), Inches(9.8), Inches(0.9),
+              f"{prefijo} {num}: {c.get('titulo', '')}", tam=20, negrita=True)
+        if not es_sugerencia:
+            chip = s.shapes.add_shape(1, Inches(10.9), Inches(0.45), Inches(1.7), Inches(0.5))
+            chip.fill.solid()
+            chip.fill.fore_color.rgb = COLOR_RIESGO.get(nivel, GRIS)
+            chip.line.fill.background()
+            p = chip.text_frame.paragraphs[0]
+            p.alignment = PP_ALIGN.CENTER
+            r = p.add_run()
+            r.text = f"Riesgo {nivel}" if nivel else "Riesgo N/D"
+            r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = BLANCO
+        if c.get("prueba"):
+            _caja(s, Inches(0.7), Inches(1.25), Inches(11.9), Inches(0.35), f"Prueba: {c['prueba']}", tam=11, color=GRIS)
         bloques = [
-            ("Descripción", f"{obs.get('condicion', '')}\nCriterio: {obs.get('criterio', '')}".strip()),
-            ("Causa raíz", obs.get("causa_raiz", "")),
-            ("Efecto / riesgo", obs.get("efecto", "")),
-            ("Recomendación", obs.get("recomendacion", "")),
+            ("Incidencia detectada", c.get("incidencia", "")),
+            ("Causa raíz", c.get("causa_raiz", "")),
+            ("Cómo se ha llegado", _resumir(_md_plano(c.get("como_se_ha_llegado", "")), 600)),
+            ("Consecuencias", c.get("consecuencias", "")),
+            ("Propuesta de mejora" if es_sugerencia else "Recomendación", c.get("recomendacion", "")),
         ]
-        y = Inches(1.75)
-        alturas = [Inches(1.5), Inches(1.0), Inches(0.95), Inches(1.15)]
+        y = Inches(1.65)
+        alturas = [Inches(1.05), Inches(0.8), Inches(1.25), Inches(0.8), Inches(1.0)]
         for (titulo, cuerpo), h in zip(bloques, alturas):
-            _caja(s, Inches(0.7), y, Inches(2.4), Inches(0.4),
-                  titulo, tam=13, negrita=True, color=GRIS)
-            _caja(s, Inches(3.2), y, Inches(9.4), h, cuerpo, tam=12.5)
-            y += h + Inches(0.12)
-        _caja(s, Inches(0.7), Inches(6.95), Inches(11.9), Inches(0.4),
-              f"Responsable del plan de acción: {obs.get('responsable', 'Pendiente de asignar')}",
-              tam=12, negrita=True)
-
-    # ------------------------------------------ Evaluación global
-    def evaluacion_global(self, gobierno: str, gestion_riesgos: str,
-                          entorno_control: str, conclusion: str, n_observaciones: int):
-        s = self._nueva()
-        _caja(s, Inches(0.7), Inches(0.5), Inches(11.9), Inches(0.7),
-              "Evaluación global", tam=28, negrita=True)
-        filas = [("Gobierno", gobierno),
-                 ("Gestión de riesgos", gestion_riesgos),
-                 ("Entorno de control", entorno_control)]
-        y = Inches(1.7)
-        for etiqueta, valor in filas:
-            _caja(s, Inches(0.7), y, Inches(4.2), Inches(0.5), etiqueta, tam=15, negrita=True)
-            _caja(s, Inches(5.1), y, Inches(7.5), Inches(0.5), valor, tam=15)
-            y += Inches(0.65)
-        _caja(s, Inches(0.7), y + Inches(0.2), Inches(11.9), Inches(0.5),
-              f"Observaciones emitidas: {n_observaciones}", tam=14, color=GRIS)
-        _caja(s, Inches(0.7), y + Inches(0.9), Inches(11.9), Inches(2.4), conclusion, tam=13.5)
-
-    # -------------------------------------------- Próximos pasos
-    def proximos_pasos(self, texto: str):
-        s = self._nueva()
-        _caja(s, Inches(0.7), Inches(0.5), Inches(11.9), Inches(0.7),
-              "Próximos pasos", tam=28, negrita=True)
-        _caja(s, Inches(0.7), Inches(1.7), Inches(11.9), Inches(4.8), texto, tam=14)
-        _caja(s, Inches(0.7), Inches(6.8), Inches(11.9), Inches(0.4),
-              "El plan de acción detallado con plazos se recoge en el Anexo.",
-              tam=11, color=GRIS)
+            _caja(s, Inches(0.7), y, Inches(2.4), Inches(0.4), titulo, tam=12, negrita=True, color=GRIS)
+            _caja(s, Inches(3.2), y, Inches(9.4), h, _md_plano(cuerpo), tam=11)
+            y += h + Inches(0.08)
+        if not es_sugerencia:
+            _caja(s, Inches(0.7), Inches(6.95), Inches(11.9), Inches(0.4),
+                  f"Responsable del plan de acción: {c.get('responsable') or 'Pendiente de asignar'}",
+                  tam=12, negrita=True)
 
     # ----------------------------------------------------------------
     def guardar(self, ruta: str | Path) -> Path:
@@ -211,20 +192,21 @@ class ConstructorResumenEjecutivo:
 
 
 def construir_desde_datos(datos: dict, ruta_salida: str | Path) -> Path:
-    """Construye el PPT completo desde un dict (ver ejemplos/informe.json)."""
+    """Construye la presentación completa desde el dict de formato_md.parsear_informe
+    (+ `proyecto`): introduccion, resumen_ejecutivo, conclusiones, sugerencias."""
     c = ConstructorResumenEjecutivo()
     p = datos["proyecto"]
-    c.caratula(p["nombre"], p["referencia"], p["fecha"], p["distribucion"])
-    c.objetivo_alcance(datos["objetivo"], datos["alcance"])
-    ctx = datos.get("contexto", {})
-    c.contexto(ctx.get("texto", ""), [tuple(m) for m in ctx.get("magnitudes", [])])
-    obs = datos.get("observaciones", [])
-    c.indice_observaciones(obs)
-    for i, o in enumerate(obs, 1):
-        c.detalle_observacion(i, o)
-    ev = datos.get("evaluacion_global", {})
-    c.evaluacion_global(ev.get("gobierno", ""), ev.get("gestion_riesgos", ""),
-                        ev.get("entorno_control", ""), ev.get("conclusion", ""),
-                        len(obs))
-    c.proximos_pasos(datos.get("proximos_pasos", ""))
+    c.caratula(p["nombre"], p["referencia"], p["fecha"], p.get("distribucion", []))
+    c.texto_largo("Introducción", datos.get("introduccion", ""))
+    c.texto_largo("Resumen ejecutivo", datos.get("resumen_ejecutivo", ""))
+    conclusiones = datos.get("conclusiones", [])
+    sugerencias = datos.get("sugerencias", [])
+    if conclusiones:
+        c.indice_conclusiones(conclusiones)
+        for i, x in enumerate(conclusiones, 1):
+            c.detalle_conclusion(i, x)
+    if sugerencias:
+        c.indice_conclusiones(sugerencias, titulo="Sugerencias de mejora")
+        for i, x in enumerate(sugerencias, 1):
+            c.detalle_conclusion(i, x, es_sugerencia=True)
     return c.guardar(ruta_salida)

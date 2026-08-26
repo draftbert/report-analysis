@@ -1,0 +1,50 @@
+"""Ida y vuelta del formato Markdown: conclusiones e informe con tablas y listas."""
+from __future__ import annotations
+
+from audit_agent.formato_md import (parsear_conclusiones, parsear_informe, render_conclusiones,
+                                    render_informe)
+
+PROY = {"nombre": "N", "referencia": "R", "fecha": "F", "distribucion": ["D1", "D2"]}
+C1 = {"id": "C-01", "titulo": "Tarifario desactualizado", "tipo": "conclusion", "estado": "propuesta", "prueba": "2.11 b)",
+      "nivel_riesgo": "Medio", "riesgo_propuesto": True, "responsable": "Operativa", "fuente": "PT 2.11",
+      "incidencia": "Inc.\n\n| Mercado | Courier |\n|---|---|\n| USA | FedEx |", "causa_raiz": "Sin plantilla común",
+      "como_se_ha_llegado": "- Sesiones con el área\n- Revisión del flujo:\n  1) renegociación\n  2) carga manual",
+      "consecuencias": "Error de coste", "recomendacion": "", "notas": "revisar"}
+C2 = {**C1, "id": "C-02", "titulo": "Alerta manual", "tipo": "sugerencia", "estado": "aprobada", "nivel_riesgo": "",
+      "riesgo_propuesto": False, "recomendacion": "Automatizar la alerta", "notas": ""}
+
+
+def test_conclusiones_round_trip():
+    md = render_conclusiones([C1, C2], PROY, "nota", ["2.3 limpia"])
+    assert "> **Pruebas concluidas sin incidencias**" in md and "**Propuesta de mejora:** Automatizar la alerta" in md
+    back = parsear_conclusiones(md)
+    for k in ("id", "titulo", "tipo", "estado", "prueba", "nivel_riesgo", "riesgo_propuesto", "responsable", "fuente",
+              "incidencia", "causa_raiz", "como_se_ha_llegado", "consecuencias", "recomendacion", "notas"):
+        assert back[0][k] == C1[k], k
+        assert back[1][k] == C2[k], k
+
+
+def test_conclusiones_editadas_a_mano():
+    md = render_conclusiones([C1], PROY)
+    md = md.replace("- Tipo: conclusion", "- Tipo: Sugerencia de mejora").replace("- Estado: propuesta", "- estado: APROBADA")
+    md = md.replace("**Recomendación:** ", "**Recomendación:** Texto del auditor\ncon dos líneas.")
+    md += "\n## C-05 · Añadida a mano\n\n- Estado: aprobada\n\n**Incidencia detectada:** X\n\n**Consecuencias:** Y\n"
+    back = parsear_conclusiones(md)
+    assert back[0]["tipo"] == "sugerencia" and back[0]["estado"] == "aprobada"
+    assert back[0]["recomendacion"] == "Texto del auditor\ncon dos líneas."
+    assert back[1]["id"] == "C-05" and back[1]["incidencia"] == "X" and back[1]["causa_raiz"] == ""
+
+
+def test_informe_round_trip_y_pendientes():
+    datos = {"introduccion": "Intro **negrita**.\n\nSegundo párrafo.", "resumen_ejecutivo": "- p1\n- p2",
+             "conclusiones": [C1], "sugerencias": [C2]}
+    md = render_informe(datos, PROY)
+    assert "## Introducción" in md and "## Resumen ejecutivo" in md and "## Detalle de conclusiones" in md and "## Sugerencias de mejora" in md
+    assert "Fuente:" not in md and "Estado:" not in md  # metadatos internos fuera del informe
+    back = parsear_informe(md)
+    assert back["introduccion"] == datos["introduccion"] and back["resumen_ejecutivo"] == datos["resumen_ejecutivo"]
+    assert back["conclusiones"][0]["como_se_ha_llegado"] == C1["como_se_ha_llegado"]
+    assert back["conclusiones"][0]["nivel_riesgo"] == "Medio" and back["conclusiones"][0]["riesgo_propuesto"] is True
+    assert back["sugerencias"][0]["recomendacion"] == "Automatizar la alerta"
+    vacio = parsear_informe(render_informe({"introduccion": "", "resumen_ejecutivo": ""}, PROY))
+    assert vacio == {"introduccion": "", "resumen_ejecutivo": "", "conclusiones": [], "sugerencias": []}
