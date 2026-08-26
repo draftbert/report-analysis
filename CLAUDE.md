@@ -6,8 +6,10 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 ## Principios que no se rompen
 - **El modelo propone, el auditor decide.** Ninguna acción escribe fuera del expediente;
   antes de sobreescribir un fichero editable se guarda snapshot en `historial/`.
-- **El criterio de estilo vive solo en `config/estilo.yaml`** y el registro objetivo de una conclusión en
-  `config/ejemplo_conclusion.md` (few-shot de `extraer`; una conclusión por prueba por defecto). Se aplica de forma determinista
+- **El criterio de estilo vive solo en `config/`**: `estilo.yaml` (reglas), `textos_informe.yaml` (frases fijas),
+  `ejemplo_conclusion.md` (few-shot de `extraer`; una conclusión por prueba por defecto). El registro real
+  (primera persona del plural para el equipo auditor, patrón deber ser → identificado → datos → riesgo →
+  materialización) está en `docs/ESTILO_INFORMES.md` y en `SYSTEM_BASE`; no contradecirlo sin recalibrar. Se aplica de forma determinista
   (`style_checker.py`) y se inyecta en los prompts (`reglas_como_texto`). No duplicar reglas en código.
 - **Formato pivote:** los esquemas Pydantic de `esquemas.py` (conclusión = incidencia → causa raíz →
   cómo se ha llegado → consecuencias → recomendación; tipo conclusion|sugerencia). Cualquier campo nuevo

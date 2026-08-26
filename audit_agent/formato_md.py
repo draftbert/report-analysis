@@ -27,6 +27,30 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from pathlib import Path
+
+import yaml
+
+_TEXTOS_POR_DEFECTO = {
+    "plan_auditoria": "La auditoría ha sido realizada en cumplimiento del Plan de Auditoría del año {anio}, aprobado por la Comisión de Auditoría y Cumplimiento.",
+    "normas": "El trabajo ha sido llevado a cabo de acuerdo con las Normas Internacionales para la Práctica Profesional de Auditoría Interna, según certificado emitido por el Instituto de Auditores Internos.",
+    "proximos_pasos": "Los destinatarios del presente informe deberán remitir su conformidad sobre el mismo al Departamento de Auditoría Interna. En el Anexo se recogerán los planes de acción a implantar para solventar las incidencias identificadas acorde al plazo acordado de implantación.",
+    "intro_sugerencias": "A continuación, se muestran las debilidades identificadas para las que, dado su impacto limitado, no se exigirá la elaboración de un plan de acción específico, si bien se exponen para su consideración con el objetivo de mejorar el nivel de control.",
+    "detalles_descriptivos": "A continuación, se muestran los detalles descriptivos de la situación anterior:",
+    "escala_evaluacion_global": ["Deficiente", "Insuficiente", "Mejorable", "Razonable", "Adecuado"],
+}
+
+
+def textos_informe() -> dict:
+    """Textos fijos del informe (config/textos_informe.yaml, con valores por defecto)."""
+    ruta = Path(__file__).resolve().parent.parent / "config" / "textos_informe.yaml"
+    textos = dict(_TEXTOS_POR_DEFECTO)
+    if ruta.exists():
+        textos.update(yaml.safe_load(ruta.read_text(encoding="utf-8")) or {})
+    return textos
+
+
+TEXTOS = textos_informe()
 
 ESTADOS = ("propuesta", "aprobada", "descartada")
 TIPOS = ("conclusion", "sugerencia")
@@ -87,9 +111,9 @@ def separar_coletilla(valor: str) -> tuple[str, bool]:
 def normalizar_nivel(valor: str) -> str:
     valor, _ = separar_coletilla(valor)
     v = _norm(valor)
-    for n in ("alto", "medio", "bajo"):
+    for n, etiqueta in (("critico", "Crítico"), ("alto", "Alto"), ("medio", "Medio"), ("bajo", "Bajo")):
         if v.startswith(n):
-            return n.capitalize()
+            return etiqueta
     return valor.strip()
 
 
@@ -183,7 +207,9 @@ CABECERA_INFORME = """# Informe de auditoría interna — {nombre}
 """
 SECCIONES_INFORME = ("Introducción", "Resumen ejecutivo", "Detalle de conclusiones", "Sugerencias de mejora")
 PENDIENTE = "_(pendiente)_"
-MARCADOR_DETALLES = "*A continuación, se muestran los detalles descriptivos de la situación anterior:*"
+MARCADOR_DETALLES = f"*{TEXTOS['detalles_descriptivos']}*"
+MARCA_EVALUACION = "**Evaluación global:**"
+MARCA_PROXIMOS = "**Próximos pasos:**"
 META_INFORME = [("prueba", "Prueba"), ("nivel_riesgo", "Nivel de riesgo"), ("area", "Área"),
                 ("responsable", "Responsable"), ("plazo", "Plazo"), ("referencia_recomendacion", "Ref. recomendación")]
 
@@ -226,7 +252,12 @@ def render_informe(datos: dict, proyecto: dict) -> str:
         nombre=proyecto.get("nombre", ""), referencia=proyecto.get("referencia", ""),
         fecha=proyecto.get("fecha", ""), distribucion=", ".join(proyecto.get("distribucion", [])))]
     partes.append(f"## Introducción\n\n{(datos.get('introduccion') or PENDIENTE).strip()}\n")
-    partes.append(f"## Resumen ejecutivo\n\n{(datos.get('resumen_ejecutivo') or PENDIENTE).strip()}\n")
+    resumen = (datos.get("resumen_ejecutivo") or PENDIENTE).strip()
+    if datos.get("evaluacion_global"):
+        resumen += f"\n\n{MARCA_EVALUACION} {datos['evaluacion_global'].strip()}"
+    if datos.get("resumen_ejecutivo"):
+        resumen += f"\n\n{MARCA_PROXIMOS} {TEXTOS['proximos_pasos']}"
+    partes.append(f"## Resumen ejecutivo\n\n{resumen}\n")
     partes.append("## Detalle de conclusiones\n")
     conclusiones = datos.get("conclusiones", [])
     if not conclusiones:
@@ -235,7 +266,9 @@ def render_informe(datos: dict, proyecto: dict) -> str:
         partes.append(_apartado_conclusion(c, i, es_sugerencia=False))
     partes.append("## Sugerencias de mejora\n")
     sugerencias = datos.get("sugerencias", [])
-    if not sugerencias:
+    if sugerencias:
+        partes.append(f"_{TEXTOS['intro_sugerencias']}_\n")
+    else:
         partes.append("_(ninguna)_\n" if conclusiones else PENDIENTE + "\n")
     for i, s in enumerate(sugerencias, 1):
         partes.append(_apartado_conclusion(s, i, es_sugerencia=True))
@@ -418,7 +451,7 @@ def parsear_informe(texto: str) -> dict:
     """02_informe.md -> dict (introduccion, resumen_ejecutivo, conclusiones, sugerencias).
     Las secciones marcadas como pendientes devuelven cadena vacía / lista vacía."""
     _, secciones = _partir_por_cabeceras(texto, 2)
-    datos: dict = {"introduccion": "", "resumen_ejecutivo": "", "conclusiones": [], "sugerencias": []}
+    datos: dict = {"introduccion": "", "resumen_ejecutivo": "", "evaluacion_global": "", "conclusiones": [], "sugerencias": []}
     for titulo, lineas in secciones:
         t = _norm(titulo)
         cuerpo = [l for l in lineas if not l.lstrip().startswith(">")]
@@ -428,7 +461,15 @@ def parsear_informe(texto: str) -> dict:
         if t.startswith("introduccion"):
             datos["introduccion"] = texto_cuerpo
         elif t.startswith("resumen"):
-            datos["resumen_ejecutivo"] = texto_cuerpo
+            lineas_res = []
+            for l in texto_cuerpo.splitlines():
+                if l.strip().startswith(MARCA_EVALUACION):
+                    datos["evaluacion_global"] = l.strip()[len(MARCA_EVALUACION):].strip()
+                elif l.strip().startswith(MARCA_PROXIMOS):
+                    continue  # texto fijo: lo añade el render
+                else:
+                    lineas_res.append(l)
+            datos["resumen_ejecutivo"] = "\n".join(lineas_res).strip()
         elif "conclusion" in t:
             datos["conclusiones"] = _parsear_lista(lineas, "conclusion")
         elif "sugerencia" in t or "mejora" in t:

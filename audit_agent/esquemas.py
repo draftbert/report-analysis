@@ -25,7 +25,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-NIVELES_RIESGO = ("Alto", "Medio", "Bajo")
+NIVELES_RIESGO = ("Crítico", "Alto", "Medio", "Bajo")
+ESCALA_EVALUACION_GLOBAL = ("Deficiente", "Insuficiente", "Mejorable", "Razonable", "Adecuado")
 TIPOS_CONCLUSION = ("conclusion", "sugerencia")
 
 
@@ -42,8 +43,8 @@ class Conclusion(BaseModel):
     consecuencias: str = Field(description="Párrafo de cierre: qué riesgo genera la incidencia, si se ha materializado (con evidencia del papel de trabajo) y si ha podido cuantificarse su impacto.")
     recomendacion: str = Field(default="", description="Recomendación (o propuesta de mejora si tipo=sugerencia). Si hay varias, cada una en un párrafo separado por línea en blanco (se numerarán N.1, N.2…). Solo si el papel de trabajo la contiene o referencia; si no, vacía: la aportará el auditor o se propondrá después.")
     referencia_recomendacion: str = Field(default="", description="Código de la recomendación abierta de otra auditoría a la que se remite, si el papel de trabajo lo indica (p. ej. 'TMSCIIF-10'). Vacío si no hay.")
-    nivel_riesgo: str = Field(default="", description="Exactamente uno de: Alto, Medio, Bajo. Vacío si no procede.")
-    area: str = Field(default="", description="Área o unidad organizativa responsable del plan de acción (p. ej. 'FLF'), si el papel de trabajo lo indica.")
+    nivel_riesgo: str = Field(default="", description="Exactamente uno de: Crítico, Alto, Medio, Bajo. Vacío si no procede.")
+    area: str = Field(default="", description="Área o unidad organizativa responsable del plan de acción, si el papel de trabajo lo indica.")
     responsable: str = Field(default="", description="Persona o rol responsable del plan de acción, si el papel de trabajo lo indica.")
     plazo: str = Field(default="", description="Plazo del plan de acción (fecha, trimestre o 'Fuera de plazo'), si el papel de trabajo lo indica.")
     fuente: str = Field(default="", description="Documento y apartado del papel de trabajo que soporta la conclusión.")
@@ -86,8 +87,9 @@ class RecomendacionFormateada(BaseModel):
 class ContextoInforme(BaseModel):
     """Introducción y resumen ejecutivo del informe."""
 
-    introduccion: str = Field(description="Introducción del informe: contexto de la auditoría, objetivo, alcance y trabajo realizado, a partir de los documentos de entrada. Markdown, varios párrafos.")
-    resumen_ejecutivo: str = Field(description="Resumen ejecutivo: principales conclusiones y su relevancia, para Dirección. Markdown; puede usar viñetas. Solo hechos presentes en la fuente.")
+    introduccion: str = Field(description="Introducción del informe en Markdown con los bloques **Contexto:**, **Objetivo de la auditoría:** (con la lista de aspectos revisados), **Riesgos a cubrir:**, **Alcance de la auditoría:** y, si constan cifras, **Principales magnitudes:**; empieza y termina con las frases fijas indicadas.")
+    resumen_ejecutivo: str = Field(description="Resumen ejecutivo para Dirección en Markdown: párrafo de contexto, valoración general del control, una viñeta por conclusión (debilidad + efecto) y párrafo final de valoración. Solo hechos presentes en la fuente.")
+    evaluacion_global: str = Field(default="", description="Evaluación global del proceso: exactamente uno de Deficiente, Insuficiente, Mejorable, Razonable, Adecuado; vacío si no se puede sostener con la evidencia.")
 
 
 class TextoLibre(BaseModel):

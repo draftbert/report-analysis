@@ -206,12 +206,44 @@ def _leer_pdf(ruta: Path) -> tuple[str, list[str]]:
     return contenido, avisos
 
 
+def _leer_pptx(ruta: Path) -> tuple[str, list[str]]:
+    """Informes en PowerPoint (p. ej. informes aprobados usados como corpus de
+    calibración): una sección `## Diapositiva N` por diapositiva, con el texto
+    de cuadros y tablas en orden de lectura (arriba-abajo, izquierda-derecha)."""
+    try:
+        from pptx import Presentation
+    except ImportError as exc:
+        raise LecturaError("Para leer .pptx instala python-pptx.") from exc
+    prs = Presentation(str(ruta))
+    partes: list[str] = []
+    for i, diapositiva in enumerate(prs.slides, 1):
+        bloques: list[str] = []
+        for sh in sorted(diapositiva.shapes, key=lambda x: ((x.top or 0), (x.left or 0))):
+            if sh.has_text_frame:
+                texto = "\n".join(p.text.strip() for p in sh.text_frame.paragraphs if p.text.strip())
+                if texto:
+                    bloques.append(texto)
+            elif getattr(sh, "has_table", False) and sh.has_table:
+                filas = [[c.text for c in fila.cells] for fila in sh.table.rows]
+                if len(filas) > 1 and len(filas[0]) > 1 and all(len(" ".join(f)) < 400 for f in filas):
+                    bloques.append(_tabla_md(filas))
+                else:  # tablas "de maquetación" (una fila con celdas largas): texto de cada celda
+                    for fila in filas:
+                        bloques += [c.strip() for c in fila if c.strip()]
+        if bloques:
+            partes.append(f"## Diapositiva {i}\n\n" + "\n\n".join(bloques))
+    if not partes:
+        return "", ["El .pptx no contiene texto."]
+    return _limpiar("\n\n".join(partes)), []
+
+
 LECTORES = {
     ".md": ("texto", _leer_texto),
     ".txt": ("texto", _leer_texto),
     ".docx": ("docx", _leer_docx),
     ".xlsx": ("xlsx", _leer_xlsx),
     ".pdf": ("pdf", _leer_pdf),
+    ".pptx": ("pptx", _leer_pptx),
 }
 EXTENSIONES = tuple(LECTORES)
 

@@ -196,9 +196,15 @@ archivado con hashes y lectores de entrada.
 
 ## Mantenimiento del criterio de estilo
 
-Todo el criterio vive en `config/estilo.yaml`: palabras prohibidas con
-sugerencia y motivo, expresiones en primera persona, longitud máxima de frase y
-estructura obligatoria de la conclusión. Se inyecta automáticamente en los
+Todo el criterio vive en `config/estilo.yaml` (palabras prohibidas con
+sugerencia y motivo, primera persona del singular, longitud máxima de frase,
+escalas de riesgo y de evaluación global, estructura obligatoria de la
+conclusión), `config/textos_informe.yaml` (frases fijas del informe) y
+`config/ejemplo_conclusion.md` (ejemplos de referencia). El registro (primera
+persona del plural para las actuaciones del equipo, «deber ser» + lo
+identificado + datos + riesgo + materialización, recomendaciones en infinitivo)
+está documentado en [docs/ESTILO_INFORMES.md](docs/ESTILO_INFORMES.md), calibrado
+con tres informes aprobados, y se inyecta en los prompts. Se inyecta automáticamente en los
 prompts, así que ampliar el YAML cambia a la vez lo que se detecta y lo que el
 modelo evita al redactar.
 
@@ -206,6 +212,8 @@ modelo evita al redactar.
 
 ```
 config/estilo.yaml          Criterio de estilo (editable por el equipo)
+config/textos_informe.yaml  Frases fijas del informe (plan de auditoría, normas, próximos pasos, sugerencias)
+docs/ESTILO_INFORMES.md     Notas de estilo calibradas con informes aprobados
 config/ejemplo_conclusion.md  Ejemplo de referencia de una conclusión (registro objetivo; se inyecta en `extraer`)
 audit_agent/expediente.py   Carpeta de trabajo: ficheros, snapshots, trazas
 audit_agent/formato_md.py   Markdown de ida y vuelta (render ↔ parse) de conclusiones e informe

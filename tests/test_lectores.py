@@ -80,3 +80,18 @@ def test_txt_pegado_desde_excel_se_normaliza():
     assert "Debilidades del algoritmo CPF\nA raíz" in doc.texto  # comilla de apertura de celda eliminada
     assert "CON INCIDENCIAS" in doc.texto and "TMSCIIF-10" in doc.texto
     assert doc.texto.count('"') % 2 == 0
+
+
+def test_pptx_texto_por_diapositiva(tmp_path):
+    from pptx import Presentation
+    from pptx.util import Inches
+    prs = Presentation()
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    s.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text_frame.text = "Resumen ejecutivo"
+    t = s.shapes.add_table(2, 2, Inches(1), Inches(2), Inches(4), Inches(1)).table
+    t.cell(0, 0).text, t.cell(0, 1).text, t.cell(1, 0).text, t.cell(1, 1).text = "Área", "Plazo", "Compras", "30/09/2025"
+    ruta = tmp_path / "informe.pptx"
+    prs.save(str(ruta))
+    doc = leer(ruta)
+    assert doc.lector == "pptx" and "## Diapositiva 1" in doc.texto
+    assert "Resumen ejecutivo" in doc.texto and "| Área | Plazo |" in doc.texto and "| Compras | 30/09/2025 |" in doc.texto
