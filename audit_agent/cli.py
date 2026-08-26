@@ -69,10 +69,12 @@ def cmd_nuevo(args):
     dist = [d.strip() for d in (args.distribucion or "").split(",") if d.strip()]
     exp = Expediente.crear(args.ruta, args.nombre, args.referencia, args.fecha or "", dist)
     if args.ejemplo:
-        shutil.copy(RAIZ / "ejemplos" / "papel_trabajo_compras.md", exp.ruta / "entrada")
+        shutil.copy(RAIZ / "ejemplos" / "papel_trabajo_tarifarios.txt", exp.ruta / "papeles_trabajo")
+        shutil.copy(RAIZ / "ejemplos" / "contexto_auditoria_tarifarios.md", exp.ruta / "contexto")
     FICHERO_ACTIVO.write_text(str(exp.ruta), encoding="utf-8")
     return (f"Expediente creado en {exp.ruta} y fijado como activo.\n"
-            f"Copia los papeles de trabajo a {exp.ruta / 'entrada'} y ejecuta `extraer`."
+            f"Copia el design thinking / contexto a {exp.ruta / 'contexto'} (opcional) y el papel de trabajo final a "
+            f"{exp.ruta / 'papeles_trabajo'}; después `redactar-contexto` y `extraer`."
             + ("\n(Se ha copiado el papel de trabajo de ejemplo.)" if args.ejemplo else ""))
 
 
@@ -233,7 +235,7 @@ def cmd_revisar_texto(args):
 # ---------------------------------------------------------------- menú interactivo
 MENU = [
     ("estado", "Ver estado del expediente", cmd_estado, {}),
-    ("redactar-contexto", "Introducción y resumen ejecutivo desde entrada/ (LLM)", cmd_redactar_contexto, {"secciones": None, "forzar": False}),
+    ("redactar-contexto", "Introducción y resumen ejecutivo desde contexto/ y papeles_trabajo/ (LLM)", cmd_redactar_contexto, {"secciones": None, "forzar": False}),
     ("extraer", "Extraer conclusiones y sugerencias de mejora de todas las pruebas (LLM)", cmd_extraer, {"forzar": False}),
     ("aprobar todas", "Aprobar todas las conclusiones", cmd_aprobar, {"ids": ["todas"], "estado": "aprobada"}),
     ("revisar-conclusiones", "Revisar vocabulario y campos de las conclusiones", cmd_revisar_conclusiones, {}),
@@ -296,16 +298,16 @@ def construir_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("nuevo", help="Crear un expediente"); s.set_defaults(fn=cmd_nuevo)
     s.add_argument("ruta"); s.add_argument("--nombre", required=True); s.add_argument("--referencia", required=True)
     s.add_argument("--fecha"); s.add_argument("--distribucion", help="Lista separada por comas")
-    s.add_argument("--ejemplo", action="store_true", help="Copiar el papel de trabajo de ejemplo a entrada/")
+    s.add_argument("--ejemplo", action="store_true", help="Copiar el papel de trabajo y el contexto de ejemplo")
 
     s = sub.add_parser("usar", help="Fijar el expediente activo"); s.set_defaults(fn=cmd_usar); s.add_argument("ruta")
     sub.add_parser("estado", help="Estado y siguiente paso").set_defaults(fn=cmd_estado)
     sub.add_parser("menu", help="Menú interactivo").set_defaults(fn=cmd_menu)
 
-    s = sub.add_parser("redactar-contexto", help="Introducción y resumen ejecutivo desde entrada/ (LLM)"); s.set_defaults(fn=cmd_redactar_contexto)
+    s = sub.add_parser("redactar-contexto", help="Introducción y resumen ejecutivo desde contexto/ y papeles_trabajo/ (LLM)"); s.set_defaults(fn=cmd_redactar_contexto)
     s.add_argument("--forzar", action="store_true", help="Regenerar aunque ya existan")
     s.add_argument("--secciones", nargs="+", help="Rehacer solo: introduccion resumen")
-    s = sub.add_parser("extraer", help="Conclusiones y sugerencias de mejora desde entrada/ (LLM)"); s.set_defaults(fn=cmd_extraer)
+    s = sub.add_parser("extraer", help="Conclusiones y sugerencias de mejora desde papeles_trabajo/ (LLM)"); s.set_defaults(fn=cmd_extraer)
     s.add_argument("--forzar", action="store_true")
     s = sub.add_parser("aprobar", help="Marcar conclusiones como aprobadas (valida el nivel de riesgo)"); s.set_defaults(fn=cmd_aprobar, estado="aprobada")
     s.add_argument("ids", nargs="+", help="C-01 C-02 … o `todas`")

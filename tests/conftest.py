@@ -38,7 +38,7 @@ def expediente_tmp(tmp_path):
     from audit_agent.expediente import Expediente
     exp = Expediente.crear(tmp_path / "EXP-TEST", "Auditoría de prueba", "EXP-TEST", "Mayo 2026",
                            ["Dirección de Compras"])
-    shutil.copy(RAIZ / "ejemplos" / "papel_trabajo_compras.md", exp.ruta / "entrada")
+    shutil.copy(RAIZ / "ejemplos" / "papel_trabajo_compras.md", exp.ruta / "papeles_trabajo")
     return exp
 
 

@@ -9,7 +9,8 @@ sobreescritura deja un snapshot en `historial/` (deshacer / diff).
 
     expedientes/CNC-2026-03/
       expediente.yaml         metadatos del trabajo
-      entrada/                papeles de trabajo exportados de Pentana (.md/.txt/.docx)
+      contexto/               design thinking, motivo y alcance previsto de la auditoría (opcional)
+      papeles_trabajo/        papel de trabajo final exportado de Pentana (todas las pruebas)
       01_conclusiones.md      conclusiones (incidencias) propuestas -> el auditor edita, aprueba y recomienda
       02_informe.md           informe: introducción, resumen ejecutivo, detalle de conclusiones, sugerencias
       03_instrucciones.md     buzón: transcripción / comentarios -> aplicar-cambios
@@ -39,7 +40,8 @@ ARCHIVOS = {
     "revision": "revision.md",
     "cambios": "cambios_aplicados.md",
 }
-DIRECTORIOS = ("entrada", "historial", "salidas", "trazas")
+DIRECTORIOS = ("contexto", "papeles_trabajo", "historial", "salidas", "trazas")
+CARPETAS_DOCUMENTOS = ("contexto", "papeles_trabajo")
 EXTENSIONES_ENTRADA = EXTENSIONES  # ver lectores.py
 
 SEPARADOR_INSTRUCCIONES = "---"
@@ -99,10 +101,15 @@ class Expediente:
             yaml.safe_dump(meta, allow_unicode=True, sort_keys=False), encoding="utf-8")
         (ruta / ARCHIVOS["instrucciones"]).write_text(
             PLANTILLA_INSTRUCCIONES.format(referencia=referencia), encoding="utf-8")
-        (ruta / "entrada" / "LEEME.txt").write_text(
-            "Deja aquí el papel de trabajo final (todas las pruebas), el contexto de la auditoría, anexos, design\n"
-            "thinking… (.md, .txt, .docx, .xlsx o .pdf con texto). Todo lo que hay aquí se envía al modelo en\n"
-            "`redactar-contexto` y `extraer`.\n", encoding="utf-8")
+        (ruta / "contexto" / "LEEME.txt").write_text(
+            "Deja aquí el contexto de la auditoría: design thinking, memorando de planificación, motivo y alcance\n"
+            "previsto, riesgos a cubrir, magnitudes del proceso… (.md, .txt, .docx, .xlsx, .pdf, .pptx).\n"
+            "Se usa en `redactar-contexto` (introducción y resumen ejecutivo) y como marco en `extraer`.\n"
+            "Es opcional: sin contexto, la introducción se redacta solo con los papeles de trabajo.\n", encoding="utf-8")
+        (ruta / "papeles_trabajo" / "LEEME.txt").write_text(
+            "Deja aquí el papel de trabajo final (todas las pruebas, con contexto, objetivo, pruebas realizadas y\n"
+            "conclusiones), tal como se exporta o se pega desde Pentana/Excel (.md, .txt, .docx, .xlsx o .pdf con\n"
+            "texto). Es la fuente de las conclusiones (`extraer`).\n", encoding="utf-8")
         return cls(ruta)
 
     # ------------------------------------------------------------ rutas
@@ -154,15 +161,36 @@ class Expediente:
         shutil.copy2(origen, self.archivo(clave))
         return origen
 
-    # ------------------------------------------------------------ entrada
+    # ------------------------------------------------------------ documentos de entrada
+    def ficheros(self, carpeta: str) -> list[Path]:
+        """Documentos legibles de contexto/ o papeles_trabajo/. Compatibilidad:
+        un expediente antiguo con entrada/ la trata como papeles_trabajo/."""
+        rutas = [self.ruta / carpeta]
+        if carpeta == "papeles_trabajo" and (self.ruta / "entrada").is_dir():
+            rutas.append(self.ruta / "entrada")
+        salida = []
+        for r in rutas:
+            if r.is_dir():
+                salida += sorted(p for p in r.iterdir()
+                                 if p.suffix.lower() in EXTENSIONES_ENTRADA and p.name.lower() != "leeme.txt")
+        return salida
+
     def ficheros_entrada(self) -> list[Path]:
-        return sorted(p for p in (self.ruta / "entrada").iterdir()
-                      if p.suffix.lower() in EXTENSIONES_ENTRADA and p.name.lower() != "leeme.txt")
+        """Todos los documentos de entrada (contexto + papeles de trabajo)."""
+        return self.ficheros("contexto") + self.ficheros("papeles_trabajo")
+
+    def leer_documentos(self, carpeta: str) -> list[Documento]:
+        """Lee una carpeta con la capa de lectores; cada Documento lleva la
+        carpeta de origen en `carpeta` (texto normalizado a Markdown)."""
+        docs = []
+        for p in self.ficheros(carpeta):
+            d = leer_documento(p)
+            d.carpeta = carpeta
+            docs.append(d)
+        return docs
 
     def leer_entrada(self) -> list[Documento]:
-        """Lee todos los documentos de entrada/ con la capa de lectores
-        (texto normalizado a Markdown, con el nombre del lector usado)."""
-        return [leer_documento(p) for p in self.ficheros_entrada()]
+        return self.leer_documentos("contexto") + self.leer_documentos("papeles_trabajo")
 
     # ------------------------------------------------------------ instrucciones
     def instrucciones_pendientes(self) -> str:

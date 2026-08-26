@@ -56,9 +56,12 @@ def test_formato_no_soportado(tmp_path):
 
 def test_expediente_lee_entrada_con_lectores(expediente_tmp):
     import shutil
-    shutil.copy(SINTETICOS / "papel_trabajo_compras.docx", expediente_tmp.ruta / "entrada")
+    shutil.copy(SINTETICOS / "papel_trabajo_compras.docx", expediente_tmp.ruta / "papeles_trabajo")
+    (expediente_tmp.ruta / "contexto" / "design_thinking.md").write_text("# Motivo\nRevisar compras.\n", encoding="utf-8")
     docs = expediente_tmp.leer_entrada()
-    assert [(d.nombre, d.lector) for d in docs] == [("papel_trabajo_compras.docx", "docx"), ("papel_trabajo_compras.md", "texto")]
+    assert [(d.carpeta, d.nombre, d.lector) for d in docs] == [
+        ("contexto", "design_thinking.md", "texto"),
+        ("papeles_trabajo", "papel_trabajo_compras.docx", "docx"), ("papeles_trabajo", "papel_trabajo_compras.md", "texto")]
 
 
 def test_extraer_registra_lector_y_texto_en_trazas(contexto):
@@ -69,7 +72,8 @@ def test_extraer_registra_lector_y_texto_en_trazas(contexto):
     accion_extraer(contexto)
     traza = next(contexto.exp.ruta.glob("trazas/*_extraer-entrada.json"))
     d = json.loads(traza.read_text(encoding="utf-8"))
-    assert d["documentos"][0]["lector"] == "texto" and "6 de los 45 pedidos" in d["documentos"][0]["texto_normalizado"]
+    assert d["documentos"][0]["carpeta"] == "papeles_trabajo" and d["documentos"][0]["lector"] == "texto"
+    assert "6 de los 45 pedidos" in d["documentos"][0]["texto_normalizado"]
 
 
 def test_txt_pegado_desde_excel_se_normaliza():
@@ -95,3 +99,11 @@ def test_pptx_texto_por_diapositiva(tmp_path):
     doc = leer(ruta)
     assert doc.lector == "pptx" and "## Diapositiva 1" in doc.texto
     assert "Resumen ejecutivo" in doc.texto and "| Área | Plazo |" in doc.texto and "| Compras | 30/09/2025 |" in doc.texto
+
+
+def test_expediente_antiguo_con_entrada_se_lee_como_papeles(tmp_path):
+    from audit_agent.expediente import Expediente
+    exp = Expediente.crear(tmp_path / "VIEJO", "V", "VIEJO")
+    (exp.ruta / "entrada").mkdir()
+    (exp.ruta / "entrada" / "pt.md").write_text("Prueba 1. CONCLUSIONES: sin incidencias.\n", encoding="utf-8")
+    assert [d.carpeta for d in exp.leer_entrada()] == ["papeles_trabajo"]

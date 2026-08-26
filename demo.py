@@ -33,10 +33,11 @@ def paso(titulo, argv):
 if RUTA.exists():
     shutil.rmtree(RUTA)
 E = ["-e", str(RUTA)]
-paso("1. Crear expediente y copiar el papel de trabajo final",
+paso("1. Crear expediente; copiar el design thinking a contexto/ y el papel de trabajo final a papeles_trabajo/",
      ["nuevo", str(RUTA), "--nombre", "Auditoría de Transporte e-Commerce: tarifarios y SCA", "--referencia", "DEMO-TEC-2026",
       "--fecha", "Junio 2026", "--distribucion", "Dirección de Transporte e-Commerce, Dirección Financiera, Comité de Auditoría"])
-shutil.copy(RAIZ / "ejemplos" / "papel_trabajo_tarifarios.txt", RUTA / "entrada")
+shutil.copy(RAIZ / "ejemplos" / "contexto_auditoria_tarifarios.md", RUTA / "contexto")
+shutil.copy(RAIZ / "ejemplos" / "papel_trabajo_tarifarios.txt", RUTA / "papeles_trabajo")
 (RAIZ / ".expediente_activo").unlink(missing_ok=True)
 paso("2. Estado", E + ["estado"])
 paso("3. Introducción y resumen ejecutivo (LLM)", E + ["redactar-contexto"])
