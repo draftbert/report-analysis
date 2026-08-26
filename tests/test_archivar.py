@@ -6,11 +6,12 @@ import json
 import zipfile
 
 from audit_agent.acciones import accion_archivar, estado_expediente, verificar_archivo
+from audit_agent.formato_md import render_informe
 
 
 def test_archivar_contenido_y_hashes(expediente_tmp):
     exp = expediente_tmp
-    exp.archivo("observaciones").write_text("# obs\n", encoding="utf-8")
+    exp.archivo("conclusiones").write_text("# conclusiones\n", encoding="utf-8")
     exp.escribir("informe", "# informe v1\n", "redactar")
     exp.escribir("informe", "# informe v2\n", "corregir")  # deja snapshot en historial/
     exp.trazar("extraer", {"system": "s", "user": "u", "respuesta": {"x": 1}})
@@ -25,7 +26,7 @@ def test_archivar_contenido_y_hashes(expediente_tmp):
     with zipfile.ZipFile(nuevo) as z:
         nombres = set(z.namelist())
         manifiesto = json.loads(z.read("manifest.json"))
-        assert {"expediente.yaml", "01_observaciones.md", "02_informe.md", "03_instrucciones.md",
+        assert {"expediente.yaml", "01_conclusiones.md", "02_informe.md", "03_instrucciones.md",
                 "salidas/ResumenEjecutivo_EXP-TEST.pptx"} <= nombres
         assert any(n.startswith("historial/") and "02_informe" in n for n in nombres)
         assert any(n.startswith("trazas/") and n.endswith("_extraer.json") for n in nombres)
@@ -55,8 +56,11 @@ def test_verificar_detecta_manipulacion(expediente_tmp, tmp_path):
 
 def test_estado_sugiere_archivar_tras_ppt(expediente_tmp):
     exp = expediente_tmp
-    exp.archivo("observaciones").write_text("## OBS-01 · T\n\n- Estado: aprobada\n", encoding="utf-8")
-    exp.archivo("informe").write_text("## Objetivo\n\nX\n", encoding="utf-8")
+    exp.archivo("conclusiones").write_text("## C-01 · T\n\n- Estado: aprobada\n\n**Recomendación:** R\n", encoding="utf-8")
+    datos = {"introduccion": "I", "resumen_ejecutivo": "R",
+             "conclusiones": [{"titulo": "T", "incidencia": "X", "causa_raiz": "Y", "como_se_ha_llegado": "Z",
+                               "consecuencias": "W", "recomendacion": "R"}], "sugerencias": []}
+    exp.archivo("informe").write_text(render_informe(datos, exp.proyecto), encoding="utf-8")
     exp.ruta_ppt().write_bytes(b"PK")
     e = estado_expediente(exp)
     assert e["fase"].startswith("4") and "archivar" in e["siguiente"]

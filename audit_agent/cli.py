@@ -6,10 +6,12 @@ CLI del revisor de informes de auditoría interna.
     ./revisor estado                                 # dónde estoy y qué toca
     ./revisor menu                                   # menú interactivo con lo mismo
 
-    ./revisor extraer            → 01_observaciones.md (propuestas del modelo)
-    ./revisor aprobar OBS-01 OBS-03 | aprobar todas | descartar OBS-02
-    ./revisor revisar-obs | corregir-obs | regenerar-obs OBS-02
-    ./revisor redactar [--forzar | --secciones objetivo alcance]   → 02_informe.md
+    ./revisor redactar-contexto [--forzar | --secciones introduccion resumen]  → introducción + resumen ejecutivo
+    ./revisor extraer            → 01_conclusiones.md (incidencias y sugerencias de mejora de todas las pruebas)
+    ./revisor aprobar C-01 C-03 | aprobar todas | descartar C-02
+    ./revisor revisar-conclusiones | corregir-conclusiones | regenerar C-02
+    ./revisor recomendar [C-01 ...] [--auto] [--formatear]     → recomendaciones (respeta las del auditor)
+    ./revisor redactar-conclusiones                            → vuelca las aprobadas a 02_informe.md
     ./revisor revisar | corregir [--avisos] | aplicar-cambios [--solo-plan]
     ./revisor diff | deshacer | historial | ppt | archivar
     ./revisor calibrar-estilo <carpeta_informes_aprobados> [--salida x.md] [--sin-llm]
@@ -93,6 +95,11 @@ def cmd_estado(args):
     return accion_estado(_abrir(args), StyleChecker(args.config), llm_desc)
 
 
+def cmd_redactar_contexto(args):
+    from .acciones import accion_redactar_contexto
+    return accion_redactar_contexto(_contexto(args), secciones=args.secciones or None, forzar=args.forzar)
+
+
 def cmd_extraer(args):
     from .acciones import accion_extraer
     return accion_extraer(_contexto(args), forzar=args.forzar)
@@ -103,24 +110,40 @@ def cmd_aprobar(args):
     return accion_aprobar(_abrir(args), args.ids, estado=args.estado)
 
 
-def cmd_revisar_obs(args):
-    from .acciones import accion_revisar_obs
-    return accion_revisar_obs(_contexto(args))
+def cmd_revisar_conclusiones(args):
+    from .acciones import accion_revisar_conclusiones
+    return accion_revisar_conclusiones(_contexto(args))
 
 
-def cmd_corregir_obs(args):
-    from .acciones import accion_corregir_obs
-    return accion_corregir_obs(_contexto(args), ids=args.ids or None)
+def cmd_corregir_conclusiones(args):
+    from .acciones import accion_corregir_conclusiones
+    return accion_corregir_conclusiones(_contexto(args), ids=args.ids or None)
 
 
-def cmd_regenerar_obs(args):
-    from .acciones import accion_regenerar_obs
-    return accion_regenerar_obs(_contexto(args), args.id)
+def cmd_regenerar(args):
+    from .acciones import accion_regenerar
+    return accion_regenerar(_contexto(args), args.id)
 
 
-def cmd_redactar(args):
-    from .acciones import accion_redactar
-    return accion_redactar(_contexto(args), forzar=args.forzar, secciones=args.secciones or None)
+def _preguntar_recomendacion(c):
+    print(f"\n{c['id']} · {c['titulo']}\n  Incidencia: {c['incidencia'][:300]}")
+    try:
+        r = input("  ¿Tienes recomendación? Pégala y Enter (Enter en blanco = la propone el modelo): ").strip()
+    except EOFError:
+        return None
+    return r or None
+
+
+def cmd_recomendar(args):
+    from .acciones import accion_recomendar
+    return accion_recomendar(_contexto(args), ids=args.ids or None,
+                             preguntar=None if args.auto else _preguntar_recomendacion,
+                             formatear=args.formatear, solo_aprobadas=not args.todas)
+
+
+def cmd_redactar_conclusiones(args):
+    from .acciones import accion_redactar_conclusiones
+    return accion_redactar_conclusiones(_contexto(args))
 
 
 def cmd_revisar(args):
@@ -210,17 +233,19 @@ def cmd_revisar_texto(args):
 # ---------------------------------------------------------------- menú interactivo
 MENU = [
     ("estado", "Ver estado del expediente", cmd_estado, {}),
-    ("extraer", "Extraer observaciones y recomendaciones de entrada/ (LLM)", cmd_extraer, {"forzar": False}),
-    ("aprobar todas", "Aprobar todas las observaciones", cmd_aprobar, {"ids": ["todas"], "estado": "aprobada"}),
-    ("revisar-obs", "Revisar vocabulario y estructura de las observaciones", cmd_revisar_obs, {}),
-    ("corregir-obs", "Corregir con el modelo solo lo señalado en las observaciones (LLM)", cmd_corregir_obs, {"ids": None}),
-    ("redactar", "Redactar el informe con las observaciones aprobadas (LLM)", cmd_redactar, {"forzar": False, "secciones": None}),
+    ("redactar-contexto", "Introducción y resumen ejecutivo desde entrada/ (LLM)", cmd_redactar_contexto, {"secciones": None, "forzar": False}),
+    ("extraer", "Extraer conclusiones y sugerencias de mejora de todas las pruebas (LLM)", cmd_extraer, {"forzar": False}),
+    ("aprobar todas", "Aprobar todas las conclusiones", cmd_aprobar, {"ids": ["todas"], "estado": "aprobada"}),
+    ("revisar-conclusiones", "Revisar vocabulario y campos de las conclusiones", cmd_revisar_conclusiones, {}),
+    ("corregir-conclusiones", "Corregir con el modelo solo lo señalado (LLM)", cmd_corregir_conclusiones, {"ids": None}),
+    ("recomendar", "Recomendaciones: pregunta al auditor; si no la tiene, la propone (LLM)", cmd_recomendar, {"ids": None, "auto": False, "formatear": False, "todas": False}),
+    ("redactar-conclusiones", "Volcar las conclusiones aprobadas al informe (sin modelo)", cmd_redactar_conclusiones, {}),
     ("revisar", "Revisar vocabulario prohibido y estilo del informe", cmd_revisar, {}),
     ("corregir", "Reescribir con el modelo los párrafos con errores (LLM)", cmd_corregir, {"avisos": False}),
     ("aplicar-cambios", "Aplicar las instrucciones de 03_instrucciones.md al informe (LLM)", cmd_aplicar_cambios, {"solo_plan": False}),
     ("diff", "Ver cambios del informe respecto a la última versión guardada", cmd_diff, {"fichero": "informe"}),
     ("deshacer", "Restaurar la versión anterior del informe", cmd_deshacer, {"fichero": "informe"}),
-    ("ppt", "Generar el Resumen Ejecutivo en PowerPoint", cmd_ppt, {}),
+    ("ppt", "Generar la presentación del informe en PowerPoint", cmd_ppt, {}),
     ("archivar", "Archivar evidencia (zip con trazas, historial, informe, PPT + manifest sha256)", cmd_archivar, {}),
 ]
 
@@ -242,12 +267,12 @@ def cmd_menu(args):
             continue
         nombre, _, fn, extra = MENU[int(eleccion) - 1]
         sub = argparse.Namespace(**vars(args), **extra)
-        if nombre == "extraer" and _abrir(args).existe("observaciones"):
-            sub.forzar = input("01_observaciones.md ya existe. ¿Regenerar? (se guarda snapshot) [s/N] ").strip().lower() == "s"
+        if nombre == "extraer" and _abrir(args).existe("conclusiones"):
+            sub.forzar = input("01_conclusiones.md ya existe. ¿Regenerar? (se guarda snapshot) [s/N] ").strip().lower() == "s"
             if not sub.forzar:
                 continue
-        if nombre == "redactar" and _abrir(args).existe("informe"):
-            sub.forzar = input("02_informe.md ya existe. ¿Reescribirlo entero? (se guarda snapshot) [s/N] ").strip().lower() == "s"
+        if nombre == "redactar-contexto" and _abrir(args).existe("informe"):
+            sub.forzar = input("02_informe.md ya tiene introducción/resumen. ¿Regenerarlos? (se guarda snapshot) [s/N] ").strip().lower() == "s"
             if not sub.forzar:
                 continue
         try:
@@ -277,23 +302,28 @@ def construir_parser() -> argparse.ArgumentParser:
     sub.add_parser("estado", help="Estado y siguiente paso").set_defaults(fn=cmd_estado)
     sub.add_parser("menu", help="Menú interactivo").set_defaults(fn=cmd_menu)
 
-    s = sub.add_parser("extraer", help="Proponer observaciones desde entrada/ (LLM)"); s.set_defaults(fn=cmd_extraer)
+    s = sub.add_parser("redactar-contexto", help="Introducción y resumen ejecutivo desde entrada/ (LLM)"); s.set_defaults(fn=cmd_redactar_contexto)
+    s.add_argument("--forzar", action="store_true", help="Regenerar aunque ya existan")
+    s.add_argument("--secciones", nargs="+", help="Rehacer solo: introduccion resumen")
+    s = sub.add_parser("extraer", help="Conclusiones y sugerencias de mejora desde entrada/ (LLM)"); s.set_defaults(fn=cmd_extraer)
     s.add_argument("--forzar", action="store_true")
-    s = sub.add_parser("aprobar", help="Marcar observaciones como aprobadas"); s.set_defaults(fn=cmd_aprobar, estado="aprobada")
-    s.add_argument("ids", nargs="+", help="OBS-01 OBS-02 … o `todas`")
-    s = sub.add_parser("descartar", help="Marcar observaciones como descartadas"); s.set_defaults(fn=cmd_aprobar, estado="descartada")
+    s = sub.add_parser("aprobar", help="Marcar conclusiones como aprobadas (valida el nivel de riesgo)"); s.set_defaults(fn=cmd_aprobar, estado="aprobada")
+    s.add_argument("ids", nargs="+", help="C-01 C-02 … o `todas`")
+    s = sub.add_parser("descartar", help="Marcar conclusiones como descartadas"); s.set_defaults(fn=cmd_aprobar, estado="descartada")
     s.add_argument("ids", nargs="+")
-    s = sub.add_parser("proponer", help="Devolver observaciones a estado propuesta"); s.set_defaults(fn=cmd_aprobar, estado="propuesta")
+    s = sub.add_parser("proponer", help="Devolver conclusiones a estado propuesta"); s.set_defaults(fn=cmd_aprobar, estado="propuesta")
     s.add_argument("ids", nargs="+")
-    sub.add_parser("revisar-obs", help="Reglas deterministas sobre las observaciones").set_defaults(fn=cmd_revisar_obs)
-    s = sub.add_parser("corregir-obs", help="Corregir con LLM lo señalado por las reglas"); s.set_defaults(fn=cmd_corregir_obs)
+    sub.add_parser("revisar-conclusiones", help="Reglas deterministas sobre las conclusiones").set_defaults(fn=cmd_revisar_conclusiones)
+    s = sub.add_parser("corregir-conclusiones", help="Corregir con LLM lo señalado por las reglas"); s.set_defaults(fn=cmd_corregir_conclusiones)
     s.add_argument("ids", nargs="*")
-    s = sub.add_parser("regenerar-obs", help="Rehacer una observación según «Notas del auditor» (LLM)"); s.set_defaults(fn=cmd_regenerar_obs)
+    s = sub.add_parser("regenerar", help="Rehacer una conclusión según «Notas del auditor» (LLM)"); s.set_defaults(fn=cmd_regenerar)
     s.add_argument("id")
-
-    s = sub.add_parser("redactar", help="Redactar el informe con las aprobadas (LLM)"); s.set_defaults(fn=cmd_redactar)
-    s.add_argument("--forzar", action="store_true", help="Reescribir aunque exista 02_informe.md")
-    s.add_argument("--secciones", nargs="+", help="Rehacer solo: objetivo alcance contexto observaciones evaluacion proximos")
+    s = sub.add_parser("recomendar", help="Recomendaciones: respeta las del auditor, propone las que falten (LLM)"); s.set_defaults(fn=cmd_recomendar)
+    s.add_argument("ids", nargs="*")
+    s.add_argument("--auto", action="store_true", help="No preguntar: proponer con el modelo las que falten")
+    s.add_argument("--formatear", action="store_true", help="Dar formato (sin cambiar la base) a las aportadas por el auditor")
+    s.add_argument("--todas", action="store_true", help="Incluir también las conclusiones en estado propuesta")
+    sub.add_parser("redactar-conclusiones", help="Volcar las conclusiones aprobadas al informe (sin modelo)").set_defaults(fn=cmd_redactar_conclusiones)
     sub.add_parser("revisar", help="Vocabulario prohibido y estilo del informe").set_defaults(fn=cmd_revisar)
     s = sub.add_parser("corregir", help="Reescribir con LLM los párrafos con errores"); s.set_defaults(fn=cmd_corregir)
     s.add_argument("--avisos", action="store_true", help="Incluir también avisos (frases largas)")
@@ -310,7 +340,7 @@ def construir_parser() -> argparse.ArgumentParser:
 
     for nombre, fn in (("diff", cmd_diff), ("deshacer", cmd_deshacer)):
         s = sub.add_parser(nombre); s.set_defaults(fn=fn)
-        s.add_argument("fichero", nargs="?", default="informe", choices=["informe", "observaciones", "instrucciones"])
+        s.add_argument("fichero", nargs="?", default="informe", choices=["informe", "conclusiones", "instrucciones"])
     sub.add_parser("historial", help="Versiones guardadas").set_defaults(fn=cmd_historial)
 
     s = sub.add_parser("revisar-texto", help="Revisar un texto suelto (sin expediente)"); s.set_defaults(fn=cmd_revisar_texto)

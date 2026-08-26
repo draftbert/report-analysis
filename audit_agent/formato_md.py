@@ -5,18 +5,20 @@ herramienta lo sabe leer después de que una persona lo haya editado.
 
 Convenciones (tolerantes a mayúsculas, tildes y espacios):
 
-    ## OBS-01 · Título                       (01_observaciones.md)
-    ### 1. Título                            (02_informe.md)
+    ## C-01 · Título                          (01_conclusiones.md)
+    ### 1. Título                             (02_informe.md, detalle y sugerencias)
+    - Tipo: conclusion | sugerencia
     - Estado: propuesta | aprobada | descartada
-    - Nivel de riesgo: Alto | Medio | Bajo
+    - Prueba: 2.11 a) …                       (referencia del papel de trabajo)
+    - Nivel de riesgo: Alto | Medio | Bajo [ (propuesto por el modelo, sin evidencia en PT) ]
     - Responsable: ...
     - Fuente: ...
-    **Condición:** texto (puede ocupar varios párrafos)
-    **Criterio:** ...
+    **Incidencia detectada:** texto (puede ocupar varios párrafos, tablas, listas)
     **Causa raíz:** ...
-    **Efecto:** ...
-    **Recomendación:** ...
-    **Notas del auditor:** (solo en 01_observaciones.md; se envían al modelo en `regenerar`)
+    **Cómo se ha llegado:** ...
+    **Consecuencias:** ...
+    **Recomendación:** ...                    (en sugerencias: **Propuesta de mejora:**)
+    **Notas del auditor:** (solo en 01_conclusiones.md; se envían al modelo en `regenerar`)
 
 Las líneas que empiezan por `>` son instrucciones para la persona y se ignoran.
 """
@@ -26,19 +28,22 @@ import re
 import unicodedata
 
 ESTADOS = ("propuesta", "aprobada", "descartada")
+TIPOS = ("conclusion", "sugerencia")
 
 # Coletilla que marca un nivel de riesgo estimado por el modelo sin evidencia
 # en el papel de trabajo (PT). La quita `aprobar` cuando el auditor valida.
 COLETILLA_RIESGO_PROPUESTO = "(propuesto por el modelo, sin evidencia en PT)"
 
 CAMPOS_TEXTO = [  # (clave, etiqueta visible)
-    ("condicion", "Condición"),
-    ("criterio", "Criterio"),
+    ("incidencia", "Incidencia detectada"),
     ("causa_raiz", "Causa raíz"),
-    ("efecto", "Efecto"),
+    ("como_se_ha_llegado", "Cómo se ha llegado"),
+    ("consecuencias", "Consecuencias"),
     ("recomendacion", "Recomendación"),
 ]
+ETIQUETA_PROPUESTA = "Propuesta de mejora"   # etiqueta de `recomendacion` cuando tipo=sugerencia
 CAMPOS_META = [
+    ("prueba", "Prueba"),
     ("nivel_riesgo", "Nivel de riesgo"),
     ("responsable", "Responsable"),
     ("fuente", "Fuente"),
@@ -46,7 +51,7 @@ CAMPOS_META = [
 
 _RE_META = re.compile(r"^\s*[-*]\s*([^:]+?)\s*:\s*(.*)$")
 _RE_CAMPO = re.compile(r"^\s*\*\*([^*]+?)\s*:?\s*\*\*\s*:?\s*(.*)$")
-_RE_OBS_ID = re.compile(r"^OBS-(\d+)\s*[·\-–:.]?\s*(.*)$", re.IGNORECASE)
+_RE_ID = re.compile(r"^(?:C|OBS)-(\d+)\s*[·\-–:.]?\s*(.*)$", re.IGNORECASE)
 _RE_NUM = re.compile(r"^(\d+)\s*[.)·\-–:]?\s*(.*)$")
 
 
@@ -56,9 +61,12 @@ def _norm(s: str) -> str:
 
 
 _CLAVES = {_norm(et): cl for cl, et in CAMPOS_TEXTO + CAMPOS_META}
-_CLAVES.update({"estado": "estado", "notas del auditor": "notas", "notas": "notas",
-                "causa": "causa_raiz", "nivel": "nivel_riesgo", "riesgo": "nivel_riesgo",
-                "recomendacion": "recomendacion", "condicion": "condicion"})
+_CLAVES.update({
+    "estado": "estado", "tipo": "tipo", "notas del auditor": "notas", "notas": "notas",
+    _norm(ETIQUETA_PROPUESTA): "recomendacion", "propuesta": "recomendacion",
+    "incidencia": "incidencia", "causa": "causa_raiz", "como se ha llegado a ella": "como_se_ha_llegado",
+    "como": "como_se_ha_llegado", "consecuencia": "consecuencias", "nivel": "nivel_riesgo", "riesgo": "nivel_riesgo",
+})
 
 
 def separar_coletilla(valor: str) -> tuple[str, bool]:
@@ -78,110 +86,130 @@ def normalizar_nivel(valor: str) -> str:
     return valor.strip()
 
 
+def normalizar_tipo(valor: str) -> str:
+    v = _norm(valor)
+    return "sugerencia" if v.startswith("sug") or v.startswith("mejora") else "conclusion"
+
+
 # ====================================================================== RENDER
-def _bloque_observacion(o: dict, cabecera: str, con_estado: bool, con_notas: bool) -> str:
+def _bloque(c: dict, cabecera: str, con_estado: bool, con_notas: bool) -> str:
+    tipo = normalizar_tipo(c.get("tipo", "conclusion"))
     lineas = [cabecera, ""]
     if con_estado:
-        lineas.append(f"- Estado: {o.get('estado', 'propuesta')}")
+        lineas.append(f"- Tipo: {tipo}")
+        lineas.append(f"- Estado: {c.get('estado', 'propuesta')}")
     for clave, etiqueta in CAMPOS_META:
-        valor = o.get(clave, "")
-        if clave == "fuente" and not valor and not con_estado:
-            continue
-        if clave == "nivel_riesgo" and o.get("riesgo_propuesto") and valor:
+        valor = c.get(clave, "") or ""
+        if clave == "fuente" and not con_estado:
+            continue  # en el informe no se muestra la fuente interna
+        if clave == "nivel_riesgo" and c.get("riesgo_propuesto") and valor:
             valor = f"{valor} {COLETILLA_RIESGO_PROPUESTO}"
+        if clave in ("responsable", "nivel_riesgo") and tipo == "sugerencia" and not valor and not con_estado:
+            continue
         lineas.append(f"- {etiqueta}: {valor}")
     lineas.append("")
     for clave, etiqueta in CAMPOS_TEXTO:
-        lineas.append(f"**{etiqueta}:** {o.get(clave, '').strip()}")
+        if clave == "recomendacion" and tipo == "sugerencia":
+            etiqueta = ETIQUETA_PROPUESTA
+        valor = (c.get(clave, "") or "").strip()
+        # Listas, tablas o varios párrafos: en línea aparte para que rendericen bien
+        sep = "\n" if valor.startswith(("- ", "* ", "|", "1)", "1.")) or "\n" in valor else " "
+        lineas.append(f"**{etiqueta}:**{sep}{valor}" if valor else f"**{etiqueta}:** ")
         lineas.append("")
     if con_notas:
-        lineas.append(f"**Notas del auditor:** {o.get('notas', '').strip()}")
+        lineas.append(f"**Notas del auditor:** {(c.get('notas', '') or '').strip()}")
         lineas.append("")
     return "\n".join(lineas)
 
 
-CABECERA_OBSERVACIONES = """# Observaciones y recomendaciones — {referencia} · {nombre}
+CABECERA_CONCLUSIONES = """# Detalle de conclusiones y sugerencias de mejora — {referencia} · {nombre}
 
 > Cómo trabajar este fichero:
-> - Lee cada observación, corrige lo que haga falta directamente en el texto.
-> - Cambia `Estado: propuesta` por `aprobada` (irá al informe) o `descartada` (se ignora).
-> - Si quieres que el modelo la rehaga, escribe qué cambiar en «Notas del auditor»
->   y ejecuta `regenerar-obs OBS-XX`. Puedes añadir observaciones nuevas a mano
->   copiando la estructura de un bloque.
-> - `revisar-obs` comprueba vocabulario prohibido y campos vacíos; `corregir-obs`
->   pide al modelo que corrija solo lo señalado.
-> - Cuando tengas las que quieras aprobadas, ejecuta `redactar`.
+> - Cada bloque es una incidencia detectada en los papeles de trabajo: qué se ha
+>   detectado, por qué (causa raíz), cómo se ha llegado (datos y tablas) y consecuencias.
+> - `Tipo: conclusion` lleva recomendación y plan de acción; `Tipo: sugerencia` es una
+>   mejora sin plan de acción (irá a «Sugerencias de mejora»). Cámbialo si procede.
+> - Corrige el texto directamente y cambia `Estado: propuesta` por `aprobada` o `descartada`.
+> - Recomendación: si la tienes, escríbela en «Recomendación:» y se respetará tal cual
+>   (`recomendar` solo le da formato). Si la dejas vacía, `recomendar` la propone.
+> - Si quieres que el modelo rehaga un bloque, escribe qué cambiar en «Notas del auditor»
+>   y ejecuta `regenerar C-XX`. `revisar-conclusiones` comprueba vocabulario y campos.
+> - Cuando estén aprobadas y con recomendación, ejecuta `redactar-conclusiones`.
 
 """
 
 
-def render_observaciones(observaciones: list[dict], proyecto: dict, notas_extraccion: str = "") -> str:
-    partes = [CABECERA_OBSERVACIONES.format(referencia=proyecto.get("referencia", ""),
-                                            nombre=proyecto.get("nombre", ""))]
+def render_conclusiones(conclusiones: list[dict], proyecto: dict, notas_extraccion: str = "",
+                        pruebas_sin_incidencia: list[str] | None = None) -> str:
+    partes = [CABECERA_CONCLUSIONES.format(referencia=proyecto.get("referencia", ""),
+                                           nombre=proyecto.get("nombre", ""))]
+    if pruebas_sin_incidencia:
+        partes.append("> **Pruebas concluidas sin incidencias** (no generan conclusión): "
+                      + "; ".join(pruebas_sin_incidencia) + "\n")
     if notas_extraccion.strip():
         partes.append("> **Notas del modelo sobre la extracción:** "
                       + notas_extraccion.strip().replace("\n", "\n> ") + "\n")
-    for i, o in enumerate(observaciones, 1):
-        ident = o.get("id") or f"OBS-{i:02d}"
-        partes.append(_bloque_observacion(o, f"## {ident} · {o.get('titulo', '').strip()}",
-                                          con_estado=True, con_notas=True))
+    for i, c in enumerate(conclusiones, 1):
+        ident = c.get("id") or f"C-{i:02d}"
+        partes.append(_bloque(c, f"## {ident} · {(c.get('titulo', '') or '').strip()}", con_estado=True, con_notas=True))
     return "\n".join(partes).rstrip() + "\n"
 
 
-CABECERA_INFORME = """# Resumen Ejecutivo — {nombre}
+CABECERA_INFORME = """# Informe de auditoría interna — {nombre}
 
 - Referencia: {referencia}
 - Fecha: {fecha}
 - Distribución: {distribucion}
 
-> Este es el texto de trabajo del informe. Edítalo libremente respetando los
-> títulos `##` de sección y la estructura de cada observación (`###` + campos en
-> negrita): es lo que permite generar el PPT y aplicar cambios automáticamente.
-> Acciones: `revisar` (vocabulario/estilo), `corregir` (reescritura dirigida de
-> lo señalado), `aplicar-cambios` (desde 03_instrucciones.md), `diff`,
-> `deshacer`, `ppt`.
+> Texto de trabajo del informe. Edítalo libremente respetando los títulos `##` de
+> sección y la estructura de cada conclusión (`###` + campos en negrita): es lo que
+> permite generar el PPT y aplicar cambios automáticamente.
+> Acciones: `redactar-contexto` (introducción y resumen), `redactar-conclusiones`
+> (vuelca las aprobadas), `revisar`/`corregir` (vocabulario), `aplicar-cambios`
+> (desde 03_instrucciones.md), `diff`, `deshacer`, `ppt`, `archivar`.
 
 """
+SECCIONES_INFORME = ("Introducción", "Resumen ejecutivo", "Detalle de conclusiones", "Sugerencias de mejora")
+PENDIENTE = "_(pendiente)_"
 
 
 def render_informe(datos: dict, proyecto: dict) -> str:
-    ctx = datos.get("contexto", {}) or {}
-    ev = datos.get("evaluacion_global", {}) or {}
     partes = [CABECERA_INFORME.format(
         nombre=proyecto.get("nombre", ""), referencia=proyecto.get("referencia", ""),
         fecha=proyecto.get("fecha", ""), distribucion=", ".join(proyecto.get("distribucion", [])))]
-    partes.append(f"## Objetivo\n\n{datos.get('objetivo', '').strip()}\n")
-    partes.append(f"## Alcance\n\n{datos.get('alcance', '').strip()}\n")
-    mags = "\n".join(f"- {v} — {e}" for v, e in ctx.get("magnitudes", []))
-    partes.append(f"## Contexto y principales magnitudes\n\n{mags}\n\n{ctx.get('texto', '').strip()}\n"
-                  if mags else f"## Contexto y principales magnitudes\n\n{ctx.get('texto', '').strip()}\n")
-    partes.append("## Principales observaciones\n")
-    for i, o in enumerate(datos.get("observaciones", []), 1):
-        partes.append(_bloque_observacion(o, f"### {i}. {o.get('titulo', '').strip()}",
-                                          con_estado=False, con_notas=False))
-    partes.append("## Evaluación global\n\n"
-                  f"- Gobierno: {ev.get('gobierno', '')}\n"
-                  f"- Gestión de riesgos: {ev.get('gestion_riesgos', '')}\n"
-                  f"- Entorno de control: {ev.get('entorno_control', '')}\n\n"
-                  f"{ev.get('conclusion', '').strip()}\n")
-    partes.append(f"## Próximos pasos\n\n{datos.get('proximos_pasos', '').strip()}\n")
+    partes.append(f"## Introducción\n\n{(datos.get('introduccion') or PENDIENTE).strip()}\n")
+    partes.append(f"## Resumen ejecutivo\n\n{(datos.get('resumen_ejecutivo') or PENDIENTE).strip()}\n")
+    partes.append("## Detalle de conclusiones\n")
+    conclusiones = datos.get("conclusiones", [])
+    if not conclusiones:
+        partes.append(PENDIENTE + "\n")
+    for i, c in enumerate(conclusiones, 1):
+        partes.append(_bloque({**c, "tipo": "conclusion"}, f"### {i}. {(c.get('titulo', '') or '').strip()}",
+                              con_estado=False, con_notas=False))
+    partes.append("## Sugerencias de mejora\n")
+    sugerencias = datos.get("sugerencias", [])
+    if not sugerencias:
+        partes.append("_(ninguna)_\n" if conclusiones else PENDIENTE + "\n")
+    for i, s in enumerate(sugerencias, 1):
+        partes.append(_bloque({**s, "tipo": "sugerencia"}, f"### {i}. {(s.get('titulo', '') or '').strip()}",
+                              con_estado=False, con_notas=False))
     return "\n".join(partes).rstrip() + "\n"
 
 
 # ====================================================================== PARSE
 def _parsear_bloque(lineas: list[str]) -> dict:
-    """Parsea las líneas de una observación (sin la cabecera) a dict."""
-    o: dict = {"estado": "propuesta", "nivel_riesgo": "", "responsable": "", "fuente": "", "notas": "",
-               "riesgo_propuesto": False}
+    """Parsea las líneas de una conclusión (sin la cabecera) a dict."""
+    c: dict = {"tipo": "conclusion", "estado": "propuesta", "prueba": "", "nivel_riesgo": "", "responsable": "",
+               "fuente": "", "notas": "", "riesgo_propuesto": False}
     for clave, _ in CAMPOS_TEXTO:
-        o[clave] = ""
+        c[clave] = ""
     campo_actual: str | None = None
     buffer: list[str] = []
 
     def cerrar():
         nonlocal buffer
         if campo_actual:
-            o[campo_actual] = (o.get(campo_actual, "") + "\n".join(buffer)).strip()
+            c[campo_actual] = (c.get(campo_actual, "") + "\n".join(buffer)).strip()
         buffer = []
 
     for linea in lineas:
@@ -198,19 +226,25 @@ def _parsear_bloque(lineas: list[str]) -> dict:
             clave = _CLAVES[_norm(m_meta.group(1))]
             valor = m_meta.group(2).strip()
             if clave == "estado" and valor:
-                o[clave] = _norm(valor).split()[0]
+                c[clave] = _norm(valor).split()[0]
+            elif clave == "tipo":
+                c[clave] = normalizar_tipo(valor)
             elif clave == "nivel_riesgo":
-                o[clave] = normalizar_nivel(valor)
-                o["riesgo_propuesto"] = separar_coletilla(valor)[1]
+                c[clave] = normalizar_nivel(valor)
+                c["riesgo_propuesto"] = separar_coletilla(valor)[1]
             else:
-                o[clave] = valor
+                c[clave] = valor
             continue
         if campo_actual is not None:
             buffer.append(linea.rstrip())
     cerrar()
-    if o["estado"] not in ESTADOS:
-        o["estado"] = "propuesta"
-    return o
+    if c["estado"] not in ESTADOS:
+        c["estado"] = "propuesta"
+    return c
+
+
+def _nivel_cabecera(linea: str) -> int:
+    return len(linea) - len(linea.lstrip("#"))
 
 
 def _partir_por_cabeceras(texto: str, nivel: int) -> tuple[list[str], list[tuple[str, list[str]]]]:
@@ -233,76 +267,53 @@ def _partir_por_cabeceras(texto: str, nivel: int) -> tuple[list[str], list[tuple
     return previo, bloques
 
 
-def _nivel_cabecera(linea: str) -> int:
-    return len(linea) - len(linea.lstrip("#"))
-
-
-def parsear_observaciones(texto: str) -> list[dict]:
-    """01_observaciones.md -> lista de dicts (con id, estado, notas)."""
+def parsear_conclusiones(texto: str) -> list[dict]:
+    """01_conclusiones.md -> lista de dicts (con id, tipo, estado, notas)."""
     _, bloques = _partir_por_cabeceras(texto, 2)
     salida = []
     for i, (titulo, lineas) in enumerate(bloques, 1):
-        m = _RE_OBS_ID.match(titulo)
+        m = _RE_ID.match(titulo)
         if m:
-            ident, titulo_limpio = f"OBS-{int(m.group(1)):02d}", m.group(2).strip()
+            ident, titulo_limpio = f"C-{int(m.group(1)):02d}", m.group(2).strip()
         else:
-            ident, titulo_limpio = f"OBS-{i:02d}", titulo
-        o = _parsear_bloque(lineas)
-        o["id"], o["titulo"] = ident, titulo_limpio
-        salida.append(o)
+            ident, titulo_limpio = f"C-{i:02d}", titulo
+        c = _parsear_bloque(lineas)
+        c["id"], c["titulo"] = ident, titulo_limpio
+        salida.append(c)
+    return salida
+
+
+def _parsear_lista(lineas: list[str], tipo: str) -> list[dict]:
+    _, bloques = _partir_por_cabeceras("\n".join(lineas), 3)
+    salida = []
+    for j, (tit, lin) in enumerate(bloques, 1):
+        m = _RE_NUM.match(tit)
+        c = _parsear_bloque(lin)
+        c["titulo"] = m.group(2).strip() if m else tit
+        c["numero"], c["tipo"] = j, tipo
+        salida.append(c)
     return salida
 
 
 def parsear_informe(texto: str) -> dict:
-    """02_informe.md -> dict compatible con ppt_builder.construir_desde_datos
-    (sin `proyecto`, que aporta el expediente)."""
-    previo, secciones = _partir_por_cabeceras(texto, 2)
-    datos: dict = {"objetivo": "", "alcance": "", "contexto": {"texto": "", "magnitudes": []},
-                   "observaciones": [], "evaluacion_global": {}, "proximos_pasos": ""}
+    """02_informe.md -> dict (introduccion, resumen_ejecutivo, conclusiones, sugerencias).
+    Las secciones marcadas como pendientes devuelven cadena vacía / lista vacía."""
+    _, secciones = _partir_por_cabeceras(texto, 2)
+    datos: dict = {"introduccion": "", "resumen_ejecutivo": "", "conclusiones": [], "sugerencias": []}
     for titulo, lineas in secciones:
         t = _norm(titulo)
         cuerpo = [l for l in lineas if not l.lstrip().startswith(">")]
-        if t.startswith("objetivo"):
-            datos["objetivo"] = "\n".join(cuerpo).strip()
-        elif t.startswith("alcance"):
-            datos["alcance"] = "\n".join(cuerpo).strip()
-        elif t.startswith("contexto") or "magnitud" in t:
-            mags, resto = [], []
-            for l in cuerpo:
-                m = re.match(r"^\s*[-*]\s*(.+?)\s+[—–-]\s+(.+)$", l)
-                if m:
-                    mags.append([m.group(1).strip(), m.group(2).strip()])
-                else:
-                    resto.append(l)
-            datos["contexto"] = {"texto": "\n".join(resto).strip(), "magnitudes": mags}
-        elif "observacion" in t:
-            _, obs_bloques = _partir_por_cabeceras("\n".join(lineas), 3)
-            for j, (tit, lin) in enumerate(obs_bloques, 1):
-                m = _RE_NUM.match(tit)
-                o = _parsear_bloque(lin)
-                o["titulo"] = m.group(2).strip() if m else tit
-                o["numero"] = j
-                datos["observaciones"].append(o)
-        elif t.startswith("evaluacion"):
-            ev, resto = {}, []
-            for l in cuerpo:
-                m = _RE_META.match(l)
-                if m:
-                    k = _norm(m.group(1))
-                    if k.startswith("gobierno"):
-                        ev["gobierno"] = m.group(2).strip()
-                    elif k.startswith("gestion"):
-                        ev["gestion_riesgos"] = m.group(2).strip()
-                    elif k.startswith("entorno"):
-                        ev["entorno_control"] = m.group(2).strip()
-                    else:
-                        resto.append(l)
-                else:
-                    resto.append(l)
-            ev["conclusion"] = "\n".join(resto).strip()
-            datos["evaluacion_global"] = ev
-        elif t.startswith("proximos") or t.startswith("siguientes"):
-            datos["proximos_pasos"] = "\n".join(cuerpo).strip()
+        texto_cuerpo = "\n".join(cuerpo).strip()
+        if texto_cuerpo in (PENDIENTE, "_(ninguna)_"):
+            texto_cuerpo = ""
+        if t.startswith("introduccion"):
+            datos["introduccion"] = texto_cuerpo
+        elif t.startswith("resumen"):
+            datos["resumen_ejecutivo"] = texto_cuerpo
+        elif "conclusion" in t:
+            datos["conclusiones"] = _parsear_lista(lineas, "conclusion")
+        elif "sugerencia" in t or "mejora" in t:
+            datos["sugerencias"] = _parsear_lista(lineas, "sugerencia")
     return datos
 
 

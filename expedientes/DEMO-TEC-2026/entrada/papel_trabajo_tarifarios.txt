@@ -1,0 +1,187 @@
+2.11. PROCESO DE ACTUALIZACIÓN DE TARIFARIOS Y VOLCADO EN LAS HERRAMIENTAS DE E-COMMERCE							
+							
+							
+CONTEXTO							
+							
+El desarrollo (todavía en curso) de la herramienta SCA ha permitido introducir el coste, de manera directa, como un criterio de asignación de transportistas para pedidos de e-Commerce. Este coste es estimado a partir de las facturas validadas en la Herramienta de Costes, siendo necesario contar con una base de datos actualizada para asegurar la integridad y validez de este criterio. 							
+							
+							
+OBJETIVO							
+							
+"Como parte integral del plan de trabajo, se define la presente prueba para asegurar la integridad de los tarifarios utilizados por SCA durante el proceso de asignación, en base a dos tareas:
+      a) Contrastar el tarifario negociado con los transportistas, frente al valor cargado en la herramienta SCA/CPF.
+      b) Gestión del maestro de tarifas (quién las carga/modifica); revisar proceso de carga y actualización de tarifas."							
+							
+							
+							
+PRUEBAS REALIZADAS							
+							
+a) Contrastar el tarifario negociado con los transportistas, frente al valor cargado en la herramienta SCA/CPF							
+							
+Introducción							
+"La Herramienta de Costes (HC) es una aplicación utilizada por Transporte e-Commerce para almacenar los tarifarios acordados con los proveedores, así como para optimizar el ejercicio de validación de facturas, puesto que permite asignar, de manera ágil, un coste a cada pedido registrado, indicando solamente las características de este y de la ruta de envío.
+
+Así pues, el tarifario negociado por Operativa con los couriers, es almacenado (según la geografía aplicable) por los equipos externos de BDO o Serviguide, así como por el equipo interno de China, desglosado principalmente según:
+      / Transportista.
+      / Mercado.
+      / Zona (siendo el Código Postal el nivel máximo de desglose en la HC): en función de la cercanía del origen de mercancía, se definen las diferentes tarifas aplicables.
+      / Nivel de desglose: pedido o caja.
+      / Tipología de servicio.
+      / Extracostes.
+
+Una vez tipificada la información, la función principal de la Herramienta de Costes será comparar el coste imputado por el transportista para un pedido determinado, frente al coste teórico aplicable según las particularidades del pedido (origen, destino, courier, peso, volumen, tipología de servicio, tienda virtual...).
+
+Cada pedido validado en la Herramienta de Costes se almacena en Snowflake, en la tabla TRANSPORT_BUSINESS.FOUNDATION.COSTES_ECOM_DETALLE. Esta tabla sirve como input para la herramienta Cost Pricing Flash (CPF), la cual se encarga de facilitar a SCA el coste estimado del transporte para cada pedido, en aquellos mercados donde está implementado.
+      / CPF toma el histórico de los últimos 4 meses, y aplica un método de inferencia para asignar un precio estimado, en función de aquellos pedidos con características más similares.
+      / El algoritmo no requiere explícitamente el tarifario asociado a un transportista, sino los costes reales de los pedidos de e-Commerce.
+
+En los casos donde se produce una modificación del tarifario, después de haber rubricado el nuevo contrato con el transportista, el algoritmo de CPF debe utilizar un método alternativo para la asignación del coste, dado que el histórico está asociado a un tarifario desactualizado. Para ello, se encuentra en desarrollo la tabla TRANSPORT_BUSINESS.DATA.CPF_SIMULATION_RATES de Snowflake, que permite reasignar el coste del pedido en función de diferentes parámetros: mercado, cadena, estado, courier, tipo de pedido, origen, SINT, tipo de servicio, rango de pesos, factor volumétrico y consumible."							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+Debilidades del algoritmo CPF							
+"A raíz de las diferentes sesiones mantenidas con los responsables, se han identificado inconsistencias entre la Herramienta de Costes y el algoritmo CPF, destacando principalmente:
+      1) Problemas de imputación de costes durante el path de venta, debido a incoherencias en la definición del tipo de embalaje.
+                  / CPF se conecta a la herramienta PackPro, la cual determina el embalaje óptimo en función de las características de cada pedido, con un grado de acierto cercano al 98%.
+                  / En aquellos casos donde el embalaje no es el adecuado, CPF sí asigna el coste de forma correcta, pero hereda la problemática anterior."							
+							
+							
+							
+"      2) En aquellos países donde se permite el Cash On Delivery, el modelo no es capaz de asignar el coste a cada pedido.
+                  / El Cash on Delivery (COD) no es un concepto desglosado en la factura, pero sí genera extracargos respecto a otros métodos de pago debido a los gastos de gestión financiera.
+                  / El registro de dichos gastos debe realizarse contra la contabilidad de Financiero, no de Transporte.
+                  / En algunos mercados, como los países Adriáticos, los tarifarios negociados incluyen los costes de gestión del COD, y un eventual desglose podría inducir un incremento de precios.
+                  / CPF entrena respecto de facturas en bruto (promedios de costes por pedido), lo cual implica una penalización a los couriers con COD incluido en su tarifa."							
+							
+							
+							
+							
+"      3) No todos los mercados donde el par SCA-CPF se encuentra en funcionamiento toma en consideración los costes de linehaul.
+                  / Existen couriers en determinados países que incluyen en su factura el coste de arrastre, frente a otros (en el mismo mercado) que lo notifican por separado.
+                  / En el pasado, CPF solo recibía el dato del coste total, sin explicación del concepto al que se refería (tránsito vs tránsito + linehaul).
+                  / El hecho anterior implicaba que el coste de arrastre no se estaba teniendo en cuenta en determinados casos, infraponderando el coste.
+                  / El equipo de desarrollo ya cuenta con la información necesaria para unificar ambos conceptos, y se realizarán los despliegues permanentes próximamente."							
+							
+							
+							
+							
+"      4) Los costes de pedidos de clientes localizados en zonas remotas suelen asignarse según las regiones pobladas más próximas, generando discrepancias en el coste real.
+                  / El coste de un pedido se asgina en función del Customer state, que es unificar los conceptos de provincia, comunidad, estado…
+                  / La definición de ""zona remota"" depende de cada courier, esto es, existen CPs que son, o no, considerados zonas remotas, según el transportista.
+                  / Esta discrepancia ya se ha solventado en términos de datos, pero no se ha implementado en la herramienta."							
+							
+							
+							
+"      5) En países como Estados Unidos o Canadá, donde existe una tierización del courier, pueden observarse modificaciones en el tarifario durante momentos puntuales (por ejemplo, campaña de Navidad).
+                  / Esta problemática existe en la HC, si bien no existen todavía mercados, con esta casuística, donde CPF ya se haya implementado (es un futurible).
+                  / La herramienta necesitará una previsión anual por courier desde Operativa, para estimar cuál será el tier esperado para cada uno a cierre de facturación, para poder estimar correctamente los descuentos."							
+							
+							
+"      6) Diferencias entre el peso teórico asumido por TEC durante el proceso de venta, frente al pesaje real ejecutado por el transportista, induciendo una diferencia de coste.
+                  / TEC estima el peso de un pedido como la suma de los pesos teóricos de las prendas que lo componen, según la tipología de cada una, y aplica un extra del 10% para considerar el peso del embalaje elegido.
+                  / Por otra parte, cuando el criterio es el volumen en lugar del peso, este se toma, por defecto, de la herramienta PackPro. En su defecto, se accede al histórico de pesos facilitado por el transportista.
+                        - CPF categoriza los volúmenes por rangos, y se realiza un proxy en torno a los 20 tipos de caja más utilizados (lo cual supone el 99% de los envíos).
+                        - El área ha identificado inconsistencias en el maestro de embalajes (cajas con mayor volumen y menor densidad promedio de pedidos, medidas estándar próximas a 0, ...).
+                  / El algoritmo CPF se entrena para conseguir que detecte, automáticamente, si el courier utiliza un criterio de costes por peso o por volumen.
+                  / En los casos donde el criterio de costes se establece por peso, según lo anterior, la estimación de CPF puede desviarse respecto de la imputación del proveedor, induciendo errores de asignación en SCA."							
+							
+							
+							
+							
+							
+"      7) En línea con el punto 6), se han identificado errores en la transmisión de pesos a los couriers, implicando facturaciones abusivas.
+                  / La incidencia detectada puede deberse a problemas de integración, puesto que el dato en origen sí era correcto.
+                  / Determinados couriers cuentan con un cupo máximo de peso o volumen para el transporte, luego el envío se tasaba a precio público de mercado.
+                  / Debido a que las facturas se encontraban validadas, la transmisión de esta información a SCA podría generar un criterio injustificado de exclusión del courier debido al coste."							
+							
+							
+							
+b) Gestión del maestro de tarifas (quién las carga/modifica); revisar proceso de carga y actualización de tarifas							
+							
+Flujo general							
+"El maestro de tarifas se encuentra actualizado en la Herramienta de Costes, y son los equipos de validación de facturas (BDO, Serviguide e Inditex - China, con supervisión de Central e-Commerce) los encargados de realizar el mantenimiento de los tarifarios.
+
+El ejercicio de actualización de tarifas es manual, y sigue los pasos presentados a continuación:
+      1) El equipo de Operaciones renegocia el contrato de transporte con el courier, a partir del cual se obtiene un nuevo tarifario según el tipo de servicio, rangos de peso, zona y/u otros conceptos, habiendo aplicado los descuentos acordados, y recogiendo posibles extracostes. En aquellos casos donde no se hayan negociado unos descuentos concretos, aplicarán los tarifarios públicos del transportista.
+      2) Los equipos de validación de facturas solicitan a Operativa una plantilla con los nuevos datos (siendo el formato diferente para cada courier) y sobreescriben, de manera manual, la nueva información en la herramienta. Este ejercicio puede llegar a aplicar, incluso, a nivel de Código Postal.
+      3) La Herramienta de Costes estima, en virtud de los tarifarios cargados en la aplicación, y de las características del pedido (courier, Customer state, caja, peso/volumen, origen, ...) el coste asociado al transporte de dicho pedido, y se contrasta con el importe real comunicado por el transportista, con un margen de diferencia aceptable de hasta el 5%, salvo aquellos proveedores donde el recargo por impago es superior (por ejemplo, UPS y FEDEX en Estados Unidos).
+      4) El importe es validado por los equipos pertinentes, y se graba el valor en las bases de datos, particularmente en Snowflake.
+      5) Pueden realizarse ajustes por refacturación a proveedores, así como por la ejecución de rappels (especialmente mensuales y trimestrales, dado que los anuales no pueden ser imputados en la HC hasta el cierre).
+      6) CPF utiliza como input los costes validados por la HC, que han sido registrados en la tabla TRANSPORT_BUSINESS.FOUNDATION.COSTES_ECOM_DETALLE, y aplica técnicas de inferencia para asignar, en tiempo real, un coste por pedido en aquellos mercados donde se encuentra operativo."							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+"A modo de ejemplo, en la pestaña ""Ej. tarifario - FedEx"", puede encontrarse el tarifario negociado con el courier FEDEX en Estados Unidos. Este tarifario define el coste asociado a un pedido, en función de la tipología de servicio, rango de peso y zona de envío, y ya incluye los descuentos acordados por contrato. Así pues, cada Código Postal estadounidense donde se ha registrado algún pedido de e-Commerce se introduce en la Herramienta de Costes, y se le asocian los costes de envío anteriores de modo manual, en función de los rangos de peso, tipología de servicio, y zona donde se ubica el Código Postal. Por tanto, cada vez que un cliente solicita un pedido desde una región no cargada previamente en la Herramienta de Costes, debe abrirse una nueva línea con la lógica descrita previamente.
+      / Adicionalmente, también de manera manual, se registran los posibles extracostes en los que se podrían incurrir, en base a las tarifas públicas de FEDEX (salvo que el contrato marco también incluya estos términos). Entre otros, pueden darse por manejo de mercancías peligrosas (por ejemplo, perfumería), zonas remotas, número de avisos a cliente, dirección incorrecta..."							
+							
+							
+							
+							
+							
+							
+Debilidades reportadas en el mantenimiento de los tarifarios							
+"En términos generales, algunas casuísticas particulares transmitidas por el área han sido:
+      / Puede darse el caso de que en la Herramienta de Costes no sea posible asignar una tarifa para una casuística determinada (por ejemplo, debido a problemas de volumétrica), si bien los costes de los pedidos aplicables sí son validados y transmitidos a Snowflake.
+      / Se han registrado dificultades en la actualización de tarifarios en la HC, principalmente en USA, debido a la imputación de gastos de fuel por parte de los couriers, ya que se actualizan semanalmente conforme a la variación del precio del petróleo. Sin embargo, nuevamente, no genera un impacto en la operativa de CPF, puesto que este mercado todavía no ha sido implementado.
+      / Otra posible causa de desactualización de tarifarios es la revisión unilateral al alza por parte del courier, sin acuerdo rubricado con Operativa. Así pues, la Herramienta de Costes estima el gasto conforme a las últimas tarifas acordadas, frente a un gasto imputado por el proveedor mayor del esperado, induciendo dificultades añadidas durante el proceso de validación.
+
+Para asegurar que no existen costes que terminan registrándose en SCA y que se refieren a tarifarios desactualizados, existen alertas diarias que permiten detectar inputs sobre los que el algoritmo de CPF no ha sido entrenado. Adicionalmente, el equipo de Transport Business Analytics realiza una revisión semanal con el objetivo de detectar posibles cambios de tarifas, apoyándose en las predicciones realizadas y analizando grandes desviaciones respecto del histórico de costes. En cualquier caso, Negocio se encarga de comunicar cualquier actualización repercutida respecto a los tarifarios."							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+CONCLUSIONES							
+							
+"A raíz del análisis realizado, se ha observado que:
+      / El mantenimiento del tarifario no es automatizable, debido a que no existe una plantilla común para la grabación de modificaciones en la Herramienta de Costes.
+      / Además, existen determinados extracostes cuya actualización es inviable (ej. cambios por precio de fuel), debido a que el impacto sobrepasa la capacidad manual del equipo de validación.
+      / En determinadas ocasiones, los acuerdos alcanzados entre Operativa y los proveedores no se transparentan al equipo de validación, lo cual implica una desactualización de los tarifarios y, por tanto, un error en la valoración de los costes de transporte.
+      / CPF hereda las deficiencias en la valoración de casuísticas minoritarias, como el COD o las entregas en zonas remotas, lo cual impacta en el algoritmo de asignación de proveedores (SCA).
+
+Por lo tanto, se concluye la prueba CON INCIDENCIAS, y se referencia a la recomendación abierta de la Auditoría de Controles SCIIF de 2022 (TMSCIIF-10):
+      / Implantar un sistema para la carga y gestión de los tarifarios de todas las operativas de transporte, así como la evidencia de los acuerdos alcanzados con los proveedores para garantizar la trazabilidad de estos con las tarifas cargadas."							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							

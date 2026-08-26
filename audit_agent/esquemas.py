@@ -5,6 +5,12 @@ Son el "contrato" que viaja al modelo como `output_format_schema` (KAIA) y el
 formato pivote de la herramienta: lo que se extrae de los papeles de trabajo,
 lo que se revisa y lo que alimenta el informe y el PPT.
 
+Estructura de cada conclusión (detalle de conclusiones del informe):
+  incidencia detectada -> causa raíz -> cómo se ha llegado (datos, tablas)
+  -> consecuencias -> recomendación (validada o aportada por el auditor).
+Las sugerencias de mejora comparten estructura, con «propuesta de mejora» en
+lugar de recomendación y sin plan de acción obligatorio.
+
 Precaución (heredada de audit-engine): las clases que viajan al modelo se
 compilan con `to_strict_json_schema` -> todos los campos son obligatorios y
 `additionalProperties: false` en cada nivel. Un campo que no esté aquí,
@@ -20,64 +26,65 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 NIVELES_RIESGO = ("Alto", "Medio", "Bajo")
+TIPOS_CONCLUSION = ("conclusion", "sugerencia")
 
 
-class Observacion(BaseModel):
-    """Observación en esquema 4C + recomendación (config/estilo.yaml
-    `estructura_observacion`). Cadena vacía = no deducible de la fuente."""
+class Conclusion(BaseModel):
+    """Una incidencia del papel de trabajo en la estructura del detalle de
+    conclusiones. Cadena vacía = no deducible de la fuente."""
 
-    titulo: str = Field(description="Título breve de la observación (una línea).")
-    condicion: str = Field(description="Qué se ha observado: hecho objetivo, con los datos de la muestra.")
-    criterio: str = Field(description="Contra qué se compara: norma, política interna, buena práctica.")
-    causa_raiz: str = Field(description="Por qué ocurre la debilidad.")
-    efecto: str = Field(description="Riesgo o impacto de la debilidad.")
-    recomendacion: str = Field(description="Acción propuesta, concreta y accionable.")
-    nivel_riesgo: str = Field(description="Exactamente uno de: Alto, Medio, Bajo. Vacío si no es deducible.")
-    responsable: str = Field(description="Área o rol responsable del plan de acción.")
-    fuente: str = Field(default="", description="Referencia al papel de trabajo / evidencia que soporta la observación.")
+    titulo: str = Field(description="Título breve de la incidencia (una línea).")
+    tipo: str = Field(default="conclusion", description="'conclusion' si la incidencia requiere recomendación y plan de acción; 'sugerencia' si es una mejora sin plan de acción obligatorio.")
+    prueba: str = Field(default="", description="Referencia de la prueba del papel de trabajo de la que procede (número y título, p. ej. '2.11 a) Contrastar el tarifario negociado…').")
+    incidencia: str = Field(description="Qué incidencia se ha detectado: hecho objetivo, con los datos del papel de trabajo.")
+    causa_raiz: str = Field(description="Por qué ha pasado: causa raíz inferida del papel de trabajo. Vacía si no se puede inferir.")
+    como_se_ha_llegado: str = Field(description="Cómo se ha llegado a la incidencia: procedimiento, muestra, datos y tablas necesarios, en Markdown (se admiten tablas y listas). Solo datos presentes en el papel de trabajo.")
+    consecuencias: str = Field(description="Consecuencia o consecuencias de la incidencia (riesgo, impacto).")
+    recomendacion: str = Field(default="", description="Recomendación (o propuesta de mejora si tipo=sugerencia). Solo si el papel de trabajo la contiene o referencia; si no, vacía: la aportará el auditor o se propondrá después.")
+    nivel_riesgo: str = Field(default="", description="Exactamente uno de: Alto, Medio, Bajo. Vacío si no procede.")
+    responsable: str = Field(default="", description="Área o rol responsable del plan de acción, si el papel de trabajo lo indica.")
+    fuente: str = Field(default="", description="Documento y apartado del papel de trabajo que soporta la conclusión.")
 
 
-class ObservacionExtraida(Observacion):
-    """Observación tal como sale del extractor: añade la procedencia del
-    nivel de riesgo. Si el papel de trabajo no menciona severidad/riesgo, el
-    nivel es una propuesta del modelo y así se marca en 01_observaciones.md
-    hasta que el auditor la valide al aprobar."""
+class ConclusionExtraida(Conclusion):
+    """Conclusión tal como sale del extractor: añade la procedencia del nivel
+    de riesgo y de la recomendación."""
 
     riesgo_soportado_por_evidencia: bool = Field(
         default=False,  # si el backend omite el campo, se trata como propuesta (conservador)
         description="true SOLO si el papel de trabajo menciona explícitamente la severidad, criticidad o "
-                    "nivel de riesgo de esta debilidad. false si el nivel es una estimación propia.")
+                    "nivel de riesgo de esta incidencia. false si el nivel es una estimación propia.")
+    recomendacion_del_pt: bool = Field(
+        default=False,
+        description="true SOLO si `recomendacion` está copiada o referenciada literalmente del papel de trabajo "
+                    "(p. ej. una recomendación abierta de otra auditoría). false si está vacía o es propia.")
 
 
-class ExtraccionObservaciones(BaseModel):
-    observaciones: list[ObservacionExtraida]
-    notas: str = Field(default="", description="Dudas, datos ambiguos o elementos del papel de trabajo que no se han podido clasificar. Vacío si no hay.")
+class ExtraccionConclusiones(BaseModel):
+    conclusiones: list[ConclusionExtraida]
+    pruebas_sin_incidencia: list[str] = Field(default_factory=list, description="Referencias de las pruebas del papel de trabajo concluidas sin incidencias (no generan conclusión).")
+    notas: str = Field(default="", description="Dudas, datos ambiguos o elementos que no se han podido clasificar. Vacío si no hay.")
 
 
-class Magnitud(BaseModel):
-    valor: str = Field(description="Cifra o dato, tal cual aparece en la fuente (p. ej. '8,4 M€').")
-    etiqueta: str = Field(description="Qué mide (p. ej. 'Volumen del periodo').")
+class RecomendacionPropuesta(BaseModel):
+    """Salida de `recomendar` cuando el auditor no aporta recomendación."""
+
+    recomendacion: str = Field(description="Recomendación concreta y accionable para la incidencia.")
+    sugerencia_mejora_titulo: str = Field(default="", description="Si además procede una sugerencia de mejora complementaria (sin plan de acción), su título. Vacío si no procede.")
+    sugerencia_mejora_texto: str = Field(default="", description="Texto de la sugerencia de mejora complementaria. Vacío si no procede.")
 
 
-class EvaluacionGlobal(BaseModel):
-    gobierno: str = Field(description="Valoración del gobierno del proceso, p. ej. 'Razonable — Impacto Bajo'.")
-    gestion_riesgos: str = Field(description="Valoración de la gestión de riesgos, mismo formato.")
-    entorno_control: str = Field(description="Valoración del entorno de control, mismo formato.")
-    conclusion: str = Field(description="Conclusión global del trabajo (uno o dos párrafos).")
+class RecomendacionFormateada(BaseModel):
+    """Salida de `recomendar` cuando el auditor SÍ aporta recomendación: solo formato."""
+
+    recomendacion: str = Field(description="La misma recomendación del auditor, con formato de informe (impersonal, frases claras). Mismos hechos, mismas acciones, mismas cifras: nada añadido ni quitado.")
 
 
-class BorradorInforme(BaseModel):
-    """Texto completo del Resumen Ejecutivo. Las observaciones vienen de las
-    aprobadas por el auditor: el modelo puede pulir la redacción pero no
-    añadir, quitar ni alterar hechos."""
+class ContextoInforme(BaseModel):
+    """Introducción y resumen ejecutivo del informe."""
 
-    objetivo: str
-    alcance: str
-    contexto: str = Field(description="Párrafo de contexto y principales magnitudes del proceso auditado.")
-    magnitudes: list[Magnitud] = Field(description="Entre 2 y 4 magnitudes clave. Solo cifras presentes en la fuente.")
-    observaciones: list[Observacion]
-    evaluacion_global: EvaluacionGlobal
-    proximos_pasos: str
+    introduccion: str = Field(description="Introducción del informe: contexto de la auditoría, objetivo, alcance y trabajo realizado, a partir de los documentos de entrada. Markdown, varios párrafos.")
+    resumen_ejecutivo: str = Field(description="Resumen ejecutivo: principales conclusiones y su relevancia, para Dirección. Markdown; puede usar viñetas. Solo hechos presentes en la fuente.")
 
 
 class TextoLibre(BaseModel):

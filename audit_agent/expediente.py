@@ -10,8 +10,8 @@ sobreescritura deja un snapshot en `historial/` (deshacer / diff).
     expedientes/CNC-2026-03/
       expediente.yaml         metadatos del trabajo
       entrada/                papeles de trabajo exportados de Pentana (.md/.txt/.docx)
-      01_observaciones.md     observaciones propuestas -> el auditor edita y aprueba
-      02_informe.md           texto del informe -> el auditor edita durante días
+      01_conclusiones.md      conclusiones (incidencias) propuestas -> el auditor edita, aprueba y recomienda
+      02_informe.md           informe: introducción, resumen ejecutivo, detalle de conclusiones, sugerencias
       03_instrucciones.md     buzón: transcripción / comentarios -> aplicar-cambios
       revision.md             último informe de vocabulario y estilo
       cambios_aplicados.md    registro de los cambios aplicados por el modelo
@@ -33,7 +33,7 @@ from .lectores import EXTENSIONES, Documento, leer as leer_documento
 
 ARCHIVOS = {
     "meta": "expediente.yaml",
-    "observaciones": "01_observaciones.md",
+    "conclusiones": "01_conclusiones.md",
     "informe": "02_informe.md",
     "instrucciones": "03_instrucciones.md",
     "revision": "revision.md",
@@ -48,7 +48,7 @@ PLANTILLA_INSTRUCCIONES = """# Instrucciones de cambios — {referencia}
 
 > Pega debajo de la línea todo lo que quieras que se aplique al informe:
 > la transcripción de una reunión, los comentarios del Gerente o la Directora,
-> notas sueltas ("acortar la observación 2", "cambiar el responsable de la 3
+> notas sueltas ("acortar la conclusión 2", "cambiar el responsable de la 3
 > a Dirección Financiera", "suavizar la conclusión")…
 > Después ejecuta `aplicar-cambios`. La herramienta interpreta el texto,
 > propone cambios concretos, los aplica sobre 02_informe.md (con snapshot en
@@ -100,8 +100,9 @@ class Expediente:
         (ruta / ARCHIVOS["instrucciones"]).write_text(
             PLANTILLA_INSTRUCCIONES.format(referencia=referencia), encoding="utf-8")
         (ruta / "entrada" / "LEEME.txt").write_text(
-            "Deja aquí los papeles de trabajo exportados de Pentana (.md, .txt, .docx, .xlsx o .pdf con texto).\n"
-            "Todos los ficheros de esta carpeta se envían al modelo en `extraer`.\n", encoding="utf-8")
+            "Deja aquí el papel de trabajo final (todas las pruebas), el contexto de la auditoría, anexos, design\n"
+            "thinking… (.md, .txt, .docx, .xlsx o .pdf con texto). Todo lo que hay aquí se envía al modelo en\n"
+            "`redactar-contexto` y `extraer`.\n", encoding="utf-8")
         return cls(ruta)
 
     # ------------------------------------------------------------ rutas

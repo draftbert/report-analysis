@@ -97,18 +97,20 @@ class StyleChecker:
         return res
 
     # ------------------------------------------------------------------
-    def revisar_observacion(self, obs: dict) -> ResultadoRevision:
-        """Revisa una observación estructurada: estructura + estilo de cada campo de texto."""
+    def revisar_conclusion(self, obs: dict) -> ResultadoRevision:
+        """Revisa una conclusión estructurada: campos exigidos por
+        `estructura_conclusion` (error si `requerido`, aviso si no) + nivel de
+        riesgo válido + estilo de cada campo de texto."""
         res = ResultadoRevision()
-
-        # Estructura mínima
-        for campo in self.cfg.get("estructura_observacion", []):
+        for campo in self.cfg.get("estructura_conclusion", []):
             nombre = campo["campo"]
-            if not str(obs.get(nombre, "")).strip():
+            if not str(obs.get(nombre, "") or "").strip():
+                requerido = campo.get("requerido", True)
                 res.hallazgos.append(Hallazgo(
-                    tipo="estructura", severidad="error", fragmento=nombre, posicion=-1,
-                    mensaje=f"Falta el campo obligatorio «{nombre}» ({campo['descripcion']}).",
-                    sugerencia="Completar antes de volcar al informe.",
+                    tipo="estructura", severidad="error" if requerido else "aviso", fragmento=nombre, posicion=-1,
+                    mensaje=(f"Falta el campo obligatorio «{nombre}» ({campo['descripcion']})." if requerido
+                             else f"Campo «{nombre}» pendiente ({campo['descripcion']})."),
+                    sugerencia="Completar antes de volcar al informe." if requerido else "",
                 ))
 
         # Nivel de riesgo válido
@@ -124,7 +126,7 @@ class StyleChecker:
 
         # Estilo de los campos de texto
         for nombre, valor in obs.items():
-            if isinstance(valor, str) and valor.strip():
+            if isinstance(valor, str) and valor.strip() and nombre != "notas":
                 for h in self.revisar_texto(valor).hallazgos:
                     h.mensaje = f"[{nombre}] " + h.mensaje
                     res.hallazgos.append(h)

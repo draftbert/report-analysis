@@ -8,9 +8,12 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
   antes de sobreescribir un fichero editable se guarda snapshot en `historial/`.
 - **El criterio de estilo vive solo en `config/estilo.yaml`.** Se aplica de forma determinista
   (`style_checker.py`) y se inyecta en los prompts (`reglas_como_texto`). No duplicar reglas en código.
-- **Formato pivote:** los esquemas Pydantic de `esquemas.py` (4C + recomendación). Cualquier campo
-  nuevo debe añadirse ahí (es lo que viaja al modelo como schema estricto) y en `formato_md.py`
-  (render y parse), y comprobarse con el round-trip informe/observaciones.
+- **Formato pivote:** los esquemas Pydantic de `esquemas.py` (conclusión = incidencia → causa raíz →
+  cómo se ha llegado → consecuencias → recomendación; tipo conclusion|sugerencia). Cualquier campo nuevo
+  debe añadirse ahí (es lo que viaja al modelo como schema estricto), en `formato_md.py` (render y parse)
+  y en `tests/test_formato_md.py`.
+- **La recomendación del auditor se respeta al 100 %:** `recomendar` solo la formatea si se pide y
+  verifica con `conserva_base`; `corregir-conclusiones` nunca la toca; `redactar-conclusiones` vuelca sin modelo.
 - **Toda salida del LLM se vuelve a validar con las reglas** y queda trazada en `trazas/`.
 - **KAIA:** solo se usa salida estructurada (`output_format_schema` con `to_strict_json_schema`);
   no enviar `temperature` a modelos `gpt-5*`/`o*`. Ver `kaia_client.py`.
@@ -21,8 +24,10 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 (Markdown ↔ dict) + `lectores.py` (entrada/ → Markdown) + `llm.py`/`kaia_client.py` (modelo) +
 `style_checker.py` (reglas) + `ppt_builder.py` + `calibracion.py` (estilo.yaml vs informes aprobados).
 
+- Flujo: redactar-contexto (intro+resumen) → extraer (conclusiones) → aprobar → recomendar →
+  redactar-conclusiones → aplicar-cambios/revisar/corregir → ppt → archivar.
 - Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;
-  la quita `aprobar`; `redactar` no admite observaciones que la conserven.
+  la quita `aprobar`; `redactar-conclusiones` no admite conclusiones que la conserven.
 - `aplicar-cambios`: sustituciones acotadas por sección, sin aproximaciones (solo tildes/espacios),
   ambiguo = no aplicado, contradictorio = CONFLICTO. Cada caso raro nuevo va a `tests/test_aplicar_cambios.py`.
 
