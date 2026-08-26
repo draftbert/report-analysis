@@ -26,7 +26,8 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 
 ## Mapa
 `cli.py` (comandos/menú) → `acciones.py` (flujo) → `expediente.py` (ficheros) + `formato_md.py`
-(Markdown ↔ dict) + `lectores.py` (contexto/ y papeles_trabajo/ → Markdown) + `llm.py`/`kaia_client.py` (modelo) +
+(Markdown ↔ dict) + `lectores.py` + `extractores/` (contexto/ y papeles_trabajo/ → Markdown; docx/pdf/pptx/xlsx con los extractores
+de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-pptx) + `llm.py`/`kaia_client.py` (modelo) +
 `style_checker.py` (reglas) + `ppt_builder.py` + `calibracion.py` (estilo.yaml vs informes aprobados).
 
 - Entrada: `contexto/` (design thinking; alimenta intro/resumen, solo orienta a extraer) y `papeles_trabajo/`
