@@ -42,6 +42,21 @@ from .style_checker import StyleChecker, reglas_como_texto, revisar_markdown
 
 RAIZ = Path(__file__).resolve().parent.parent
 CONFIG_DEFECTO = RAIZ / "config" / "estilo.yaml"
+EJEMPLO_CONCLUSION = RAIZ / "config" / "ejemplo_conclusion.md"
+
+
+def _ejemplo_conclusion() -> str:
+    if not EJEMPLO_CONCLUSION.exists():
+        return ""
+    lineas = []
+    for l in EJEMPLO_CONCLUSION.read_text(encoding="utf-8").splitlines():
+        if l.startswith("## "):
+            lineas.append(f"Título: {l[3:].strip()}")
+        elif not l.startswith(("#", ">")):
+            lineas.append(l)
+    texto = "\n".join(lineas).strip()
+    return ("\n\nEJEMPLO DE REFERENCIA (registro, estructura y nivel de detalle esperados para UNA prueba; sus cifras y "
+            "nombres son de OTRA auditoría y no deben reutilizarse):\n" + texto)
 
 MAX_CHARS_ENTRADA = 250_000  # protección: gpt-5-mini admite mucho más, pero el coste crece
 
@@ -247,16 +262,20 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "CONCLUSIONES, donde se indica si la prueba se concluye CON INCIDENCIAS o sin ellas.\n"
             "Recorre TODAS las pruebas de todos los documentos. Solo las concluidas CON INCIDENCIAS generan "
             "conclusiones; lista las demás en `pruebas_sin_incidencia`.\n"
-            "Para cada incidencia distinta genera una conclusión con este esquema:\n"
+            "GRANULARIDAD: por defecto, UNA conclusión por prueba, que SINTETIZA su bloque CONCLUSIONES (todas sus "
+            "viñetas) en un único apartado. Solo genera varias conclusiones para una prueba si su bloque de "
+            "conclusiones recoge incidencias claramente independientes que requieran recomendaciones distintas. "
+            "Las debilidades técnicas descritas en el desarrollo de la prueba no son conclusiones por sí mismas: son "
+            "los detalles descriptivos que soportan la conclusión.\n"
+            "Esquema de cada conclusión:\n"
             f"{campos}\n\n"
             "Reglas:\n"
-            "- Una conclusión por incidencia real (no fragmentes ni fusiones); si una prueba tiene varias incidencias "
-            "independientes, varias conclusiones, cada una con `prueba` = referencia de la prueba.\n"
-            "- Cada conclusión se presenta después en una diapositiva con esta lectura: título numerado; cuerpo en "
-            "prosa (`incidencia`: qué ocurre y cómo se hace hoy; `causa_raiz`: por qué); una caja «detalles "
-            "descriptivos de la situación anterior» (`como_se_ha_llegado`: viñetas con los datos concretos del PT: "
-            "volúmenes, importes, componentes, muestras); y un párrafo de cierre (`consecuencias`: riesgo que genera, "
-            "si se ha materializado y si se ha podido cuantificar). Redacta cada campo para ese uso; no inventes cifras.\n"
+            "- Cada conclusión se presenta después en una diapositiva con esta lectura: título breve (frase nominal, "
+            "p. ej. «Limitaciones en el mantenimiento de …»); cuerpo en prosa (`incidencia`: qué ocurre y cómo se "
+            "hace hoy, 1-2 párrafos; `causa_raiz`: por qué, 1 párrafo); una caja «detalles descriptivos de la "
+            "situación anterior» (`como_se_ha_llegado`: viñetas con los datos concretos del PT: volúmenes, importes, "
+            "componentes, muestras, casuísticas); y un párrafo de cierre (`consecuencias`: riesgo que genera, si se ha "
+            "materializado y si se ha podido cuantificar). Redacta cada campo para ese uso; no inventes cifras.\n"
             "- `area`, `responsable`, `plazo`: solo si el PT los indica. `referencia_recomendacion`: código de la "
             "recomendación abierta a la que se remite (p. ej. TMSCIIF-10), si consta.\n"
             "- `recomendacion`: SOLO si el PT la contiene o referencia (p. ej. una recomendación abierta de otra "
@@ -267,7 +286,8 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "sin plan de acción.\n"
             "- `nivel_riesgo`: propón Alto/Medio/Bajo por impacto y probabilidad (el auditor lo validará); "
             "`riesgo_soportado_por_evidencia` true SOLO si el PT menciona explícitamente severidad o riesgo.\n"
-            "- Campo vacío antes que inventar hechos. Ordena de mayor a menor riesgo.\n\n"
+            "- Campo vacío antes que inventar hechos. Ordena de mayor a menor riesgo."
+            f"{_ejemplo_conclusion()}\n\n"
             f"DOCUMENTOS DE ENTRADA:\n{_texto_entrada(docs)}")
     res = ctx.llm.completar_estructurado("extraer", ctx.system, user, ExtraccionConclusiones)
     conclusiones = [_conc_a_dict(c, f"C-{i:02d}") for i, c in enumerate(res.conclusiones, 1)]
