@@ -16,3 +16,4 @@ expedientes/*/*_archivo_*.zip
 salidas/
 **/calibracion_estilo_trazas/
 docs/referencia/*.png   # capturas internas de referencia, no se versionan
+expedientes/
