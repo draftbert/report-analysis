@@ -33,15 +33,16 @@ def _obs(n, titulo, nivel="Medio", resp="Dirección de Compras", causa="Control 
 - Nivel de riesgo: {nivel}
 - Responsable: {resp}
 
-**Incidencia detectada:** En la muestra analizada se identificaron incidencias.
+En la muestra analizada se identificaron incidencias.
 
-**Causa raíz:** {causa}
+{causa}
 
-**Cómo se ha llegado:** Política de Compras.
+*A continuación, se muestran los detalles descriptivos de la situación anterior:*
+- Politica de Compras.
 
-**Consecuencias:** Riesgo de gasto sin control.
+Riesgo de gasto sin control.
 
-**Recomendación:** Implantar un control automático en el sistema.
+**Recomendación {n}.1.** Implantar un control automático en el sistema.
 """
 
 
@@ -64,9 +65,9 @@ Pedidos de enero a marzo. Se recomienda revisar el alcance en próximos trabajos
 
 ### 1. Seguimiento en hoja de cálculo
 
-**Incidencia detectada:** Se recomienda revisar el alcance en próximos trabajos. Conclusión final.
+Se recomienda revisar el alcance en próximos trabajos. Conclusión final.
 
-**Propuesta de mejora:** Seguimiento en 2027.
+**Propuesta de mejora 1.1.** Seguimiento en 2027.
 """
 
 
@@ -128,7 +129,7 @@ def test_dos_cambios_cada_uno_en_su_seccion():
 # 4. Texto inexistente: NO APLICADO, nunca aproximación por parecido general
 def test_texto_inexistente_no_se_aproxima():
     plan = PlanCambios(cambios=[
-        _cambio("### 1. Ausencia de ofertas comparativas", "**Causa raíz:** Control manual y falta de formación del personal.", "**Causa raíz:** X"),
+        _cambio("### 1. Ausencia de ofertas comparativas", "Control manual y falta de formación del personal.", "X"),
         _cambio("## Sugerencias de mejora", "Seguimiento en 2028.", "Seguimiento en 2029."),
         _cambio("## Introducción", "Evaluar el proceso de ventas.", "Evaluar el proceso de tesorería."),
     ], pendientes=[])
@@ -140,10 +141,10 @@ def test_texto_inexistente_no_se_aproxima():
 
 def test_diferencias_minimas_si_se_aproximan():
     # Solo tildes/espacios: el modelo copió "Politica" sin tilde
-    plan = PlanCambios(cambios=[_cambio("### 1. Ausencia de ofertas comparativas", "**Como se ha llegado:** Politica de Compras.", "**Cómo se ha llegado:** Política de Compras v4.2.")], pendientes=[])
+    plan = PlanCambios(cambios=[_cambio("### 1. Ausencia de ofertas comparativas", "- Política de Compras.", "- Política de Compras v4.2.")], pendientes=[])
     nuevo, filas = aplicar_plan(INFORME, plan)
     assert filas[0]["estado"] == "aplicado (coincidencia aproximada)"
-    assert _obs_dict(nuevo)[1]["como_se_ha_llegado"] == "Política de Compras v4.2."
+    assert _obs_dict(nuevo)[1]["como_se_ha_llegado"] == "- Política de Compras v4.2."
 
 
 # 5. Texto repetido DENTRO de la misma sección: ambiguo, con motivo claro

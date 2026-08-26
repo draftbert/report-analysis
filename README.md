@@ -37,7 +37,8 @@ expedientes/CNC-2026-03/
   expediente.yaml         nombre, referencia, fecha, distribución, notas para el modelo
   entrada/                papel de trabajo final, contexto de la auditoría, anexos (.md, .txt, .docx, .xlsx, .pdf)
   01_conclusiones.md      conclusiones y sugerencias propuestas → el auditor edita, aprueba y recomienda
-  02_informe.md           introducción · resumen ejecutivo · detalle de conclusiones · sugerencias de mejora
+  02_informe.md           el informe: introducción · resumen ejecutivo · detalle de conclusiones · sugerencias
+                          (cada apartado se escribe como se leerá en su diapositiva; `ppt` lo exporta 1:1)
   03_instrucciones.md     buzón: pega la transcripción / comentarios → `aplicar-cambios`
   revision.md             hallazgos de vocabulario y estilo (acumulado)
   cambios_aplicados.md    qué cambios pidió el modelo y cuáles se aplicaron
@@ -82,7 +83,8 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor revisar-conclusiones       # vocabulario prohibido + campos (sin LLM)
 ./revisor corregir-conclusiones      # el modelo corrige solo lo señalado (nunca la recomendación)
 ./revisor regenerar C-02             # rehace una según «Notas del auditor»
-./revisor redactar-conclusiones      # vuelca las aprobadas al informe TAL CUAL (sin modelo)
+./revisor redactar-conclusiones      # vuelca las aprobadas al informe TAL CUAL (sin modelo), ya como apartados
+#   con la lectura de la diapositiva: prosa, «detalles descriptivos» en viñetas, consecuencias, Recomendación N.1…
 ./revisor redactar-contexto --secciones resumen   # opcional: resumen ejecutivo con las conclusiones validadas
 
 # 3. Cambios durante la revisión (Gerente, Directora, reunión con el área)
@@ -92,9 +94,10 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor diff | deshacer | historial     # control de versiones
 
 # 4. Entregable y cierre
-./revisor ppt                        # salidas/ResumenEjecutivo_TEC-2026.pptx: una diapositiva por conclusión
-#   con el diseño corporativo de «Detalle de conclusiones»: banda de riesgo, título numerado, prosa,
-#   caja de detalles descriptivos, consecuencias, Recomendación N.1/N.2, Ref., Área/Responsable/Plazo
+./revisor ppt                        # exporta el informe ENTERO: cada apartado de 02_informe.md es una
+#   diapositiva (introducción, resumen, una por conclusión con el diseño corporativo de «Detalle de
+#   conclusiones» —banda de riesgo, título numerado, prosa, detalles descriptivos, consecuencias,
+#   Recomendación N.1/N.2, Ref., Área/Responsable/Plazo—, y las sugerencias de mejora)
 ./revisor archivar                   # zip de evidencia con manifest sha256
 
 # Texto suelto (p. ej. un párrafo copiado de Pentana), sin expediente:
