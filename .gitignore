@@ -17,3 +17,4 @@ salidas/
 **/calibracion_estilo_trazas/
 docs/referencia/*.png   # capturas internas de referencia, no se versionan
 expedientes/
+docs/referencia/informes_aprobados/   # informes reales de referencia (nombres de personas): no se versionan

@@ -35,7 +35,7 @@ from .esquemas import (Conclusion, ConclusionExtraida, ContextoInforme, Correcci
 from .expediente import Expediente, ExpedienteError
 from .formato_md import (COLETILLA_RIESGO_PROPUESTO, normalizar_nivel, normalizar_tipo,
                          parrafos_con_lineas, parsear_conclusiones, parsear_informe,
-                         render_conclusiones, render_informe)
+                         render_conclusiones, render_informe, textos_informe)
 from .lectores import EXTENSIONES as EXT_ENTRADA, Documento
 from .llm import ClienteLLM
 from .style_checker import StyleChecker, reglas_como_texto, revisar_markdown
@@ -60,15 +60,29 @@ def _ejemplo_conclusion() -> str:
 
 MAX_CHARS_ENTRADA = 250_000  # protección: gpt-5-mini admite mucho más, pero el coste crece
 
-SYSTEM_BASE = """Eres un auditor interno senior y revisor de informes de auditoría interna.
-Trabajas SIEMPRE con estas reglas:
-- Redacción impersonal ("se ha observado", "se recomienda"), orientada a proceso, nunca a personas.
-- Objetiva y soportada por evidencia: nada de absolutos ni juicios de valor. La severidad se expresa
-  solo mediante el nivel de riesgo (Alto/Medio/Bajo).
-- Frases cortas. Terminología: "incidencia", "conclusión", "debilidad", "recomendación", "sugerencia de mejora".
-- NUNCA inventas datos, cifras, fechas, normas ni causas. Si algo no está en la fuente, lo dejas vacío
-  o lo señalas como pendiente. Conservas todos los datos objetivos existentes.
-- Respondes en español, en el formato estructurado solicitado.
+SYSTEM_BASE = """Eres un auditor interno senior del Departamento de Auditoría Interna y redactas informes de auditoría
+para Dirección. Registro calibrado con informes aprobados (docs/ESTILO_INFORMES.md):
+- Las actuaciones del equipo auditor se narran en PRIMERA PERSONA DEL PLURAL: «hemos revisado», «hemos
+  identificado», «durante nuestra revisión», «validamos», «confirmamos», «destacamos», «consideramos». Los
+  hechos y el «deber ser» del control se enuncian en impersonal («se ha identificado», «debe apoyarse en»).
+- Formal y sobrio, orientado a proceso y control, nunca a personas. Sin absolutos ni juicios de valor: la
+  severidad se expresa con la escala de riesgo (Crítico/Alto/Medio/Bajo).
+- Cuantificado: cifras, porcentajes, importes, fechas, periodos, sistemas y muestras del papel de trabajo,
+  integrados en la prosa («En concreto, durante 2024, el 1,8 % de…»). NUNCA inventes datos, normas ni causas:
+  campo vacío o «no ha sido posible cuantificar» antes que inventar.
+- Patrón de una conclusión: (1) el «deber ser» del control; (2) lo identificado («Durante nuestra revisión
+  hemos identificado…»), con viñetas «/» si son varias debilidades; (3) datos y evidencia; (4) efecto y riesgo
+  («lo que genera…», «pudiendo derivar en…»); (5) materialización y factores mitigantes («Respecto a la
+  materialización, …», «Cabe destacar que existen factores mitigantes, como: …»).
+- Conectores propios: «Durante nuestra revisión», «En concreto», «Cabe destacar», «Por otro lado», «Asimismo»,
+  «No obstante», «Sin embargo», «Por último», «Respecto a».
+- Terminología: observación/conclusión, debilidad, deficiencia de control, incidencia, aspecto de mejora,
+  riesgo, control mitigante, materialización, plan de acción, recomendación, sugerencia de mejora, área
+  responsable, plazo. «Grupo ITX», «la Compañía».
+- Recomendaciones en infinitivo, concretas y accionables («Implantar…», «Definir…», «Establecer…»,
+  «Revisar…»), una por párrafo, con sub-viñetas «_» si tienen varios puntos.
+- Frases claras; se admiten oraciones largas bien puntuadas. Respondes en español, en el formato
+  estructurado solicitado.
 
 {reglas_estilo}"""
 
@@ -217,25 +231,42 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
                         + json.dumps([{k: c.get(k, "") for k in ("titulo", "tipo", "prueba", "incidencia", "consecuencias",
                                                                   "recomendacion", "nivel_riesgo")} for c in aprobadas],
                                      ensure_ascii=False, indent=2)) if aprobadas else ""
+    textos = textos_informe()
+    anio = (re.search(r"(20\d{2})", str(exp.proyecto.get("fecha", ""))) or [None, str(datetime.now().year)])[1]
+    plan = textos["plan_auditoria"].format(anio=anio)
     user = (f"{_contexto_proyecto(exp)}\n\n"
             "Redacta la INTRODUCCIÓN y el RESUMEN EJECUTIVO del informe de auditoría interna a partir de los "
-            "documentos de entrada (papel de trabajo final con todas las pruebas, contexto de la auditoría, anexos).\n"
-            "- Introducción: contexto y antecedentes, objetivo y alcance del trabajo, pruebas realizadas (enumeradas "
-            "por su referencia) y, solo si constan, periodo y equipo (omite lo que no conste: nunca escribas 'no "
-            "consta'). Prosa en varios párrafos de Markdown, sin subtítulos.\n"
-            "- Resumen ejecutivo: texto para Dirección, breve (3 a 6 párrafos o viñetas cortas): qué se ha revisado, "
-            "las principales conclusiones (pruebas concluidas CON INCIDENCIAS y qué se ha observado), su relevancia "
-            "y, si consta, la referencia a recomendaciones abiertas. Es una síntesis en prosa: NO reproduzcas los "
-            "campos de las conclusiones (incidencia/consecuencias/recomendación/riesgo) uno a uno ni copies las "
-            "recomendaciones completas. Sin inventar cifras ni valoraciones que no estén en la fuente.\n\n"
+            "documentos de entrada (papel de trabajo final con todas las pruebas, contexto de la auditoría, anexos), "
+            "con la estructura de los informes aprobados del departamento.\n"
+            "INTRODUCCIÓN (Markdown): empieza con este párrafo literal: «" + plan + "». Después, bloques con etiqueta "
+            "en negrita: **Contexto:** (por qué se hace la auditoría, situación del proceso); **Objetivo de la "
+            "auditoría:** (una frase, seguida de «Entre otros, los principales aspectos que se han revisado están "
+            "relacionados con:» y una viñeta por aspecto/prueba); **Riesgos a cubrir:** (riesgos que motivan la "
+            "revisión); **Alcance de la auditoría:** (sistemas, mercados, procesos y periodo); **Principales "
+            "magnitudes:** SOLO si en la fuente hay cifras del proceso (una viñeta «cifra — concepto» por magnitud; "
+            "omite el bloque si no las hay). Termina con este párrafo literal: «" + textos["normas"] + "». Omite lo "
+            "que no conste (nunca escribas «no consta»).\n"
+            "RESUMEN EJECUTIVO (Markdown): (1) párrafo de contexto (qué hace el área, iniciativas en curso); (2) "
+            "valoración general del control, con el patrón «A pesar de …, no se han detectado deficiencias de control "
+            "significativas. No obstante, se han identificado determinadas mejoras/debilidades que se detallan a "
+            "continuación:» o su contrario si las incidencias son relevantes; (3) una viñeta «/ » por conclusión "
+            "(una o dos frases: debilidad + efecto), en primera persona del plural cuando narre actuaciones del "
+            "equipo, variando el arranque de cada viñeta (no repitas «Durante nuestra revisión hemos identificado» en "
+            "todas: empieza por la debilidad, el proceso o el efecto); (4) párrafo final de valoración (madurez por ámbito si procede y "
+            "referencia a recomendaciones abiertas si consta). Sin reproducir campos uno a uno ni copiar "
+            "recomendaciones completas; sin inventar cifras.\n"
+            "EVALUACIÓN GLOBAL: uno de " + " / ".join(textos["escala_evaluacion_global"]) + ", coherente con el "
+            "resumen; vacío si la evidencia no permite sostenerla.\n\n"
             f"DOCUMENTOS DE ENTRADA:\n{_texto_entrada(docs)}{conclusiones_txt}")
     res = ctx.llm.completar_estructurado("redactar-contexto", ctx.system, user, ContextoInforme)
     datos = {"introduccion": actual.get("introduccion", ""), "resumen_ejecutivo": actual.get("resumen_ejecutivo", ""),
+             "evaluacion_global": actual.get("evaluacion_global", ""),
              "conclusiones": actual.get("conclusiones", []), "sugerencias": actual.get("sugerencias", [])}
     if "intro" in pedidas:
         datos["introduccion"] = res.introduccion
     if "resum" in pedidas:
         datos["resumen_ejecutivo"] = res.resumen_ejecutivo
+        datos["evaluacion_global"] = res.evaluacion_global
     snap = exp.escribir("informe", render_informe(datos, exp.proyecto), "redactar-contexto")
     hall = revisar_markdown(ctx.checker, exp.leer("informe"))
     errores = sum(h["severidad"] == "error" for h in hall)
@@ -270,12 +301,15 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "Esquema de cada conclusión:\n"
             f"{campos}\n\n"
             "Reglas:\n"
-            "- Cada conclusión se presenta después en una diapositiva con esta lectura: título breve (frase nominal, "
-            "p. ej. «Limitaciones en el mantenimiento de …»); cuerpo en prosa (`incidencia`: qué ocurre y cómo se "
-            "hace hoy, 1-2 párrafos; `causa_raiz`: por qué, 1 párrafo); una caja «detalles descriptivos de la "
-            "situación anterior» (`como_se_ha_llegado`: viñetas con los datos concretos del PT: volúmenes, importes, "
-            "componentes, muestras, casuísticas); y un párrafo de cierre (`consecuencias`: riesgo que genera, si se ha "
-            "materializado y si se ha podido cuantificar). Redacta cada campo para ese uso; no inventes cifras.\n"
+            "- Cada conclusión se presenta después en una diapositiva con esta lectura: título (frase nominal "
+            "específica de la debilidad, p. ej. «Elevado uso de accesos de emergencia con permisos privilegiados»); "
+            "cuerpo en prosa (`incidencia`: primero el «deber ser» del control en impersonal y después lo identificado "
+            "—«Durante nuestra revisión hemos identificado…»—, con viñetas «/» si son varias debilidades; "
+            "`causa_raiz`: por qué, 1 párrafo); una caja «detalles descriptivos de la situación anterior» "
+            "(`como_se_ha_llegado`: viñetas con los datos concretos del PT: volúmenes, importes, muestras, periodos, "
+            "sistemas, casuísticas); y un párrafo de cierre (`consecuencias`: efecto y riesgo que genera, "
+            "materialización —«Respecto a la materialización, …»— y factores mitigantes si constan, y si se ha "
+            "podido cuantificar). Redacta cada campo para ese uso; no inventes cifras.\n"
             "- `area`, `responsable`, `plazo`: solo si el PT los indica. `referencia_recomendacion`: código de la "
             "recomendación abierta a la que se remite (p. ej. TMSCIIF-10), si consta.\n"
             "- `recomendacion`: SOLO si el PT la contiene o referencia (p. ej. una recomendación abierta de otra "
@@ -545,6 +579,7 @@ def accion_redactar_conclusiones(ctx: Contexto) -> str:
                               + "\n".join(f"  {c['id']}: {'; '.join(m)}" for c, m in bloqueadas))
     actual = parsear_informe(exp.leer("informe")) if exp.existe("informe") else {}
     datos = {"introduccion": actual.get("introduccion", ""), "resumen_ejecutivo": actual.get("resumen_ejecutivo", ""),
+             "evaluacion_global": actual.get("evaluacion_global", ""),
              "conclusiones": [c for c, _ in listas if c["tipo"] == "conclusion"],
              "sugerencias": [c for c, _ in listas if c["tipo"] == "sugerencia"]}
     snap = exp.escribir("informe", render_informe(datos, exp.proyecto), "redactar-conclusiones")

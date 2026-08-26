@@ -23,8 +23,8 @@ palabras_prohibidas:
     sugerencia: "indicios que requieren análisis adicional"
     motivo: "Calificación reservada; requiere validación de Dirección/Legal."
   - termino: "grave"
-    sugerencia: "de riesgo alto"
-    motivo: "La severidad se expresa con la escala de riesgo (Alto/Medio/Bajo)."
+    sugerencia: "de riesgo alto (salvo usos como «incidente grave» en descripciones de proceso)"
+    motivo: "La severidad de una conclusión se expresa con la escala de riesgo (Crítico/Alto/Medio/Bajo)."
   - termino: "nunca"
     sugerencia: "no se ha identificado evidencia de que…"
     motivo: "Absolutos no soportables con la evidencia de una muestra."
@@ -35,11 +35,11 @@ palabras_prohibidas:
     sugerencia: "la totalidad de la muestra analizada"
     motivo: "Acotar la afirmación al alcance de la prueba."
   - termino: "creemos"
-    sugerencia: "se ha observado / se concluye"
-    motivo: "El informe se redacta en impersonal, no en primera persona."
+    sugerencia: "consideramos / se ha observado"
+    motivo: "Las valoraciones del equipo se expresan con «consideramos» o en impersonal, no como creencia."
   - termino: "pensamos"
-    sugerencia: "se considera"
-    motivo: "El informe se redacta en impersonal."
+    sugerencia: "consideramos"
+    motivo: "Las valoraciones del equipo se expresan con «consideramos»."
   - termino: "obviamente"
     sugerencia: "(eliminar)"
     motivo: "Muletilla valorativa sin aporte."
@@ -53,20 +53,23 @@ palabras_prohibidas:
     sugerencia: "no conforme con el criterio establecido"
     motivo: "Redacción objetiva contra criterio."
 
-# Expresiones en primera persona (el informe es impersonal)
+# Primera persona.
+# Calibrado con informes aprobados (docs/ESTILO_INFORMES.md): las actuaciones del equipo
+# auditor SÍ se narran en primera persona del plural («hemos revisado», «durante nuestra
+# revisión», «validamos», «consideramos»); los hechos, en impersonal. Solo se avisa del
+# singular, que no aparece en los informes aprobados.
 primera_persona:
-  - "hemos"
-  - "nuestro"
-  - "nuestra"
   - "yo"
   - "considero"
   - "opino"
+  - "creo"
 
 # Reglas cuantitativas
 reglas:
-  longitud_maxima_frase: 45        # palabras por frase (legibilidad)
-  requiere_nivel_riesgo: true      # toda observación debe tener Alto/Medio/Bajo
-  niveles_riesgo_validos: ["Alto", "Medio", "Bajo"]
+  longitud_maxima_frase: 55        # palabras por frase (aviso). Los aprobados admiten frases largas bien puntuadas
+  requiere_nivel_riesgo: true      # toda conclusión debe tener nivel de riesgo
+  niveles_riesgo_validos: ["Crítico", "Alto", "Medio", "Bajo"]
+  escala_evaluacion_global: ["Deficiente", "Insuficiente", "Mejorable", "Razonable", "Adecuado"]
 
 # Estructura exigible a cada conclusión del detalle de conclusiones
 # (incidencia -> causa raíz -> cómo se ha llegado -> consecuencias -> recomendación).

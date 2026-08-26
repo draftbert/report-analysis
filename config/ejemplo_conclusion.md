@@ -22,3 +22,28 @@
 
 - Ref. recomendación: TMSCIIF-10
 - Nivel de riesgo: Medio
+
+## El análisis de riesgos de terceros en la cadena de valor no incluye la totalidad de salderos ni riesgos asociados
+
+**Incidencia detectada:** Cada cadena gestiona de forma independiente los sobrantes de campaña, incluyendo la identificación y negociación con salderos y donatarios a los que venden/donan restos y taras. Estos terceros deben ser analizados inicial y periódicamente para identificar y evaluar los posibles riesgos financieros o de actividad (que pudiesen derivar en daños reputacionales).
+
+Durante nuestra revisión, encontramos debilidades en la identificación y evaluación de riesgos de terceros, específicamente en lo relativo a:
+/ No existe un flujo y canal único de respuesta para el análisis de riesgos de salderos.
+/ No se han identificado controles que reevalúen o detecten modificaciones en el análisis de riesgos o que permitan detectar terceros con actividad que no hayan sido evaluados.
+/ La evaluación realizada no contempla el riesgo sociolaboral en terceros que realizan procesos sobre la mercancía en almacenes o talleres de reoperación (intensivos en mano de obra).
+
+**Causa raíz:** La gestión descentralizada por cadena y la ausencia de un procedimiento único de análisis de riesgos de terceros en la cadena de valor.
+
+**Cómo se ha llegado:**
+- Se ha solicitado a Gestión de Riesgos de Terceros actualizar los análisis de riesgos de los salderos con los que ha tenido actividad la cadena durante 2024 para los mercados incluidos en el alcance (un total de 16 salderos).
+- Para 9 salderos (que representan el 88 % de la facturación y el 93 % de las unidades vendidas) no se ha identificado ningún riesgo significativo.
+- Para los 7 salderos restantes no se cuenta con la información necesaria para la realización del análisis.
+
+**Consecuencias:** Terceros con actividad relevante sin análisis de riesgos vigente, con posible impacto reputacional en caso de incidencia en su actividad; no se ha identificado materialización en los salderos analizados.
+
+**Recomendación:** Implantar un procedimiento de análisis de riesgos de terceros en la cadena de valor, que incluya:
+_ Definición de flujo para el análisis de riesgos de salderos, como canal único de respuesta.
+_ Controles detectivos que cubran todos los terceros.
+_ Identificación de nuevos riesgos, vinculados a la actividad de reoperación (sociolaboral).
+
+- Nivel de riesgo: Medio

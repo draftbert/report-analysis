@@ -206,11 +206,13 @@ couriers en la introducción.
 
 **Qué decir:** "`ppt` exporta el informe entero: cada apartado, una diapositiva."
 
-**Qué enseñar:** el `.pptx` (carátula, introducción, resumen ejecutivo, índice
-de conclusiones con chip de riesgo, y **una diapositiva por conclusión con el
-diseño corporativo**: banda de riesgo, título numerado, prosa, caja de detalles
-descriptivos, consecuencias y, a la derecha, Recomendación N.1, Ref., Área /
-Responsable / Plazo; sugerencias de mejora); el zip de `archivar` con `trazas/`,
+**Qué enseñar:** el `.pptx` con la estructura de los informes del departamento:
+carátula (CONFIDENCIAL, lista de distribución, ref.), índice y portadillas,
+introducción, resumen ejecutivo con **Evaluación Global** y próximos pasos,
+índice de conclusiones con chip de riesgo, **una diapositiva por conclusión con
+el diseño corporativo** (banda de riesgo, título numerado, prosa, detalles
+descriptivos, consecuencias, Recomendación N.1, Ref., Área / Responsable /
+Plazo), sugerencias de mejora (RIESGO BAJO), anexo de planes de acción y cierre; el zip de `archivar` con `trazas/`,
 `historial/`, informe, PPT y `manifest.json` con sha256 ("esto se adjunta al
 expediente en Pentana"); y una traza JSON medio segundo: prompt, respuesta,
 tokens.
@@ -255,7 +257,7 @@ aplicar-cambios → ppt → archivar).
 - Para enseñar el resultado de los pasos con modelo, abre en vista previa los
   ficheros de ese expediente y su `cambios_aplicados.md`.
 - `./revisor revisar-texto --fichero ejemplos/observacion_borrador.txt --sin-llm`
-  es un buen abridor: un párrafo con nueve infracciones detectadas al instante.
+  es un buen abridor: un párrafo con ocho infracciones detectadas al instante.
 
 ## Errores típicos en directo
 

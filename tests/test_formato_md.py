@@ -53,7 +53,7 @@ def test_informe_round_trip_y_pendientes():
     # render(parse(md)) == md: lo que se ve es lo que se exporta
     assert render_informe({**back, "introduccion": datos["introduccion"], "resumen_ejecutivo": datos["resumen_ejecutivo"]}, PROY) == md
     vacio = parsear_informe(render_informe({"introduccion": "", "resumen_ejecutivo": ""}, PROY))
-    assert vacio == {"introduccion": "", "resumen_ejecutivo": "", "conclusiones": [], "sugerencias": []}
+    assert vacio == {"introduccion": "", "resumen_ejecutivo": "", "evaluacion_global": "", "conclusiones": [], "sugerencias": []}
 
 
 def test_informe_varias_recomendaciones_numeradas():
@@ -75,3 +75,15 @@ def test_metadatos_plan_de_accion_round_trip():
     inf = parsear_informe(render_informe({"introduccion": "I", "resumen_ejecutivo": "R", "conclusiones": [c], "sugerencias": []}, PROY))
     assert inf["conclusiones"][0]["plazo"] == "Fuera de plazo" and inf["conclusiones"][0]["referencia_recomendacion"] == "TMSCIIF-10"
     assert inf["conclusiones"][0]["recomendacion"] == "Rec 1.\n\nRec 2."
+
+
+def test_evaluacion_global_y_textos_fijos_round_trip():
+    datos = {"introduccion": "I", "resumen_ejecutivo": "Res.\n\n- / a", "evaluacion_global": "Mejorable",
+             "conclusiones": [{**C1, "nivel_riesgo": "Crítico", "riesgo_propuesto": False}], "sugerencias": [C2]}
+    md = render_informe(datos, PROY)
+    assert "**Evaluación global:** Mejorable" in md and "**Próximos pasos:** Los destinatarios" in md
+    assert "_A continuación, se muestran las debilidades identificadas" in md
+    back = parsear_informe(md)
+    assert back["evaluacion_global"] == "Mejorable" and back["resumen_ejecutivo"] == "Res.\n\n- / a"
+    assert back["conclusiones"][0]["nivel_riesgo"] == "Crítico"
+    assert render_informe({**back, "introduccion": "I"}, PROY) == md

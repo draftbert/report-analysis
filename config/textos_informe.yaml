@@ -1,0 +1,8 @@
+# Textos fijos del informe (calibrados con informes aprobados). Editables por el equipo.
+# {anio} se sustituye por el año del expediente.
+plan_auditoria: "La auditoría ha sido realizada en cumplimiento del Plan de Auditoría del año {anio}, aprobado por la Comisión de Auditoría y Cumplimiento."
+normas: "El trabajo ha sido llevado a cabo de acuerdo con las Normas Internacionales para la Práctica Profesional de Auditoría Interna, según certificado emitido por el Instituto de Auditores Internos."
+proximos_pasos: "Los destinatarios del presente informe deberán remitir su conformidad sobre el mismo al Departamento de Auditoría Interna. En el Anexo se recogerán los planes de acción a implantar para solventar las incidencias identificadas acorde al plazo acordado de implantación."
+intro_sugerencias: "A continuación, se muestran las debilidades identificadas para las que, dado su impacto limitado, no se exigirá la elaboración de un plan de acción específico, si bien se exponen para su consideración con el objetivo de mejorar el nivel de control."
+detalles_descriptivos: "A continuación, se muestran los detalles descriptivos de la situación anterior:"
+escala_evaluacion_global: ["Deficiente", "Insuficiente", "Mejorable", "Razonable", "Adecuado"]
