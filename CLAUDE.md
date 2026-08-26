@@ -12,6 +12,8 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
   cómo se ha llegado → consecuencias → recomendación; tipo conclusion|sugerencia). Cualquier campo nuevo
   debe añadirse ahí (es lo que viaja al modelo como schema estricto), en `formato_md.py` (render y parse)
   y en `tests/test_formato_md.py`.
+- **02_informe.md es WYSIWYG:** cada apartado se escribe como se leerá en su diapositiva y `ppt` exporta
+  el informe entero 1:1 (`render_informe`/`parsear_informe` deben ser idempotentes: render(parse(md)) == md).
 - **La recomendación del auditor se respeta al 100 %:** `recomendar` solo la formatea si se pide y
   verifica con `conserva_base`; `corregir-conclusiones` nunca la toca; `redactar-conclusiones` vuelca sin modelo.
 - **Toda salida del LLM se vuelve a validar con las reglas** y queda trazada en `trazas/`.

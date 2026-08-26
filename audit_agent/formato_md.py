@@ -5,8 +5,8 @@ herramienta lo sabe leer después de que una persona lo haya editado.
 
 Convenciones (tolerantes a mayúsculas, tildes y espacios):
 
-    ## C-01 · Título                          (01_conclusiones.md)
-    ### 1. Título                             (02_informe.md, detalle y sugerencias)
+    ## C-01 · Título                          (01_conclusiones.md: campos etiquetados, se validan aquí)
+    ### 1. Título                             (02_informe.md: apartado WYSIWYG = diapositiva; ver render_informe)
     - Tipo: conclusion | sugerencia
     - Estado: propuesta | aprobada | descartada
     - Prueba: 2.11 a) …                       (referencia del papel de trabajo)
@@ -171,16 +171,54 @@ CABECERA_INFORME = """# Informe de auditoría interna — {nombre}
 - Fecha: {fecha}
 - Distribución: {distribucion}
 
-> Texto de trabajo del informe. Edítalo libremente respetando los títulos `##` de
-> sección y la estructura de cada conclusión (`###` + campos en negrita): es lo que
-> permite generar el PPT y aplicar cambios automáticamente.
+> Texto de trabajo del informe: lo que se lee aquí es lo que exporta `ppt`, apartado a
+> apartado (cada `##` y cada `###` es una diapositiva). Edítalo libremente respetando los
+> títulos y, en las conclusiones, la línea «A continuación, se muestran los detalles…»,
+> las viñetas de datos y los párrafos `**Recomendación N.1.**`.
 > Acciones: `redactar-contexto` (introducción y resumen), `redactar-conclusiones`
 > (vuelca las aprobadas), `revisar`/`corregir` (vocabulario), `aplicar-cambios`
-> (desde 03_instrucciones.md), `diff`, `deshacer`, `ppt`, `archivar`.
+> (desde 03_instrucciones.md), `diff`, `deshacer`, `ppt` (exporta el informe entero),
+> `archivar`.
 
 """
 SECCIONES_INFORME = ("Introducción", "Resumen ejecutivo", "Detalle de conclusiones", "Sugerencias de mejora")
 PENDIENTE = "_(pendiente)_"
+MARCADOR_DETALLES = "*A continuación, se muestran los detalles descriptivos de la situación anterior:*"
+META_INFORME = [("prueba", "Prueba"), ("nivel_riesgo", "Nivel de riesgo"), ("area", "Área"),
+                ("responsable", "Responsable"), ("plazo", "Plazo"), ("referencia_recomendacion", "Ref. recomendación")]
+
+
+def partir_recomendaciones(texto: str) -> list[str]:
+    """Una recomendación por párrafo (o por viñeta); sin prefijos de lista."""
+    partes = re.split(r"\n\s*\n|\n(?=\s*[-*•]\s)", (texto or "").strip())
+    return [re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", x).strip() for x in partes if x.strip()]
+
+
+def _apartado_conclusion(c: dict, num: int, es_sugerencia: bool) -> str:
+    """Apartado del informe tal como se leerá en la diapositiva."""
+    L = [f"### {num}. {(c.get('titulo', '') or '').strip()}", ""]
+    for clave, etiqueta in META_INFORME:
+        valor = (c.get(clave, "") or "").strip()
+        if clave == "nivel_riesgo" and c.get("riesgo_propuesto") and valor:
+            valor = f"{valor} {COLETILLA_RIESGO_PROPUESTO}"
+        if es_sugerencia and not valor and clave != "prueba":
+            continue
+        L.append(f"- {etiqueta}: {valor}")
+    L.append("")
+    cuerpo = [t.strip() for t in ((c.get("incidencia") or ""), (c.get("causa_raiz") or "")) if t and t.strip()]
+    L += [p + "\n" for p in cuerpo]
+    detalles = (c.get("como_se_ha_llegado") or "").strip()
+    if detalles:
+        items = [re.sub(r"^\s*[-*•/]\s*", "", l).strip() for l in detalles.splitlines() if l.strip()]
+        L.append(MARCADOR_DETALLES)
+        L += [f"- {it}" for it in items]
+        L.append("")
+    if (c.get("consecuencias") or "").strip():
+        L.append(c["consecuencias"].strip() + "\n")
+    etiqueta = "Propuesta de mejora" if es_sugerencia else "Recomendación"
+    for k, rec in enumerate(partir_recomendaciones(c.get("recomendacion", "")), 1):
+        L.append(f"**{etiqueta} {num}.{k}.** {rec}\n")
+    return "\n".join(L)
 
 
 def render_informe(datos: dict, proyecto: dict) -> str:
@@ -194,15 +232,13 @@ def render_informe(datos: dict, proyecto: dict) -> str:
     if not conclusiones:
         partes.append(PENDIENTE + "\n")
     for i, c in enumerate(conclusiones, 1):
-        partes.append(_bloque({**c, "tipo": "conclusion"}, f"### {i}. {(c.get('titulo', '') or '').strip()}",
-                              con_estado=False, con_notas=False))
+        partes.append(_apartado_conclusion(c, i, es_sugerencia=False))
     partes.append("## Sugerencias de mejora\n")
     sugerencias = datos.get("sugerencias", [])
     if not sugerencias:
         partes.append("_(ninguna)_\n" if conclusiones else PENDIENTE + "\n")
     for i, s in enumerate(sugerencias, 1):
-        partes.append(_bloque({**s, "tipo": "sugerencia"}, f"### {i}. {(s.get('titulo', '') or '').strip()}",
-                              con_estado=False, con_notas=False))
+        partes.append(_apartado_conclusion(s, i, es_sugerencia=True))
     return "\n".join(partes).rstrip() + "\n"
 
 
@@ -294,12 +330,84 @@ def parsear_conclusiones(texto: str) -> list[dict]:
     return salida
 
 
+_RE_REC = re.compile(r"^\*\*(?:Recomendaci[oó]n|Propuesta de mejora)\s*\d+\.\d+\.?\*\*\s*(.*)$", re.IGNORECASE)
+
+
+def _parsear_apartado(lineas: list[str]) -> dict:
+    """Apartado WYSIWYG del informe -> dict con los mismos campos que una
+    conclusión (la prosa del cuerpo va a `incidencia`; `causa_raiz` queda
+    vacía porque en el informe ya no se distinguen)."""
+    c: dict = {"tipo": "conclusion", "estado": "aprobada", "prueba": "", "nivel_riesgo": "", "area": "",
+               "responsable": "", "plazo": "", "referencia_recomendacion": "", "fuente": "", "notas": "",
+               "riesgo_propuesto": False, "incidencia": "", "causa_raiz": "", "como_se_ha_llegado": "",
+               "consecuencias": "", "recomendacion": ""}
+    cuerpo: list[str] = []          # párrafos antes de los detalles
+    detalles: list[str] = []
+    despues: list[str] = []         # párrafos tras los detalles (consecuencias)
+    recs: list[str] = []
+    fase = "meta"
+    parrafo: list[str] = []
+
+    def cerrar():
+        nonlocal parrafo
+        if parrafo:
+            texto = "\n".join(parrafo).strip()
+            if recs and fase == "rec":
+                recs[-1] = (recs[-1] + "\n" + texto).strip()
+            elif fase in ("meta", "cuerpo"):
+                cuerpo.append(texto)
+            else:
+                despues.append(texto)
+        parrafo = []
+
+    for linea in lineas:
+        if linea.lstrip().startswith(">"):
+            continue
+        if not linea.strip():
+            cerrar()  # tras una recomendación, los párrafos siguientes la continúan
+            continue
+        m_rec = _RE_REC.match(linea.strip())
+        if m_rec:
+            cerrar()
+            recs.append(m_rec.group(1).strip())
+            fase = "rec"
+            continue
+        if linea.strip() == MARCADOR_DETALLES.strip() or linea.strip().lower().startswith("*a continuación, se muestran los detalles"):
+            cerrar()
+            fase = "detalles"
+            continue
+        if fase == "detalles" and re.match(r"^\s*[-*•/]\s+", linea):
+            detalles.append(re.sub(r"^\s*[-*•/]\s+", "", linea).strip())
+            continue
+        if fase == "detalles":
+            fase = "despues"
+        m_meta = _RE_META.match(linea)
+        if fase == "meta" and m_meta and _norm(m_meta.group(1)) in _CLAVES:
+            clave = _CLAVES[_norm(m_meta.group(1))]
+            valor = m_meta.group(2).strip()
+            if clave == "nivel_riesgo":
+                c[clave] = normalizar_nivel(valor)
+                c["riesgo_propuesto"] = separar_coletilla(valor)[1]
+            elif clave in c:
+                c[clave] = valor
+            continue
+        if fase == "meta":
+            fase = "cuerpo"
+        parrafo.append(linea.rstrip())
+    cerrar()
+    c["incidencia"] = "\n\n".join(cuerpo)
+    c["como_se_ha_llegado"] = "\n".join(f"- {d}" for d in detalles)
+    c["consecuencias"] = "\n\n".join(despues)
+    c["recomendacion"] = "\n\n".join(recs)
+    return c
+
+
 def _parsear_lista(lineas: list[str], tipo: str) -> list[dict]:
     _, bloques = _partir_por_cabeceras("\n".join(lineas), 3)
     salida = []
     for j, (tit, lin) in enumerate(bloques, 1):
         m = _RE_NUM.match(tit)
-        c = _parsear_bloque(lin)
+        c = _parsear_apartado(lin)
         c["titulo"] = m.group(2).strip() if m else tit
         c["numero"], c["tipo"] = j, tipo
         salida.append(c)

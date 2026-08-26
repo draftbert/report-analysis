@@ -245,7 +245,7 @@ MENU = [
     ("aplicar-cambios", "Aplicar las instrucciones de 03_instrucciones.md al informe (LLM)", cmd_aplicar_cambios, {"solo_plan": False}),
     ("diff", "Ver cambios del informe respecto a la última versión guardada", cmd_diff, {"fichero": "informe"}),
     ("deshacer", "Restaurar la versión anterior del informe", cmd_deshacer, {"fichero": "informe"}),
-    ("ppt", "Generar la presentación del informe en PowerPoint", cmd_ppt, {}),
+    ("ppt", "Exportar el informe entero a PowerPoint (un apartado = una diapositiva)", cmd_ppt, {}),
     ("archivar", "Archivar evidencia (zip con trazas, historial, informe, PPT + manifest sha256)", cmd_archivar, {}),
 ]
 
@@ -329,7 +329,7 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--avisos", action="store_true", help="Incluir también avisos (frases largas)")
     s = sub.add_parser("aplicar-cambios", help="Aplicar 03_instrucciones.md al informe (LLM)"); s.set_defaults(fn=cmd_aplicar_cambios)
     s.add_argument("--solo-plan", action="store_true", help="Mostrar el plan sin tocar el informe")
-    sub.add_parser("ppt", help="Generar el Resumen Ejecutivo").set_defaults(fn=cmd_ppt)
+    sub.add_parser("ppt", help="Exportar el informe entero a PowerPoint (un apartado = una diapositiva)").set_defaults(fn=cmd_ppt)
     sub.add_parser("archivar", help="Zip de evidencia del expediente con manifest sha256").set_defaults(fn=cmd_archivar)
 
     s = sub.add_parser("calibrar-estilo", help="Contrastar estilo.yaml con informes aprobados (no modifica el YAML)")

@@ -138,8 +138,11 @@ tal cual al informe. Si alguna aprobada no tiene recomendación o conserva el
 riesgo sin validar, no entra y se avisa." El segundo comando rehace solo el
 resumen ejecutivo apoyándose en las conclusiones ya validadas.
 
-**Qué enseñar:** `02_informe.md` completo en vista previa, de arriba abajo.
-"Aquí es donde el auditor va a vivir los próximos días."
+**Qué enseñar:** `02_informe.md` completo en vista previa, de arriba abajo:
+cada apartado de conclusión ya se lee como su diapositiva (título numerado,
+prosa, «A continuación, se muestran los detalles descriptivos…», consecuencias,
+**Recomendación N.1**). "Aquí es donde el auditor va a vivir los próximos días;
+lo que se ve aquí es exactamente lo que exporta el botón de PPT."
 
 ---
 
@@ -200,6 +203,8 @@ couriers en la introducción.
 ./revisor archivar
 ./revisor estado
 ```
+
+**Qué decir:** "`ppt` exporta el informe entero: cada apartado, una diapositiva."
 
 **Qué enseñar:** el `.pptx` (carátula, introducción, resumen ejecutivo, índice
 de conclusiones con chip de riesgo, y **una diapositiva por conclusión con el
