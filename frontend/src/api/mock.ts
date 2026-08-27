@@ -175,7 +175,10 @@ export const clienteMock: Api = {
   eliminarExpediente: async (ref, confirmacion) => { if (confirmacion !== ref) throw new Error(`Para eliminar el expediente escribe exactamente su referencia: ${ref}`); return { mensaje: `Expediente ${ref} eliminado.` }; },
   job: async <T,>(id: string) => (jobs[id] ?? { estado: "error", accion: "?", mensaje: "Trabajo desconocido", resultado: null }) as Job<T>,
   documentos: async () => docs,
-  subir: async (_ref, carpeta, ficheros) => { await espera(600); docs = { ...docs, [carpeta]: [...docs[carpeta], ...ficheros.map((f) => ({ nombre: f.name, bytes: f.size, lector: f.name.split(".").pop() ?? "texto" }))] }; return docs; },
+  subir: async (_ref, carpeta, ficheros, onProgreso) => {
+    for (const f of ficheros) { for (let pct = 0; pct <= 100; pct += 20) { onProgreso?.(f.name, pct); await espera(120); } }
+    docs = { ...docs, [carpeta]: [...docs[carpeta], ...ficheros.map((f) => ({ nombre: f.name, bytes: f.size, lector: f.name.split(".").pop() ?? "texto" }))] }; return docs;
+  },
   borrarDocumento: async (_ref, carpeta, nombre) => { docs = { ...docs, [carpeta as "contexto"]: docs[carpeta as "contexto"].filter((d) => d.nombre !== nombre) }; return docs; },
   redactarContexto: (_ref) => job("redactar-contexto", () => ({ mensaje: "Introducción y resumen ejecutivo redactados en 02_informe.md a partir de 1 documento(s) de contexto y 1 papel(es) de trabajo.\nRevisión determinista: 0 errores, 0 avisos ✔\nSiguiente: léelos y edítalos hasta que encajen; después `extraer` para pasar a las conclusiones." })),
   extraer: (_ref) => job("extraer", () => ({ mensaje: "Se han propuesto 3 conclusiones en 01_conclusiones.md:\n  C-01  [conc] [Alto* ] Mantenimiento manual y desactualización del maestro de tarifas  (2.11 b)) ✔ · rec. del PT (ref. TMSCIIF-10)\n  C-02  [conc] [Medio*] CPF hereda deficiencias en la valoración de casuísticas minoritarias  (2.11 a)) ✔ · sin recomendación\n  C-03  [suge] [Bajo* ] Documentación del control de alertas diarias y revisión semanal  ✔ · sin recomendación\n  (*) nivel de riesgo propuesto por el modelo sin evidencia en el PT: valídalo al aprobar." })),

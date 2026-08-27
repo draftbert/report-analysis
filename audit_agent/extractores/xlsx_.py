@@ -22,7 +22,11 @@ from pathlib import Path
 import openpyxl
 
 from .base import BaseExtractor
-from .models import Block, Heading, Page, Table
+from .models import Block, Heading, Page, Paragraph, Table
+
+# Filas que se leen por hoja: las hojas de datos (descargas de Snowflake, recálculos) pueden
+# tener cientos de miles de filas que no aportan al informe; se avisa de las omitidas.
+MAX_FILAS_HOJA = 2000
 
 
 class XLSXExtractor(BaseExtractor):
@@ -44,11 +48,14 @@ def _blocks_for_sheet(sheet) -> list[Block]:
     table = _table_for_sheet(sheet)
     if table is not None:
         blocks.append(table)
+    total = getattr(sheet, "max_row", None) or 0
+    if total > MAX_FILAS_HOJA:
+        blocks.append(Paragraph(text=f"(hoja con {total:,} filas; se han leído las {MAX_FILAS_HOJA:,} primeras)".replace(",", ".")))
     return blocks
 
 
 def _table_for_sheet(sheet) -> Table | None:
-    rows = [_row_as_strings(row) for row in sheet.iter_rows(values_only=True)]
+    rows = [_row_as_strings(row) for row in sheet.iter_rows(values_only=True, max_row=MAX_FILAS_HOJA)]
     rows = [row for row in rows if any(cell for cell in row)]
     if not rows:
         return None

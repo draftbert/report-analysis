@@ -91,7 +91,8 @@ export interface Api {
   eliminarExpediente(ref: string, confirmacion: string): Promise<{ mensaje: string }>;
   job<T = unknown>(id: string): Promise<Job<T>>;
   documentos(ref: string): Promise<Documentos>;
-  subir(ref: string, carpeta: "contexto" | "papeles_trabajo", ficheros: File[]): Promise<Documentos>;
+  /** Sube los ficheros uno a uno; `onProgreso(nombre, pct)` recibe el avance (0-100) de cada uno. */
+  subir(ref: string, carpeta: "contexto" | "papeles_trabajo", ficheros: File[], onProgreso?: (nombre: string, pct: number) => void): Promise<Documentos>;
   borrarDocumento(ref: string, carpeta: string, nombre: string): Promise<Documentos>;
   redactarContexto(ref: string, o: { forzar?: boolean; secciones?: string[] }): Promise<{ job_id: string }>;
   extraer(ref: string, forzar: boolean): Promise<{ job_id: string }>;

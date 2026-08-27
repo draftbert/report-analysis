@@ -53,7 +53,10 @@ cualquier editor (VS Code es ideal: vista previa Markdown + terminal al lado):
 expedientes/CNC-2026-03/
   expediente.yaml         nombre, referencia, fecha, distribución, notas para el modelo
   contexto/               design thinking, planificación, motivo y alcance previsto (opcional; .md/.txt/.docx/.xlsx/.pdf/.pptx)
-  papeles_trabajo/        papel de trabajo final con todas las pruebas (fuente de las conclusiones)
+  papeles_trabajo/        papel de trabajo final con todas las pruebas (fuente de las conclusiones); mejor un fichero por prueba.
+                          De un .xlsx se envía completa la narrativa de cada hoja (la «Memo») y solo las 40 primeras filas de las
+                          hojas de datos; el prompt reparte su cupo entre documentos (papeles de trabajo primero) y `extraer` avisa
+                          si un fichero va recortado o si alguna prueba numerada queda sin conclusión ni «sin incidencias»
   01_conclusiones.md      conclusiones y sugerencias propuestas → el auditor edita, aprueba y recomienda
   02_informe.md           el informe: introducción · resumen ejecutivo · detalle de conclusiones · sugerencias
                           (cada apartado se escribe como se leerá en su diapositiva; `ppt` lo exporta 1:1)

@@ -1,4 +1,4 @@
-import type { Api, Estado } from "./types";
+import type { Api, Documentos, Estado } from "./types";
 
 const BASE = "/api";
 
@@ -25,6 +25,24 @@ const json = (body: unknown, method = "POST"): RequestInit => ({
 
 const e = (ref: string) => `/expedientes/${encodeURIComponent(ref)}`;
 
+/** Subida de un fichero con XMLHttpRequest para tener el progreso real (fetch no lo expone). */
+const subirUno = (url: string, fichero: File, onProgreso: (pct: number) => void) =>
+  new Promise<Documentos>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const fd = new FormData();
+    fd.append("ficheros", fichero);
+    xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) onProgreso(Math.round((ev.loaded / ev.total) * 100)); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) { onProgreso(100); resolve(JSON.parse(xhr.responseText) as Documentos); return; }
+      let mensaje = `${xhr.status} ${xhr.statusText}`;
+      try { const body = JSON.parse(xhr.responseText); mensaje = body.error ?? body.detail?.error ?? mensaje; } catch { /* sin JSON */ }
+      reject(new ApiError(`${fichero.name}: ${mensaje}`));
+    };
+    xhr.onerror = () => reject(new ApiError(`${fichero.name}: error de red al subir.`));
+    xhr.open("POST", url);
+    xhr.send(fd);
+  });
+
 export const clienteReal: Api = {
   listarExpedientes: () => req("/expedientes"),
   crearExpediente: (d) => req("/expedientes", json(d)),
@@ -32,10 +50,10 @@ export const clienteReal: Api = {
   eliminarExpediente: (ref, confirmacion) => req(e(ref), json({ confirmacion }, "DELETE")),
   job: (id) => req(`/jobs/${id}`),
   documentos: (ref) => req(`${e(ref)}/documentos`),
-  subir: (ref, carpeta, ficheros) => {
-    const fd = new FormData();
-    ficheros.forEach((f) => fd.append("ficheros", f));
-    return req(`${e(ref)}/documentos/${carpeta}`, { method: "POST", body: fd });
+  subir: async (ref, carpeta, ficheros, onProgreso) => {
+    let docs: Documentos | null = null;
+    for (const f of ficheros) docs = await subirUno(`${BASE}${e(ref)}/documentos/${carpeta}`, f, (pct) => onProgreso?.(f.name, pct));
+    return docs ?? req(`${e(ref)}/documentos`);
   },
   borrarDocumento: (ref, carpeta, nombre) => req(`${e(ref)}/documentos/${carpeta}/${encodeURIComponent(nombre)}`, { method: "DELETE" }),
   redactarContexto: (ref, o) => req(`${e(ref)}/acciones/redactar-contexto`, json(o)),

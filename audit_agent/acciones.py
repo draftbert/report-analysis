@@ -58,7 +58,8 @@ def _ejemplo_conclusion() -> str:
     return ("\n\nEJEMPLO DE REFERENCIA (registro, estructura y nivel de detalle esperados para UNA prueba; sus cifras y "
             "nombres son de OTRA auditoría y no deben reutilizarse):\n" + texto)
 
-MAX_CHARS_ENTRADA = 250_000  # protección: gpt-5-mini admite mucho más, pero el coste crece
+MAX_CHARS_ENTRADA = 300_000    # total enviado al modelo (gpt-5-mini admite más, pero el coste crece)
+MAX_CHARS_DOCUMENTO = 150_000  # tope por documento: ninguno puede dejar sin sitio a los demás
 
 SYSTEM_BASE = """Eres un auditor interno senior del Departamento de Auditoría Interna y redactas informes de auditoría
 para Dirección. Registro calibrado con informes aprobados (docs/ESTILO_INFORMES.md):
@@ -122,32 +123,96 @@ def _cargar_entrada(exp: Expediente, accion: str, carpetas: tuple[str, ...] = ("
         docs += exp.leer_documentos(carpeta)
     if requerir and not any(d.carpeta == requerir for d in docs):
         raise ExpedienteError(f"No hay documentos en {exp.ruta / requerir} (formatos: {', '.join(EXT_ENTRADA)}).")
+    cupo = _presupuesto(docs)
     exp.trazar(f"{accion}-entrada", {
         "fecha": datetime.now().isoformat(timespec="seconds"), "accion": accion,
         "documentos": [{"carpeta": d.carpeta, "nombre": d.nombre, "lector": d.lector, "avisos": d.avisos,
-                        "caracteres": len(d.texto), "texto_normalizado": d.texto} for d in docs]})
+                        "caracteres": len(d.texto), "caracteres_enviados": cupo[i],
+                        "texto_normalizado": d.texto[:cupo[i]]} for i, d in enumerate(docs)]})
     return docs
 
 
 ETIQUETA_CARPETA = {"contexto": "CONTEXTO DE LA AUDITORÍA", "papeles_trabajo": "PAPEL DE TRABAJO"}
 
 
+def _presupuesto(docs: list[Documento]) -> dict[int, int]:
+    """Caracteres de cada documento que se envían al modelo: reparto justo del
+    total (MAX_CHARS_ENTRADA) con tope por documento (MAX_CHARS_DOCUMENTO), dando
+    prioridad a los papeles de trabajo sobre el contexto. Así un Excel de datos
+    enorme no deja fuera a la prueba del siguiente fichero (caso real)."""
+    pt = [i for i, d in enumerate(docs) if d.carpeta == "papeles_trabajo"]
+    ctx = [i for i in range(len(docs)) if i not in pt]
+    reserva_ctx = min(sum(len(docs[i].texto) for i in ctx), MAX_CHARS_ENTRADA // 4)   # el contexto nunca se queda a cero
+    cupo = _repartir(docs, pt, MAX_CHARS_ENTRADA - reserva_ctx)
+    cupo.update(_repartir(docs, ctx, MAX_CHARS_ENTRADA - sum(cupo.values())))
+    return cupo
+
+
+def _repartir(docs: list[Documento], indices: list[int], presupuesto: int) -> dict[int, int]:
+    """Reparto justo de `presupuesto` entre `indices`: los que caben enteros (o en
+    su tope) lo hacen; el resto se reparte a partes iguales."""
+    restante, pendientes, cupo = presupuesto, list(indices), {}
+    while pendientes:
+        cuota = restante // len(pendientes)
+        cortos = [i for i in pendientes if min(len(docs[i].texto), MAX_CHARS_DOCUMENTO) <= cuota]
+        if not cortos:
+            for i in pendientes:
+                cupo[i] = max(cuota, 0)
+            break
+        for i in cortos:
+            cupo[i] = min(len(docs[i].texto), MAX_CHARS_DOCUMENTO)
+            restante -= cupo[i]
+        pendientes = [i for i in pendientes if i not in cupo]
+    return cupo
+
+
 def _texto_entrada(docs: list[Documento]) -> str:
-    """Documentos agrupados por carpeta, con cabecera que dice qué es cada uno."""
-    partes, total = [], 0
+    """Documentos agrupados por carpeta, con cabecera que dice qué es cada uno y
+    cada uno recortado a su cupo (`_presupuesto`), marcando el recorte."""
+    cupo = _presupuesto(docs)
+    partes = []
     for carpeta in ("contexto", "papeles_trabajo", ""):
-        grupo = [d for d in docs if (d.carpeta or "") == carpeta]
+        grupo = [(i, d) for i, d in enumerate(docs) if (d.carpeta or "") == carpeta]
         if not grupo:
             continue
         if carpeta:
             partes.append(f"########## {ETIQUETA_CARPETA[carpeta]} ##########")
-        for d in grupo:
+        for i, d in grupo:
             texto = d.texto
-            if total + len(texto) > MAX_CHARS_ENTRADA:
-                texto = texto[: max(0, MAX_CHARS_ENTRADA - total)] + "\n[... documento truncado ...]"
-            total += len(texto)
+            if cupo[i] < len(texto):
+                texto = texto[:cupo[i]] + (f"\n[... documento recortado: se envían {cupo[i]:,} de {len(texto):,} "
+                                          "caracteres; el resto suele ser hojas de datos ...]").replace(",", ".")
             partes.append(f"===== DOCUMENTO: {d.nombre} (lector: {d.lector}) =====\n{texto.strip()}\n")
     return "\n".join(partes)
+
+
+def _avisos_entrada(docs: list[Documento]) -> list[str]:
+    """Avisos para el auditor: documentos recortados y avisos de lectura (hojas de datos)."""
+    cupo = _presupuesto(docs)
+    avisos = []
+    for i, d in enumerate(docs):
+        if cupo[i] < len(d.texto):
+            avisos.append(f"⚠ {d.nombre}: enviado recortado ({cupo[i]:,} de {len(d.texto):,} caracteres). Si el fichero "
+                          "tiene varias pruebas o la narrativa va al final, sepáralas en ficheros distintos o quita hojas "
+                          "de datos.".replace(",", "."))
+        for a in d.avisos:
+            avisos.append(f"· {d.nombre}: {a}")
+    return avisos
+
+
+_RE_PRUEBA = re.compile(r"(?m)^\s*(\d{1,2}\.\d{1,2})\.?\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9 ,/()\-–—:]{10,})\s*$")
+
+
+def _pruebas_en(docs: list[Documento]) -> dict[str, str]:
+    """Pruebas numeradas («2.11. PROCESO DE …») que aparecen en los papeles de
+    trabajo tal como se envían: {código: título}."""
+    cupo = _presupuesto(docs)
+    pruebas: dict[str, str] = {}
+    for i, d in enumerate(docs):
+        if d.carpeta == "papeles_trabajo":
+            for m in _RE_PRUEBA.finditer(d.texto[:cupo[i]]):
+                pruebas.setdefault(m.group(1), m.group(2).strip())
+    return pruebas
 
 
 def _resumen_entrada(docs: list[Documento]) -> str:
@@ -299,6 +364,7 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
     if not n_ctx:
         msg.append("Sin documentos en contexto/: la introducción se ha redactado solo con el papel de trabajo. Si tienes "
                    "design thinking o memorando de planificación, déjalo en contexto/ y repite con --forzar.")
+    msg.extend(_avisos_entrada(docs))
     if snap:
         msg.append(f"Versión anterior en historial/{snap.name}.")
     msg.append(f"Revisión determinista: {errores} errores, {len(hall) - errores} avisos" + (" ✔" if not hall else "."))
@@ -319,8 +385,10 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "NO generan conclusiones. El PAPEL DE TRABAJO contiene el papel de trabajo final de la auditoría: una o varias PRUEBAS "
             "numeradas (p. ej. «2.11. …»), cada una con CONTEXTO, OBJETIVO, PRUEBAS REALIZADAS (apartados a), b)…) y "
             "CONCLUSIONES, donde se indica si la prueba se concluye CON INCIDENCIAS o sin ellas.\n"
-            "Recorre TODAS las pruebas de todos los documentos. Solo las concluidas CON INCIDENCIAS generan "
-            "conclusiones; lista las demás en `pruebas_sin_incidencia`.\n"
+            "Recorre TODAS las pruebas de TODOS los documentos: cada fichero de PAPEL DE TRABAJO suele ser una prueba "
+            "distinta (su hoja «Memo» lleva el número y el título, p. ej. «6.2. REVISIÓN DEL CÁLCULO…», y las demás hojas "
+            "son datos de soporte, a veces recortados). Solo las concluidas CON INCIDENCIAS generan conclusiones; "
+            "lista las demás en `pruebas_sin_incidencia`. Ninguna prueba puede quedar sin aparecer en uno u otro sitio.\n"
             "GRANULARIDAD: por defecto, UNA conclusión por prueba, que SINTETIZA su bloque CONCLUSIONES (todas sus "
             "viñetas) en un único apartado. Solo genera varias conclusiones para una prueba si su bloque de "
             "conclusiones recoge incidencias claramente independientes que requieran recomendaciones distintas. "
@@ -374,7 +442,15 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
         lineas.append("Pruebas sin incidencias: " + "; ".join(res.pruebas_sin_incidencia))
     if res.notas.strip():
         lineas.append(f"Notas del modelo: {res.notas.strip()}")
+    mencionadas = " ".join([c["prueba"] for c in conclusiones] + list(res.pruebas_sin_incidencia))
+    sin_cubrir = [f"{cod} {tit[:50]}" for cod, tit in _pruebas_en(docs).items()
+                  if not re.search(r"(?<![\d.])" + re.escape(cod) + r"(?![\d])", mencionadas)]
+    if sin_cubrir:
+        lineas.append("⚠ Pruebas detectadas en los papeles de trabajo que el modelo no ha cubierto (ni conclusión ni "
+                      "«sin incidencias»): " + "; ".join(sin_cubrir) + ". Revisa que su fichero no esté recortado y "
+                      "repite con --forzar.")
     lineas.append("Entrada leída: " + _resumen_entrada(docs) + " — texto normalizado guardado en trazas/.")
+    lineas.extend(_avisos_entrada(docs))
     lineas.append("\nSiguiente: revisa cada bloque, ajusta `Tipo:` si procede y marca `Estado: aprobada` (o `aprobar`); "
                   "después `recomendar` para las que no tengan recomendación.")
     return "\n".join(lineas)

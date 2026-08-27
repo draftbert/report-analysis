@@ -87,6 +87,70 @@ def _leer_texto(ruta: Path) -> tuple[str, list[str]]:
     return _limpiar(bruto), avisos
 
 
+MAX_FILAS_DATOS = 40   # filas de datos por hoja que se envían al modelo (el resto se resume en un aviso)
+_RE_SEPARADOR_MD = re.compile(r"^\|\s*(?:-{3,}\s*\|\s*)+$")
+
+
+def _celdas(linea: str) -> list[str]:
+    return [c.strip() for c in linea.strip()[1:-1].split(" | ")]
+
+
+def _compactar_xlsx(texto: str) -> tuple[str, list[str]]:
+    """Cada hoja de Excel llega como una tabla con todas sus columnas, muchas
+    vacías. Para el modelo: se quitan las columnas vacías, las filas con una
+    sola celda (la narrativa de la hoja «Memo»: contexto, objetivo, pruebas,
+    conclusiones) pasan a párrafos y las hojas de datos se recortan a las
+    primeras MAX_FILAS_DATOS filas, con aviso de cuántas quedan fuera."""
+    avisos: list[str] = []
+    salida: list[str] = []
+    for sec in re.split(r"(?m)^(?=# )", texto):
+        if not sec.strip():
+            continue
+        lineas = sec.rstrip("\n").split("\n")
+        titulo = lineas[0] if lineas[0].startswith("# ") else ""
+        cuerpo = lineas[1:] if titulo else lineas
+        filas = [_celdas(l) for l in cuerpo if l.startswith("|") and not _RE_SEPARADOR_MD.match(l)]
+        sueltas = [l for l in cuerpo if not l.startswith("|") and l.strip()]
+        ancho = max((len(f) for f in filas), default=0)
+        filas = [f + [""] * (ancho - len(f)) for f in filas]
+        usadas = [j for j in range(ancho) if any(f[j] for f in filas)]
+        filas = [[f[j] for j in usadas] for f in filas]
+        bloque: list[str] = [titulo, ""] if titulo else []
+        tabla: list[list[str]] = []
+        n_datos, omitidas = 0, 0
+
+        def volcar_tabla():
+            if not tabla:
+                return
+            w = max(len(f) for f in tabla)
+            cab, resto = tabla[0], tabla[1:]
+            bloque.append("| " + " | ".join(cab + [""] * (w - len(cab))) + " |")
+            bloque.append("|" + "---|" * w)
+            bloque.extend("| " + " | ".join(f + [""] * (w - len(f))) + " |" for f in resto)
+            bloque.append("")
+            tabla.clear()
+
+        for f in filas:
+            no_vacias = [c for c in f if c]
+            if len(no_vacias) <= 1:
+                volcar_tabla()
+                if no_vacias:
+                    bloque.append(no_vacias[0])
+                continue
+            n_datos += 1
+            if n_datos > MAX_FILAS_DATOS:
+                omitidas += 1
+                continue
+            tabla.append(no_vacias)
+        volcar_tabla()
+        if omitidas:
+            bloque.append(f"_(… {omitidas:,} filas de datos más no incluidas)_".replace(",", "."))
+            avisos.append(f"Hoja «{titulo[2:].strip() or '?'}»: {n_datos:,} filas de datos; se envían las {MAX_FILAS_DATOS} primeras.".replace(",", "."))
+        bloque.extend(sueltas)
+        salida.append("\n".join(bloque).rstrip() + "\n")
+    return "\n".join(salida), avisos
+
+
 def _leer_con_extractor(ruta: Path) -> tuple[str, list[str]]:
     """DOCX / XLSX / PDF / PPTX con los extractores de `audit_agent.extractores`
     (orden real del documento, encabezados, listas, tablas, OCR de imágenes y
@@ -99,6 +163,10 @@ def _leer_con_extractor(ruta: Path) -> tuple[str, list[str]]:
     except Exception as exc:  # noqa: BLE001 — el fallo de una librería de formato se reporta con contexto
         raise LecturaError(f"{ruta.name}: no se ha podido leer ({type(exc).__name__}: {exc}).") from exc
     texto = _limpiar(re.sub(r"!\[[^\]]*\]\(\)", "", texto))  # imágenes sin OCR: fuera
+    if ruta.suffix.lower() == ".xlsx":
+        texto, avisos_xlsx = _compactar_xlsx(texto)
+        texto = _limpiar(texto)
+        avisos += avisos_xlsx
     if len(texto.strip()) < 20:
         if ruta.suffix.lower() == ".pdf":
             raise LecturaError(
