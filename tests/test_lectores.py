@@ -138,3 +138,10 @@ def test_pptx_con_imagen_vinculada_no_tumba_la_lectura(tmp_path):
     assert pptx_._image_block(Rota()) is None
     assert pptx_._blocks_for_shape(Rota()) == []
     assert "Motivo de la auditoría" in leer(ruta).texto
+
+
+def test_limpiar_ocr_descarta_ruido_de_diagramas():
+    from audit_agent.extractores.ocr import limpiar_ocr
+    assert limpiar_ocr("Al al Ho > > ® th\n‘ ‘CROSSDOCKING HUB LE STORE\no Us") == ""
+    assert limpiar_ocr("Flujo de pedidos e-Commerce desde el almacén hasta el cliente final\n® ®\nRETURNS A TRANSFERS") == \
+        "Flujo de pedidos e-Commerce desde el almacén hasta el cliente final"
