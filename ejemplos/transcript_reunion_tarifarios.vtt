@@ -1,0 +1,115 @@
+WEBVTT
+
+NOTE Transcripción de Microsoft Teams — Reunión de contraste del borrador de informe «Transporte e-commerce» (Ref. TEC-2026). Nombres ficticios.
+
+1
+00:00:03.120 --> 00:00:09.800
+<v Marta (Gerente Auditoría Interna)>Buenos días a todos. Vamos a repasar el borrador del informe de tarifarios, el TEC-2026, que os enviamos el lunes. Empezamos por la introducción y luego vamos a la conclusión.
+
+2
+00:00:10.200 --> 00:00:21.450
+<v Javier (Responsable Transporte e-Commerce)>Perfecto. Una cosa antes de nada: en las principales magnitudes ponéis «200 — mercados». El dato correcto a cierre de junio son 214 mercados operativos, lo tengo del cuadro de mando. Y los couriers integrados son más de 380, no 360.
+
+3
+00:00:21.900 --> 00:00:27.300
+<v Marta (Gerente Auditoría Interna)>Vale, lo cambiamos: 214 mercados y más de 380 couriers. Nos pasas el pantallazo del cuadro de mando para dejarlo como evidencia.
+
+4
+00:00:27.700 --> 00:00:39.100
+<v Javier (Responsable Transporte e-Commerce)>Sí, esta tarde. Y en el alcance, donde dice «Periodo: situación y evidencias disponibles hasta junio de 2025», pondría «hasta el 30 de junio de 2025», que es la fecha de corte real de la descarga de Snowflake.
+
+5
+00:00:39.500 --> 00:00:42.000
+<v Marta (Gerente Auditoría Interna)>De acuerdo, 30 de junio de 2025.
+
+6
+00:00:42.600 --> 00:01:02.900
+<v Lucía (Directora Auditoría Interna)>Sobre la conclusión uno. La habéis dejado en riesgo Medio y yo la subiría a Alto. El maestro se sobrescribe a mano a nivel de código postal, no hay plantilla única y CPF hereda los errores. Con el volumen de pedidos que manejamos, el impacto potencial en la asignación es alto. Marta, ¿lo ves?
+
+7
+00:01:03.300 --> 00:01:10.800
+<v Marta (Gerente Auditoría Interna)>Sí, tiene sentido. Lo dejamos en Alto y que el resumen ejecutivo sea coherente con ese nivel.
+
+8
+00:01:11.400 --> 00:01:34.200
+<v Lucía (Directora Auditoría Interna)>Segundo punto: la recomendación 1.1 mezcla dos cosas. Yo la dividiría en dos. La 1.1 se queda con implantar el sistema de carga y gestión de tarifarios. Y una 1.2 nueva que diga, más o menos: «Definir una plantilla única de comunicación de acuerdos tarifarios con los transportistas y conservar la evidencia de cada acuerdo vinculada a la tarifa cargada». Así el plan de acción se puede seguir por separado.
+
+9
+00:01:34.700 --> 00:01:38.900
+<v Marta (Gerente Auditoría Interna)>Anotado: partimos la 1.1 en 1.1 y 1.2 con esa redacción.
+
+10
+00:01:39.300 --> 00:01:58.600
+<v Javier (Responsable Transporte e-Commerce)>Para el plan de acción: el área responsable es Transporte e-Commerce, el responsable soy yo, Javier, y el plazo para la 1.1 sería el 31 de marzo de 2026, porque va ligado a la fase dos de SCA. La 1.2, la plantilla, la podemos tener para el 30 de noviembre de 2025.
+
+11
+00:01:59.000 --> 00:02:04.500
+<v Marta (Gerente Auditoría Interna)>Lo recogemos así: Área Transporte e-Commerce, responsable Javier, plazos 31/03/2026 para la 1.1 y 30/11/2025 para la 1.2.
+
+12
+00:02:05.100 --> 00:02:26.400
+<v Javier (Responsable Transporte e-Commerce)>En los detalles descriptivos hay una viñeta que dice que el mantenimiento lo hacen «los equipos de validación de facturas (BDO, Serviguide e Inditex - China)». Inditex China ya no valida facturas desde abril; ahora lo hace Serviguide también para Asia. Habría que quitar «e Inditex - China» y dejar solo BDO y Serviguide.
+
+13
+00:02:26.800 --> 00:02:29.600
+<v Marta (Gerente Auditoría Interna)>Vale, quitamos Inditex China de esa viñeta.
+
+14
+00:02:30.200 --> 00:02:49.700
+<v Javier (Responsable Transporte e-Commerce)>Y añadiría una viñeta más en los detalles, porque no aparece y es importante: PackPro envía el peso y volumen del embalaje a los couriers y en la muestra de mayo vimos 312 envíos con peso facturado superior al declarado. Eso explica parte de los sobrecostes.
+
+15
+00:02:50.100 --> 00:03:01.300
+<v Marta (Gerente Auditoría Interna)>Lo añadimos como viñeta de detalle: «PackPro transmite peso y volumen del embalaje a los couriers; en la muestra de mayo de 2025 se identificaron 312 envíos con peso facturado superior al declarado». ¿Nos pasas esa muestra?
+
+16
+00:03:01.700 --> 00:03:03.400
+<v Javier (Responsable Transporte e-Commerce)>Sí, va en el mismo correo.
+
+17
+00:03:04.000 --> 00:03:22.900
+<v Lucía (Directora Auditoría Interna)>Otra cosa. En consecuencias decís que «no ha sido posible cuantificar el impacto económico». Javier, ¿Business Analytics puede darnos una estimación del sobrecoste del primer semestre? Si la tenemos antes del viernes la metemos; si no, se queda como está.
+
+18
+00:03:23.300 --> 00:03:30.100
+<v Javier (Responsable Transporte e-Commerce)>Lo pido hoy. No os garantizo que llegue el viernes, tienen que cruzar factura contra tarifa por courier.
+
+19
+00:03:30.600 --> 00:03:34.200
+<v Marta (Gerente Auditoría Interna)>Queda pendiente entonces, condicionado a que llegue la cifra.
+
+20
+00:03:35.000 --> 00:03:55.800
+<v Lucía (Directora Auditoría Interna)>Y yo añadiría una sugerencia de mejora, sin plan de acción: que las alertas diarias de Transport Business Analytics se documenten en un procedimiento, con quién las revisa y qué se hace cuando saltan. Ahora mismo funcionan, pero dependen de dos personas. Título: «Formalización de las alertas de monitorización de tarifas».
+
+21
+00:03:56.200 --> 00:04:00.900
+<v Marta (Gerente Auditoría Interna)>Perfecto, la incluimos como sugerencia de mejora con ese título, riesgo bajo, área Transporte e-Commerce.
+
+22
+00:04:01.500 --> 00:04:19.700
+<v Javier (Responsable Transporte e-Commerce)>Sobre la presentación: en la portada aparece «Transporte e-commerce» en minúscula, nosotros lo escribimos «Transporte e-Commerce» con la C mayúscula. Y en la diapositiva del resumen el punto de la evaluación global se ve muy pequeño, ¿se puede hacer más grande o poner en color?
+
+23
+00:04:20.100 --> 00:04:30.400
+<v Marta (Gerente Auditoría Interna)>Lo del nombre lo corregimos en la portada. Lo del tamaño del marcador es de la plantilla corporativa, lo miramos con Comunicación pero no lo prometo.
+
+24
+00:04:31.000 --> 00:04:44.600
+<v Lucía (Directora Auditoría Interna)>También en el PPT: la diapositiva de la conclusión queda muy cargada. Si al dividir la recomendación no cabe, que pase a dos diapositivas con «continuación», pero que la recomendación vaya siempre en la primera.
+
+25
+00:04:45.000 --> 00:04:47.300
+<v Marta (Gerente Auditoría Interna)>De acuerdo.
+
+26
+00:04:48.100 --> 00:05:06.800
+<v Lucía (Directora Auditoría Interna)>Y para cerrar. Javier, os enviamos el informe corregido el jueves y necesitamos la conformidad del área antes del 15 de octubre. La reunión de seguimiento de los planes de acción la ponemos en enero. Marta, el anexo de planes de acción lo rellenamos con los plazos que ha dicho Javier.
+
+27
+00:05:07.200 --> 00:05:10.900
+<v Javier (Responsable Transporte e-Commerce)>Conforme. Antes del 15 de octubre tenéis la firma.
+
+28
+00:05:11.300 --> 00:05:14.000
+<v Marta (Gerente Auditoría Interna)>Gracias a todos. Cerramos.

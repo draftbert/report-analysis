@@ -122,7 +122,8 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor aplicar-cambios [--solo-plan]   # aplica 03_instrucciones.md: cambios concretos, registrados
 ./revisor cambio "pon el riesgo de la conclusión 1 en Alto"   # un cambio suelto, aplicado al momento
 ./revisor chat                            # varios cambios sueltos, uno por mensaje, con diff tras cada uno
-#   Ejemplos: ejemplos/transcript_reunion_teams.txt y ejemplos/mensajes_chat.txt
+#   Ejemplos: ejemplos/transcript_reunion_teams.txt, ejemplos/transcript_reunion_tarifarios.vtt (Teams .vtt sobre el
+#   informe de tarifarios) y ejemplos/mensajes_chat.txt
 ./revisor revisar | corregir [--avisos]   # vocabulario prohibido y estilo del informe
 ./revisor condensar [--objetivo 0.85]     # acorta un poco el informe con el modelo (≈15 % menos palabras) sin perder
 #   hechos, cifras ni referencias; la recomendación no se toca. Cada campo solo se acepta si es más corto, conserva
