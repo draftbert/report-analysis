@@ -416,7 +416,7 @@ def construir_parser() -> argparse.ArgumentParser:
     sub.add_parser("redactar-conclusiones", help="Volcar las conclusiones aprobadas al informe (sin modelo)").set_defaults(fn=cmd_redactar_conclusiones)
     sub.add_parser("revisar", help="Vocabulario prohibido y estilo del informe").set_defaults(fn=cmd_revisar)
     s = sub.add_parser("corregir", help="Reescribir con LLM los párrafos con errores"); s.set_defaults(fn=cmd_corregir)
-    s.add_argument("--avisos", action="store_true", help="Incluir también avisos (frases largas)")
+    s.add_argument("--avisos", action="store_true", help="Incluir también avisos (tono, adjetivos, frases largas)")
     s = sub.add_parser("condensar", help="Acortar un poco el informe con LLM (mismos hechos y cifras; la recomendación no se toca)"); s.set_defaults(fn=cmd_condensar)
     s.add_argument("--objetivo", type=float, default=0.85, help="Fracción de palabras a conservar (0.85 = un 15 %% menos)")
     s = sub.add_parser("aplicar-cambios", help="Aplicar 03_instrucciones.md al informe (LLM)"); s.set_defaults(fn=cmd_aplicar_cambios)

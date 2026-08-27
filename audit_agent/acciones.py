@@ -735,7 +735,7 @@ def accion_corregir(ctx: Contexto, incluir_avisos: bool = False) -> str:
         if h["severidad"] in severidades:
             por_parrafo.setdefault(h["parrafo_linea"], []).append(h)
     if not por_parrafo:
-        return "No hay párrafos que corregir (usa --avisos para incluir también las frases largas)."
+        return "No hay párrafos que corregir (usa --avisos para incluir también tono, adjetivos y frases largas)."
     parrafos = dict(parrafos_con_lineas(texto))
     lote = []
     for i, (linea, hs) in enumerate(sorted(por_parrafo.items()), 1):
@@ -743,8 +743,11 @@ def accion_corregir(ctx: Contexto, incluir_avisos: bool = False) -> str:
                      "hallazgos": [f"«{h['fragmento']}»: {h['mensaje']} Sugerencia: {h.get('sugerencia', '')}"
                                    for h in hs]})
     user = ("Reescribe cada párrafo corrigiendo exactamente los hallazgos indicados. Conserva el formato "
-            "Markdown (etiquetas en negrita, viñetas), todos los hechos y cifras, y el sentido. Devuelve un "
-            "párrafo por id.\n\n" + json.dumps(lote, ensure_ascii=False, indent=2))
+            "Markdown (etiquetas en negrita, viñetas), todos los hechos y cifras, y el sentido. Los hallazgos de "
+            "tono (expresiones negativas o rotundas, adjetivos, absolutos) se EVALÚAN según el contexto: reformula "
+            "con la alternativa propuesta solo si es fiel al contenido y precisa el alcance real (casos, muestra, "
+            "periodo); si la formulación directa es necesaria por precisión técnica, relevancia regulatoria o "
+            "severidad, déjala. Devuelve un párrafo por id.\n\n" + json.dumps(lote, ensure_ascii=False, indent=2))
     res = ctx.llm.completar_estructurado("corregir", ctx.system, user, Correcciones, esfuerzo="low")
     originales = {p["id"]: p["texto"] for p in lote}
     nuevo, aplicados, pendientes = texto, [], []

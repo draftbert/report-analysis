@@ -125,3 +125,25 @@ es insuficiente en su conjunto…»).
 - `02_informe.md` y `ppt`: portada, índice, portadillas, evaluación global, próximos
   pasos, párrafo fijo de sugerencias, anexo de planes de acción.
 - `config/ejemplo_conclusion.md`: segundo ejemplo tomado de un informe aprobado.
+
+
+## Tono y lenguaje (instrucciones del departamento, agosto 2026)
+
+Recogidas en `config/estilo.yaml` → sección `tono` (editable sin tocar código). Entran en
+dos sitios: en todos los prompts de redacción (`reglas_como_texto` → `SYSTEM_BASE`) y en
+`revisar`/`corregir` como **avisos** (nunca errores: la guía pide evaluar el contexto, no
+sustituir en automático; `corregir --avisos` se los pasa al modelo con la alternativa).
+
+- **Expresiones a cuestionar:** «falta de», «ausencia de», «no hay», «no existe», «no se
+  cuenta con», «no se dispone de», «no se ha identificado ningún…», «incumplimiento total»,
+  «sin control», «inadecuado» y las reiteraciones negativas. Fórmulas constructivas: «se han
+  identificado oportunidades de mejora en…», «la evidencia disponible no permite concluir
+  que…», «el proceso podría reforzarse mediante…», «se recomienda reforzar…», etc.
+- **Absolutos:** precisar el alcance real (casos, muestra, subconjunto); «mitigar» → «reforzar
+  la mitigación»; «establecer un mecanismo» → «mejorar el mecanismo»; «no existe un proceso»
+  → «se han observado oportunidades de mejora en el proceso».
+- **Adjetivos calificativos:** «clara», «significativas», «inadecuado» solo si la evidencia
+  los soporta.
+- **Tiempos verbales:** objetivo y alcance en pasado; presente para conclusiones vigentes;
+  pasado para procedimientos y hechos observados; futuro/condicional solo para planes de
+  acción y efectos esperados.

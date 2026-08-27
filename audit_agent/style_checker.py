@@ -79,6 +79,17 @@ class StyleChecker:
                     sugerencia="Reformular: «se ha observado…», «se recomienda…».",
                 ))
 
+        # 2b) Tono: expresiones y adjetivos a cuestionar (aviso: se evalúa el contexto, no se sustituye a ciegas)
+        tono = self.cfg.get("tono") or {}
+        for clave, tipo, mensaje in (("expresiones_a_cuestionar", "tono", "Expresión a cuestionar (tono negativo o rotundo): valorar una fórmula más precisa y constructiva si es fiel al contenido."),
+                                     ("adjetivos_a_cuestionar", "adjetivo", "Adjetivo calificativo a cuestionar: solo si aporta precisión soportada por la evidencia.")):
+            for regla in tono.get(clave, []):
+                patron = r"\b" + re.escape(_normalizar(regla["termino"])) + r"\b"
+                for m in re.finditer(patron, norm):
+                    res.hallazgos.append(Hallazgo(
+                        tipo=tipo, severidad="aviso", fragmento=texto[m.start():m.end()], posicion=m.start(),
+                        mensaje=mensaje, sugerencia=regla.get("alternativa", "")))
+
         # 3) Frases demasiado largas
         limite = int(self.cfg.get("reglas", {}).get("longitud_maxima_frase", 45))
         for frase in re.split(r"(?<=[.!?])\s+", texto.strip()):
@@ -172,10 +183,43 @@ def reglas_como_texto(checker: StyleChecker) -> str:
     niveles = cfg.get("reglas", {}).get("niveles_riesgo_validos", [])
     if niveles:
         lineas.append("Nivel de riesgo: exactamente uno de " + " / ".join(niveles) + ".")
+    tono = tono_como_texto(checker)
+    if tono:
+        lineas.append(tono)
     ext = extension_como_texto(checker)
     if ext:
         lineas.append(ext)
     return "\n".join(lineas)
+
+
+def tono_como_texto(checker: StyleChecker) -> str:
+    """Instrucciones de tono y lenguaje (sección `tono` del YAML) para los prompts:
+    principios, expresiones a cuestionar con su alternativa, fórmulas constructivas,
+    absolutos con ejemplos, adjetivos y tiempos verbales."""
+    tono = checker.cfg.get("tono") or {}
+    if not tono:
+        return ""
+    L = ["TONO Y LENGUAJE:"]
+    L += [f"- {p}" for p in tono.get("principios", [])]
+    exps = tono.get("expresiones_a_cuestionar", [])
+    if exps:
+        L.append("- Evita o cuestiona (según el contexto): " + "; ".join(f"«{e['termino']}»" for e in exps)
+                 + "; y las reiteraciones negativas del tipo «no existe…, no hay…, no se dispone…».")
+    if tono.get("formulas_constructivas"):
+        L.append("- Fórmulas constructivas y precisas, cuando sean fieles al contenido: "
+                 + "; ".join(f"«{f}»" for f in tono["formulas_constructivas"]) + ".")
+    abs_ = tono.get("absolutos") or {}
+    if abs_.get("criterio"):
+        L.append("- Absolutos y formulaciones excesivas: " + abs_["criterio"])
+        for ej in abs_.get("ejemplos", []):
+            L.append(f"  · En lugar de «{ej['antes']}» → «{ej['despues']}».")
+    adj = tono.get("adjetivos_a_cuestionar", [])
+    if adj:
+        L.append("- Adjetivos calificativos innecesarios (subjetividad o intensificación sin evidencia): "
+                 + "; ".join(f"«{a['termino']}» ({a.get('alternativa', '')})" for a in adj) + ".")
+    if tono.get("tiempos_verbales"):
+        L.append("- Tiempos verbales: " + " ".join(tono["tiempos_verbales"]))
+    return "\n".join(L)
 
 
 ETIQUETAS_EXTENSION = {
