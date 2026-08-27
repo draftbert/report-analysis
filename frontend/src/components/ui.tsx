@@ -60,11 +60,12 @@ export const RiskBadge = ({ nivel, propuesto }: { nivel: Riesgo; propuesto?: boo
 );
 
 const SIGUIENTE: Record<Estado, Estado> = { propuesta: "aprobada", aprobada: "descartada", descartada: "propuesta" };
-export const StateChip = ({ estado, onChange }: { estado: Estado; onChange?: (e: Estado) => void }) => (
-  <button type="button" className={`state state--${estado}`} onClick={() => onChange?.(SIGUIENTE[estado])} title="Clic para cambiar el estado" aria-label={`Estado ${estado}`}>
-    {estado}
-  </button>
-);
+export const StateChip = ({ estado, onChange }: { estado: Estado; onChange?: (e: Estado) => void }) =>
+  onChange ? (
+    <button type="button" className={`state state--${estado}`} onClick={() => onChange(SIGUIENTE[estado])} title="Clic para cambiar el estado" aria-label={`Estado ${estado}`}>{estado}</button>
+  ) : (
+    <span className={`state state--${estado} state--static`} aria-label={`Estado ${estado}`}>{estado}</span>
+  );
 
 // ---------------------------------------------------------------- trabajos del modelo
 export interface JobResultado<T = unknown> { estado: "ok" | "error"; mensaje: string; resultado: T | null }

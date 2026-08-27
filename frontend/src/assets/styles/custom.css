@@ -142,6 +142,7 @@ button, input, textarea, select { font-family: inherit; }
 .state { transition: all 0.15s ease; font: var(--ids-typo-label-m); letter-spacing: var(--ids-typo-label-m-letter-spacing); text-transform: uppercase; cursor: pointer; background: none; border: 1px solid var(--ids-color-border-low); padding: var(--ids-size-25) var(--ids-size-50); color: var(--ids-color-content-low); }
 .state--aprobada { border-color: var(--ids-color-content-default); background: var(--ids-color-content-default); color: var(--ids-color-content-inverse); }
 .state--descartada { text-decoration: line-through; }
+.state--static { cursor: default; }
 
 .risk { display: inline-flex; align-items: center; gap: var(--ids-size-50); font: var(--ids-typo-label-m-high); letter-spacing: var(--ids-typo-label-m-high-letter-spacing); text-transform: uppercase; }
 .risk__dot { width: 8px; height: 8px; border-radius: var(--ids-size-radius-full); background: var(--ids-color-border-low); }
