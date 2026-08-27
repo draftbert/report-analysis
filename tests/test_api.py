@@ -120,3 +120,18 @@ def test_eliminar_expediente_exige_la_referencia(cliente):
     assert r.status_code == 200 and "eliminado" in r.json()["mensaje"]
     assert c.get("/api/expedientes/T-3").status_code == 404
     assert c.request("DELETE", "/api/expedientes/T-3", json={"confirmacion": "T-3"}).status_code == 404
+
+
+def test_aprobar_una_a_una_por_api(cliente):
+    c, _ = cliente
+    c.post("/api/expedientes", json={"referencia": "T-4", "nombre": "P"})
+    pt = (RAIZ / "ejemplos" / "papel_trabajo_compras.md").read_bytes()
+    c.post("/api/expedientes/T-4/documentos/papeles_trabajo", files=[("ficheros", ("pt.md", io.BytesIO(pt), "text/markdown"))])
+    _esperar(c, c.post("/api/expedientes/T-4/acciones/extraer", json={}).json()["job_id"])
+    assert "C-01" in c.post("/api/expedientes/T-4/acciones/aprobar", json={"ids": ["C-01"], "estado": "aprobada"}).json()["mensaje"]
+    cs = c.get("/api/expedientes/T-4/conclusiones").json()["conclusiones"]
+    assert cs[0]["estado"] == "aprobada" and cs[0]["riesgo_propuesto"] is False
+    assert c.post("/api/expedientes/T-4/acciones/aprobar", json={"ids": ["C-01"], "estado": "descartada"}).status_code == 200
+    assert c.get("/api/expedientes/T-4/conclusiones").json()["conclusiones"][0]["estado"] == "descartada"
+    assert c.post("/api/expedientes/T-4/acciones/aprobar", json={"ids": ["C-01"], "estado": "propuesta"}).status_code == 200
+    assert c.get("/api/expedientes/T-4/conclusiones").json()["conclusiones"][0]["estado"] == "propuesta"

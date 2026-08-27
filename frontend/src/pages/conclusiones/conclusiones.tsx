@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import { api, esperarJob } from "@/api";
 import type { Conclusion, Estado, Hallazgo, Riesgo, Tipo } from "@/api";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCheck, ChevronDown, ChevronUp, FileOutput, SpellCheck } from "lucide-react";
+import { Check, CheckCheck, ChevronDown, ChevronUp, FileOutput, RotateCcw, SpellCheck, XCircle } from "lucide-react";
 
 import { JobButton, JobResult, Modal, RiskBadge, StateChip, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
@@ -38,7 +38,12 @@ const Tarjeta = ({ c, hallazgos, onGuardar, onEstado, onRegenerar }: {
       <div className="conc__head">
         <span className="conc__id">{c.id}</span>
         <input className="input input--inline conc__titulo" value={v.titulo} onChange={(e) => set("titulo", e.target.value)} />
-        <StateChip estado={c.estado} onChange={(e) => onEstado(c.id, e)} />
+        <StateChip estado={c.estado} />
+        <div className="conc__estado-acciones">
+          {c.estado !== "aprobada" && <button className="btn btn--primary btn--small" onClick={() => onEstado(c.id, "aprobada")} aria-label={`Aprobar ${c.id}`}><Check size={13} strokeWidth={2} />Aprobar</button>}
+          {c.estado !== "descartada" && <button className="btn btn--small" onClick={() => onEstado(c.id, "descartada")} aria-label={`Descartar ${c.id}`}><XCircle size={13} strokeWidth={1.5} />Descartar</button>}
+          {c.estado !== "propuesta" && <button className="btn btn--ghost btn--small" onClick={() => onEstado(c.id, "propuesta")} aria-label={`Volver a propuesta ${c.id}`}><RotateCcw size={13} strokeWidth={1.5} />Propuesta</button>}
+        </div>
         <button className="btn btn--ghost btn--small" onClick={() => setAbierta(!abierta)} aria-label={abierta ? "Plegar" : "Desplegar"}>{abierta ? <ChevronUp size={16} strokeWidth={1.5} /> : <ChevronDown size={16} strokeWidth={1.5} />}</button>
       </div>
       <div className="conc__meta">
@@ -100,7 +105,10 @@ export const Conclusiones = () => {
   const fin = (r: JobResultado) => { setResultado(r); if (r.estado === "ok") { cargar(); recargar(); } };
 
   const guardar = async (id: string, campos: Partial<Conclusion>) => { await api.guardarConclusion(ref, id, campos); notificar({ texto: `${id} guardada.` }); cargar(); recargar(); };
-  const cambiarEstado = async (id: string, e: Estado) => { await api.aprobar(ref, [id], e); cargar(); recargar(); };
+  const cambiarEstado = async (id: string, e: Estado) => {
+    try { const r = await api.aprobar(ref, [id], e); notificar({ texto: r.mensaje }); await cargar(); recargar(); }
+    catch (err) { notificar({ texto: (err as Error).message, error: true }); }
+  };
   const aprobarTodas = async () => { const r = await api.aprobar(ref, ["todas"], "aprobada"); notificar({ texto: r.mensaje }); cargar(); recargar(); };
   const revisar = async () => { const r = await api.revisarConclusiones(ref); setHallazgos(r.hallazgos); notificar({ texto: `${r.hallazgos.filter((h) => h.severidad === "error").length} errores, ${r.hallazgos.filter((h) => h.severidad === "aviso").length} avisos.` }); };
   const volcar = async () => { try { const r = await api.redactarConclusiones(ref); setResultado({ estado: "ok", mensaje: r.mensaje, resultado: null }); recargar(); } catch (e) { setResultado({ estado: "error", mensaje: (e as Error).message, resultado: null }); } };

@@ -6,3 +6,4 @@
 .conc__meta { display: flex; justify-content: space-between; gap: var(--ids-size-100); flex-wrap: wrap; }
 .conc__hallazgo { font: var(--ids-typo-detail-m); color: var(--ids-color-alt-red-high); }
 .conc__notas { display: flex; align-items: flex-end; gap: var(--ids-size-100); }
+.conc__estado-acciones { display: flex; gap: var(--ids-size-25); }
