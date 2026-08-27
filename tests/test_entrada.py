@@ -40,3 +40,34 @@ def test_estado_distingue_carpetas(expediente_tmp):
         f.unlink()
     e = estado_expediente(expediente_tmp)
     assert e["fase"].startswith("0") and "papeles_trabajo" in e["siguiente"] and "contexto" in e["siguiente"]
+
+
+def test_presupuesto_reparte_entre_documentos_y_prioriza_papeles():
+    from audit_agent import acciones
+    from audit_agent.lectores import Documento
+    docs = [Documento("dt.pptx", "pptx", "c" * 200_000, [], "contexto"),
+            Documento("2.11.xlsx", "xlsx", "a" * 400_000, [], "papeles_trabajo"),
+            Documento("6.2.xlsx", "xlsx", "b" * 20_000, [], "papeles_trabajo")]
+    cupo = acciones._presupuesto(docs)
+    assert cupo[2] == 20_000                                   # el pequeño entra entero
+    assert cupo[1] == acciones.MAX_CHARS_DOCUMENTO            # el grande, a su tope
+    assert cupo[0] == acciones.MAX_CHARS_ENTRADA - 20_000 - acciones.MAX_CHARS_DOCUMENTO  # el contexto, con el resto
+    assert sum(cupo.values()) <= acciones.MAX_CHARS_ENTRADA
+    texto = acciones._texto_entrada(docs)
+    assert texto.count("[... documento recortado") == 2 and "bbbb" in texto
+    assert texto.index("===== DOCUMENTO: 2.11.xlsx") < texto.index("===== DOCUMENTO: 6.2.xlsx")
+    avisos = acciones._avisos_entrada(docs)
+    assert len(avisos) == 2 and avisos[1].startswith("⚠ 2.11.xlsx: enviado recortado (150.000 de 400.000")
+
+
+def test_extraer_avisa_de_pruebas_sin_cubrir(contexto):
+    from audit_agent.esquemas import ConclusionExtraida
+    pt = contexto.exp.ruta / "papeles_trabajo"
+    (pt / "6.2_recalculo.md").write_text("6.2. REVISIÓN DEL CÁLCULO DEL COSTE PARA LOS ARRASTRES\n\nCONTEXTO\nTexto.\n\nCONCLUSIONES\nCon incidencias.\n", encoding="utf-8")
+    (pt / "2.11_tarifas.md").write_text("2.11. PROCESO DE ACTUALIZACIÓN DE TARIFARIOS\n\nCONCLUSIONES\nCon incidencias.\n", encoding="utf-8")
+    contexto.llm.respuestas["extraer"] = ExtraccionConclusiones(conclusiones=[ConclusionExtraida(
+        titulo="Mantenimiento manual", prueba="2.11 PROCESO DE ACTUALIZACIÓN DE TARIFARIOS", incidencia="I", causa_raiz="C",
+        como_se_ha_llegado="- d", consecuencias="K", nivel_riesgo="Medio", riesgo_soportado_por_evidencia=False)])
+    salida = accion_extraer(contexto)
+    assert "no ha cubierto" in salida and "6.2 REVISIÓN DEL CÁLCULO" in salida and "2.11" not in salida.split("no ha cubierto")[1].split("\n")[0].replace("2.11 PROCESO", "")
+    assert "cada fichero de PAPEL DE TRABAJO suele ser una prueba distinta" in contexto.llm.llamadas[-1][1]

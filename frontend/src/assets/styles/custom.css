@@ -204,3 +204,13 @@ button, input, textarea, select { font-family: inherit; }
 .slide__kicker { font: var(--ids-typo-detail-m); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ids-color-content-low); }
 .slide__title { font: var(--ids-typo-title-s); margin: 0; }
 .slide__tools { display: flex; gap: var(--ids-size-50); }
+
+/* ---- subida de ficheros: progreso por fichero */
+.upload { display: flex; flex-direction: column; gap: var(--ids-size-50); }
+.upload__item { display: grid; grid-template-columns: 1fr auto; row-gap: 4px; column-gap: var(--ids-size-50); align-items: center; font: var(--ids-typo-detail-m); }
+.upload__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upload__pct { color: var(--ids-color-content-low); font-variant-numeric: tabular-nums; }
+.upload__item--error .upload__pct { color: var(--ids-color-alt-red-high); }
+.progress { grid-column: 1 / -1; height: 3px; background: var(--ids-color-bg-states-hover); overflow: hidden; }
+.progress__bar { height: 100%; background: var(--ids-color-content-default); transition: width 0.2s ease; }
+.upload__item--error .progress__bar { background: var(--ids-color-alt-red-high); }

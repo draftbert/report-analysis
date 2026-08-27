@@ -145,3 +145,33 @@ def test_limpiar_ocr_descarta_ruido_de_diagramas():
     assert limpiar_ocr("Al al Ho > > ® th\n‘ ‘CROSSDOCKING HUB LE STORE\no Us") == ""
     assert limpiar_ocr("Flujo de pedidos e-Commerce desde el almacén hasta el cliente final\n® ®\nRETURNS A TRANSFERS") == \
         "Flujo de pedidos e-Commerce desde el almacén hasta el cliente final"
+
+
+def test_xlsx_compacta_narrativa_y_recorta_hojas_de_datos(tmp_path):
+    """Caso real: hoja «Memo» con la prueba (una celda por fila, muchas columnas vacías) y
+    hojas de datos de miles de filas. Al modelo va la narrativa como párrafos y solo las
+    primeras filas de datos, con aviso."""
+    import openpyxl
+    from audit_agent.lectores import MAX_FILAS_DATOS
+    wb = openpyxl.Workbook()
+    memo = wb.active
+    memo.title = "Memo"
+    for i, txt in enumerate(["6.2. REVISIÓN DEL CÁLCULO DEL COSTE PARA LOS ARRASTRES", "CONTEXTO", "Uno de los criterios es el coste.",
+                             "PRUEBAS REALIZADAS", "CONCLUSIONES", "Se concluye CON INCIDENCIAS: 3 casos."], 1):
+        memo.cell(row=i, column=3, value=txt)
+    memo.cell(row=8, column=3, value="Ref."); memo.cell(row=8, column=5, value="Resultado")
+    memo.cell(row=9, column=3, value="a)"); memo.cell(row=9, column=5, value="OK")
+    datos = wb.create_sheet("Austria - Descarga Snowflake")
+    datos.append(["id", "importe"])
+    for i in range(500):
+        datos.append([i, i * 1.5])
+    ruta = tmp_path / "Recalculo.xlsx"
+    wb.save(ruta)
+    d = leer(ruta)
+    t = d.texto
+    assert t.startswith("# Memo") and "\n6.2. REVISIÓN DEL CÁLCULO DEL COSTE PARA LOS ARRASTRES\n" in t
+    assert "\nCONTEXTO\nUno de los criterios es el coste.\n" in t and "|  |  | CONTEXTO" not in t   # sin columnas vacías
+    assert "| Ref. | Resultado |" in t and "| a) | OK |" in t                                          # filas con 2+ celdas: tabla
+    assert "# Austria - Descarga Snowflake" in t and "| 1 | 1.5 |" in t and f"| {MAX_FILAS_DATOS} | " not in t
+    assert "filas de datos más no incluidas" in t and any("Austria - Descarga Snowflake" in a and "501 filas" in a for a in d.avisos)
+    assert len(t) < 4000

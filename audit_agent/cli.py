@@ -82,9 +82,11 @@ def cmd_nuevo(args):
 
 
 def cmd_usar(args):
-    ruta = Path(args.ruta).resolve()
-    if not (ruta / "expediente.yaml").exists():
-        sys.exit(f"{ruta} no es un expediente.")
+    """Acepta la ruta del expediente o solo su referencia (expedientes/<REF>)."""
+    candidatos = [Path(args.ruta), DIR_EXPEDIENTES / args.ruta]
+    ruta = next((c.resolve() for c in candidatos if (c / "expediente.yaml").exists()), None)
+    if ruta is None:
+        sys.exit(f"{args.ruta} no es un expediente (ni ruta ni referencia en expedientes/).")
     FICHERO_ACTIVO.write_text(str(ruta), encoding="utf-8")
     return f"Expediente activo: {ruta}"
 
@@ -384,7 +386,7 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--fecha"); s.add_argument("--distribucion", help="Lista separada por comas")
     s.add_argument("--ejemplo", action="store_true", help="Copiar el papel de trabajo y el contexto de ejemplo")
 
-    s = sub.add_parser("usar", help="Fijar el expediente activo"); s.set_defaults(fn=cmd_usar); s.add_argument("ruta")
+    s = sub.add_parser("usar", help="Fijar el expediente activo (ruta o referencia)"); s.set_defaults(fn=cmd_usar); s.add_argument("ruta", help="Ruta del expediente o su referencia (expedientes/<REF>)")
     sub.add_parser("estado", help="Estado y siguiente paso").set_defaults(fn=cmd_estado)
     s = sub.add_parser("eliminar", help="Eliminar un expediente (pide escribir su referencia)"); s.set_defaults(fn=cmd_eliminar)
     s.add_argument("--confirmar", help="Referencia del expediente, para no preguntar (scripts)")

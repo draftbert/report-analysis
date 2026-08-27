@@ -19,10 +19,33 @@ export const Entrada = () => {
   const cargar = () => api.documentos(ref).then(setDocs).catch((e) => notificar({ texto: e.message, error: true }));
   useEffect(() => { cargar(); }, [ref]);
 
+  const [subidas, setSubidas] = useState<Record<string, { nombre: string; pct: number; carpeta: string; error?: boolean }>>({});
   const subir = async (carpeta: "contexto" | "papeles_trabajo", ficheros: File[]) => {
     if (!ficheros.length) return;
-    try { setDocs(await api.subir(ref, carpeta, ficheros)); notificar({ texto: `${ficheros.length} fichero(s) subido(s).` }); recargar(); }
-    catch (e) { notificar({ texto: (e as Error).message, error: true }); }
+    const clave = (n: string) => `${carpeta}/${n}`;
+    setSubidas((s) => ({ ...s, ...Object.fromEntries(ficheros.map((f) => [clave(f.name), { nombre: f.name, pct: 0, carpeta }])) }));
+    try {
+      setDocs(await api.subir(ref, carpeta, ficheros, (nombre, pct) => setSubidas((s) => ({ ...s, [clave(nombre)]: { nombre, pct, carpeta } }))));
+      notificar({ texto: `${ficheros.length} fichero(s) subido(s).` }); recargar();
+      window.setTimeout(() => setSubidas((s) => Object.fromEntries(Object.entries(s).filter(([k]) => !ficheros.some((f) => k === clave(f.name))))), 1200);
+    } catch (e) {
+      notificar({ texto: (e as Error).message, error: true });
+      setSubidas((s) => Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.carpeta === carpeta && v.pct < 100 ? { ...v, error: true } : v])));
+    }
+  };
+  const Subidas = ({ carpeta }: { carpeta: string }) => {
+    const lista = Object.values(subidas).filter((s) => s.carpeta === carpeta);
+    return lista.length === 0 ? null : (
+      <div className="upload" aria-live="polite">
+        {lista.map((s) => (
+          <div key={s.nombre} className={`upload__item ${s.error ? "upload__item--error" : ""}`}>
+            <span className="upload__name">{s.nombre}</span>
+            <span className="upload__pct">{s.error ? "Error" : s.pct < 100 ? `${s.pct} %` : "Subido"}</span>
+            <div className="progress" role="progressbar" aria-valuenow={s.pct} aria-valuemin={0} aria-valuemax={100}><div className="progress__bar" style={{ width: `${s.pct}%` }} /></div>
+          </div>
+        ))}
+      </div>
+    );
   };
   const borrar = async (carpeta: string, nombre: string) => {
     if (!window.confirm(`¿Eliminar «${nombre}»?`)) return;
@@ -44,10 +67,12 @@ export const Entrada = () => {
       <div className="grid-2">
         <div className="stack">
           <Dropzone titulo="Contexto de la auditoría" descripcion="Design thinking, memorando de planificación, motivo, riesgos a cubrir, alcance previsto y magnitudes. Opcional: alimenta la introducción y el resumen ejecutivo." formatos={FORMATOS} onFicheros={(f) => subir("contexto", f)} />
+          <Subidas carpeta="contexto" />
           <Lista carpeta="contexto" />
         </div>
         <div className="stack">
-          <Dropzone titulo="Papeles de trabajo" descripcion="Papel de trabajo final con todas las pruebas (contexto, objetivo, pruebas realizadas, conclusiones). Es la fuente de las conclusiones. Se admite el texto pegado desde Excel en .txt." formatos={FORMATOS} onFicheros={(f) => subir("papeles_trabajo", f)} />
+          <Dropzone titulo="Papeles de trabajo" descripcion="Un fichero por prueba (o el papel de trabajo final con todas): contexto, objetivo, pruebas realizadas y conclusiones. Es la fuente de las conclusiones. Las hojas de datos de Excel se envían resumidas (40 primeras filas)." formatos={FORMATOS} onFicheros={(f) => subir("papeles_trabajo", f)} />
+          <Subidas carpeta="papeles_trabajo" />
           <Lista carpeta="papeles_trabajo" />
         </div>
       </div>
