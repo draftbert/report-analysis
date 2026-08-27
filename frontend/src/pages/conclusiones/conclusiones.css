@@ -1,0 +1,8 @@
+.conc { border: 1px solid var(--ids-color-border-low); padding: var(--ids-size-150); display: flex; flex-direction: column; gap: var(--ids-size-100); }
+.conc--descartada { opacity: 0.6; }
+.conc__head { display: flex; align-items: center; gap: var(--ids-size-100); }
+.conc__id { font: var(--ids-typo-label-m-high); letter-spacing: var(--ids-typo-label-m-high-letter-spacing); text-transform: uppercase; white-space: nowrap; }
+.conc__titulo { flex: 1; font: var(--ids-typo-title-s) !important; }
+.conc__meta { display: flex; justify-content: space-between; gap: var(--ids-size-100); flex-wrap: wrap; }
+.conc__hallazgo { font: var(--ids-typo-detail-m); color: var(--ids-color-alt-red-high); }
+.conc__notas { display: flex; align-items: flex-end; gap: var(--ids-size-100); }
