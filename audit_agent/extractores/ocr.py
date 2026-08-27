@@ -49,7 +49,10 @@ def limpiar_ocr(texto: str) -> str:
         if not l:
             continue
         letras = sum(ch.isalpha() or ch.isspace() for ch in l)
-        if letras / max(len(l), 1) >= 0.6 and len(_RE_PALABRA.findall(l)) >= 2:
+        palabras = _RE_PALABRA.findall(l)
+        # Etiquetas de diagrama en mayúsculas sueltas ("CROSSDOCKING HUB LE STORE") no son prosa
+        minimo = 5 if not any(ch.islower() for ch in l) else 2
+        if letras / max(len(l), 1) >= 0.6 and len(palabras) >= minimo:
             lineas.append(l)
     limpio = "\n".join(lineas)
     return limpio if len(limpio) >= 20 else ""
