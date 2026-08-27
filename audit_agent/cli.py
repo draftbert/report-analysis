@@ -178,6 +178,11 @@ def cmd_corregir(args):
     return accion_corregir(_contexto(args), incluir_avisos=args.avisos)
 
 
+def cmd_condensar(args):
+    from .acciones import accion_condensar
+    return accion_condensar(_contexto(args), objetivo=args.objetivo)
+
+
 def cmd_aplicar_cambios(args):
     from .acciones import accion_aplicar_cambios
     return accion_aplicar_cambios(_contexto(args), solo_plan=args.solo_plan)
@@ -316,6 +321,7 @@ MENU = [
     ("redactar-conclusiones", "Volcar las conclusiones aprobadas al informe (sin modelo)", cmd_redactar_conclusiones, {}),
     ("revisar", "Revisar vocabulario prohibido y estilo del informe", cmd_revisar, {}),
     ("corregir", "Reescribir con el modelo los párrafos con errores (LLM)", cmd_corregir, {"avisos": False}),
+    ("condensar", "Acortar un poco el informe conservando hechos y cifras (LLM)", cmd_condensar, {"objetivo": 0.85}),
     ("aplicar-cambios", "Aplicar las instrucciones de 03_instrucciones.md al informe (LLM)", cmd_aplicar_cambios, {"solo_plan": False}),
     ("reunion", "Analizar una transcripción de Teams: cambios de texto vs PPT (LLM)", cmd_reunion, {"transcripcion": None, "aplicar": False}),
     ("chat", "Cambios sencillos tipo chat, aplicados al momento (LLM)", cmd_chat, {}),
@@ -409,6 +415,8 @@ def construir_parser() -> argparse.ArgumentParser:
     sub.add_parser("revisar", help="Vocabulario prohibido y estilo del informe").set_defaults(fn=cmd_revisar)
     s = sub.add_parser("corregir", help="Reescribir con LLM los párrafos con errores"); s.set_defaults(fn=cmd_corregir)
     s.add_argument("--avisos", action="store_true", help="Incluir también avisos (frases largas)")
+    s = sub.add_parser("condensar", help="Acortar un poco el informe con LLM (mismos hechos y cifras; la recomendación no se toca)"); s.set_defaults(fn=cmd_condensar)
+    s.add_argument("--objetivo", type=float, default=0.85, help="Fracción de palabras a conservar (0.85 = un 15 %% menos)")
     s = sub.add_parser("aplicar-cambios", help="Aplicar 03_instrucciones.md al informe (LLM)"); s.set_defaults(fn=cmd_aplicar_cambios)
     s.add_argument("--solo-plan", action="store_true", help="Mostrar el plan sin tocar el informe")
     s = sub.add_parser("reunion", help="Transcripción de Teams → acta: cambios de texto (a 03_instrucciones.md) y de PPT (informativo)")

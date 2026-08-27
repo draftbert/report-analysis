@@ -239,6 +239,7 @@ class Opciones(BaseModel):
     solo_plan: bool = False
     estado: str = "aprobada"
     fichero: str = "informe"
+    objetivo: float = 0.85
 
 
 @app.post("/api/expedientes/{ref}/acciones/redactar-contexto")
@@ -286,6 +287,12 @@ def recomendar(ref: str, o: Opciones):
 def corregir(ref: str, o: Opciones):
     exp = _exp(ref); ctx = _ctx(exp)
     return _job(ref, "corregir", lambda: acciones.accion_corregir(ctx, incluir_avisos=o.avisos))
+
+
+@app.post("/api/expedientes/{ref}/acciones/condensar")
+def condensar(ref: str, o: Opciones):
+    exp = _exp(ref); ctx = _ctx(exp)
+    return _job(ref, "condensar", lambda: acciones.accion_condensar(ctx, objetivo=o.objetivo))
 
 
 @app.post("/api/expedientes/{ref}/acciones/cambio")

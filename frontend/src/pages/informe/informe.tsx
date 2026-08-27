@@ -79,7 +79,9 @@ export const Informe = () => {
           {tab === "revision" && (
             <div className="stack">
               <div className="row"><button className="btn" onClick={revisar}>Revisar vocabulario</button>
-                <JobButton etiqueta="Corregir con el modelo" lanzar={() => api.corregir(ref, false)} onFin={(r) => { setResultado(r); if (r.estado === "ok") { refrescar(); setHallazgos(null); const d = (r.resultado as { diff?: string } | null)?.diff; if (d) setDiff(d); } }} /></div>
+                <JobButton etiqueta="Corregir con el modelo" lanzar={() => api.corregir(ref, false)} onFin={(r) => { setResultado(r); if (r.estado === "ok") { refrescar(); setHallazgos(null); const d = (r.resultado as { diff?: string } | null)?.diff; if (d) setDiff(d); } }} />
+                <JobButton etiqueta="Condensar un 15 %" lanzar={() => api.condensar(ref, 0.85)} onFin={(r) => { setResultado(r); if (r.estado === "ok") { refrescar(); const d = (r.resultado as { diff?: string } | null)?.diff; if (d) setDiff(d); } }} /></div>
+              <span className="detail">«Condensar» acorta un poco el texto con el modelo sin perder hechos ni cifras (la recomendación no se toca); queda snapshot y diff, y se deshace desde Historial.</span>
               {hallazgos === null ? <span className="detail">Reglas deterministas de estilo.yaml: vocabulario prohibido, primera persona del singular y frases largas.</span>
                 : hallazgos.length === 0 ? <span className="detail">✔ Sin hallazgos.</span>
                 : hallazgos.map((h, i) => <div key={i} className="panel" style={{ gap: 2 }}><span className={h.severidad === "error" ? "conc__hallazgo" : "detail"}>{h.severidad === "error" ? "✖" : "⚠"} L{h.linea} «{h.fragmento}»</span><span className="detail">{h.mensaje}{h.sugerencia ? ` → ${h.sugerencia}` : ""}</span></div>)}

@@ -108,6 +108,21 @@ class Correcciones(BaseModel):
     parrafos: list[ParrafoCorregido]
 
 
+class ApartadoCondensado(BaseModel):
+    numero: int = Field(description="Número del apartado, tal cual se recibió.")
+    incidencia: str = Field(description="Cuerpo en prosa condensado (deber ser, lo identificado y causa raíz), en el mismo Markdown: mismos hechos, cifras, sistemas y periodos con menos palabras.")
+    como_se_ha_llegado: str = Field(default="", description="Viñetas `- ` de detalles descriptivos condensadas: una por dato, sin fusionar ni eliminar datos. Vacío si el original estaba vacío.")
+    consecuencias: str = Field(default="", description="Párrafo de consecuencias condensado (riesgo, materialización, mitigantes). Vacío si el original estaba vacío.")
+
+
+class InformeCondensado(BaseModel):
+    """Versión algo más breve del informe: mismos hechos y estructura, menos palabras."""
+    introduccion: str = Field(description="Introducción condensada en el mismo Markdown: frases fijas literales al principio y al final, mismas etiquetas en negrita y viñetas.")
+    resumen_ejecutivo: str = Field(description="Resumen ejecutivo condensado: mismos párrafos y viñetas «/ » (una por conclusión), sin las líneas de evaluación global ni próximos pasos.")
+    conclusiones: list[ApartadoCondensado] = Field(default_factory=list)
+    sugerencias: list[ApartadoCondensado] = Field(default_factory=list)
+
+
 class Cambio(BaseModel):
     seccion: str = Field(description="Cabecera literal del informe (`## …` o `### N. …`) bajo la que está el fragmento a cambiar.")
     motivo: str = Field(description="Qué instrucción o comentario origina el cambio, en una frase.")

@@ -65,6 +65,19 @@ primera_persona:
   - "creo"
 
 # Reglas cuantitativas
+# Extensión orientativa (palabras): el informe se lee en diapositivas y la letra debe caber.
+# Se inyecta en los prompts; `condensar` acorta un informe ya escrito respetando hechos y cifras.
+extension:
+  intro_bloque: 70          # cada bloque de la introducción (Contexto, Objetivo, Riesgos, Alcance)
+  resumen_total: 260        # resumen ejecutivo completo
+  resumen_vineta: 35        # cada viñeta de conclusión del resumen
+  incidencia: 110           # cuerpo en prosa de la conclusión (deber ser + identificado)
+  causa_raiz: 45
+  detalle_vineta: 30        # cada viñeta de «detalles descriptivos»
+  detalles_max: 5           # número máximo de viñetas de detalles
+  consecuencias: 70
+  recomendacion: 60         # solo cuando la propone el modelo (la del auditor no se toca)
+
 reglas:
   longitud_maxima_frase: 55        # palabras por frase (aviso). Los aprobados admiten frases largas bien puntuadas
   requiere_nivel_riesgo: true      # toda conclusión debe tener nivel de riesgo

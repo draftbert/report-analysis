@@ -108,6 +108,7 @@ export interface Api {
   guardarInforme(ref: string, d: { markdown?: string; introduccion?: string; resumen_ejecutivo?: string; evaluacion_global?: string }): Promise<Informe>;
   revisar(ref: string): Promise<{ hallazgos: Hallazgo[]; errores: number; avisos: number }>;
   corregir(ref: string, avisos: boolean): Promise<{ job_id: string }>;
+  condensar(ref: string, objetivo?: number): Promise<{ job_id: string }>;
   cambio(ref: string, mensaje: string, soloPlan?: boolean): Promise<{ job_id: string }>;
   instrucciones(ref: string): Promise<{ texto: string }>;
   guardarInstrucciones(ref: string, texto: string): Promise<{ texto: string }>;

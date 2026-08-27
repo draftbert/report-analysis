@@ -63,6 +63,12 @@ FACTOR_ANCHO = 0.47
 INTERLINEADO = 1.18
 FUENTE_MINIMA = 8.0
 
+# Tamaños de letra (pt) del contenido, un punto por debajo de los de la plantilla para que
+# el texto del informe quepa mejor; los títulos, portadillas y textos fijos no se tocan.
+TAMANOS = {"titulo": 15, "blanco": 10, "cuerpo": 10, "det_intro": 10, "det_item": 10,
+           "rec_titulo": 11, "rec_cuerpo": 10, "rec_blanco": 10, "etiqueta": 10, "valor": 10, "meta_blanco": 10,
+           "intro": 10, "resumen": 11}
+
 SECCIONES = ("Introducción", "Resumen ejecutivo", "Detalle de conclusiones", "Sugerencias de mejora", "Anexo")
 
 
@@ -179,6 +185,14 @@ def _escalar_fuente(el, factor: float, minimo: float = FUENTE_MINIMA) -> None:
             sz = e.get("sz")
             if sz:
                 e.set("sz", str(max(int(minimo * 100), int(int(sz) * factor))))
+
+
+def _fijar_tamano(p, pt: float):
+    """Fija el tamaño de letra de un párrafo prototipo (rPr y endParaRPr)."""
+    for tag in ("rPr", "endParaRPr"):
+        for e in p.iter(A + tag):
+            e.set("sz", str(int(pt * 100)))
+    return p
 
 
 def _pt_de(p, defecto: float) -> float:
@@ -314,7 +328,7 @@ class ConstructorPlantilla:
 
         d7, d10 = celdas(self.tpl[P_DETALLE]), celdas(self.tpl[P_SUGERENCIA])
         pe = lambda ps, i: deepcopy(ps[i]._p)  # noqa: E731
-        return {
+        protos = {
             "rec": {"titulo": pe(d7[1], 0), "blanco": pe(d7[1], 1), "cuerpo": pe(d7[1], 2),
                     "det_intro": pe(d7[1], 5), "det_item": pe(d7[1], 6),
                     "rec_titulo": pe(d7[2], 0), "rec_hueco": pe(d7[2], 1), "rec_cuerpo": pe(d7[2], 2), "rec_blanco": pe(d7[2], 3),
@@ -324,6 +338,11 @@ class ConstructorPlantilla:
                     "rec_titulo": pe(d10[2], 0), "rec_hueco": pe(d10[2], 1), "rec_cuerpo": pe(d10[2], 2), "rec_blanco": pe(d10[2], 3),
                     "etiqueta": pe(d10[3], 0), "valor": pe(d10[3], 2), "meta_blanco": pe(d10[3], 1)},
         }
+        for grupo in protos.values():
+            for clave, p in grupo.items():
+                if clave in TAMANOS:
+                    _fijar_tamano(p, TAMANOS[clave])
+        return protos
 
     # ------------------------------------------------ 1. portada
     def portada(self, proyecto: dict):
@@ -381,7 +400,7 @@ class ConstructorPlantilla:
         marcos = [sh for sh in s.shapes if sh._element.tag == P + "sp" and sh.has_text_frame and sh.text_frame.text.strip() == "7"]
         for m in marcos:                      # el marco pasa a ser el borde del propio cuadro de texto
             _quitar(m)
-        proto_p = deepcopy(cuadros[0].text_frame.paragraphs[0]._p)
+        proto_p = _fijar_tamano(deepcopy(cuadros[0].text_frame.paragraphs[0]._p), TAMANOS["intro"])
         proto_sp = deepcopy(cuadros[0]._element)
         while len(cuadros) < len(bloques):
             nuevo = deepcopy(proto_sp)
@@ -446,7 +465,7 @@ class ConstructorPlantilla:
     def resumen(self, texto: str, evaluacion: str):
         s = self.tpl[P_RESUMEN]
         cuadro = _forma(s, "Rectángulo 9")
-        proto = cuadro.text_frame.paragraphs[0]._p
+        proto = _fijar_tamano(deepcopy(cuadro.text_frame.paragraphs[0]._p), TAMANOS["resumen"])
         lineas = _lineas_md(texto) or [""]
         _poner_parrafos(_txBody(cuadro), [_clonar_p(proto, l) for l in lineas])
         pt = _pt_de(proto, 12.0)
