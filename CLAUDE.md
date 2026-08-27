@@ -22,7 +22,10 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 - **Toda salida del LLM se vuelve a validar con las reglas** y queda trazada en `trazas/`.
 - **KAIA:** solo se usa salida estructurada (`output_format_schema` con `to_strict_json_schema`);
   no enviar `temperature` a modelos `gpt-5*`/`o*`. Ver `kaia_client.py`.
-- **python-pptx con plantilla corporativa:** asignar `run.text`, nunca `text_frame.text`.
+- **PPT sobre la plantilla corporativa** (`config/plantilla_informe.pptx`, 11 diapositivas saneadas con
+  `scripts/sanear_plantilla.py`; la original con comentarios/autores no se versiona): `ppt_builder.py` duplica
+  y rellena diapositivas clonando párrafos de la plantilla; nunca asignar `text_frame.text`, nunca dibujar
+  desde cero, sin modelo (determinista). Si cambia la plantilla, recalibrar índices/nombres de forma y `tests/test_ppt.py`.
 
 ## Mapa
 `cli.py` (comandos/menú) → `acciones.py` (flujo) → `expediente.py` (ficheros) + `formato_md.py`

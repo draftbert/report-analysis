@@ -27,3 +27,6 @@ frontend/dist/
 # plantilla corporativa de referencia (AMIGA + Sewing DS, paquetes privados): no se versiona
 front/
 imagen.png
+
+# Plantilla PPT original (con comentarios/autores): solo se versiona la saneada en config/
+/*.pptx

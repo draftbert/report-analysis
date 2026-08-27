@@ -6,7 +6,8 @@ diapositiva a diapositiva, más la calibración determinista de `estilo.yaml`
 sobre ellos (`./revisor calibrar-estilo docs/referencia/informes_aprobados`).
 Estas notas son la base del registro que se inyecta en los prompts
 (`SYSTEM_BASE` en `acciones.py`), de los textos fijos (`config/textos_informe.yaml`)
-y del diseño del PPT (`ppt_builder.py`).
+y de la exportación a PPT (`ppt_builder.py`, sobre la plantilla corporativa
+`config/plantilla_informe.pptx`, que fija fuentes, colores y tablas).
 
 ## 1. Estructura del informe (idéntica en los tres)
 
