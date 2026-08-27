@@ -46,7 +46,7 @@ de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-p
 
 - **Web:** `api.py` envuelve `acciones.py` sin lógica propia (jobs en hilo, un lock por expediente); el front
   (`frontend/`) usa el contrato de `docs/SUPERPROMPT_FRONT.md`; los tokens `--ids-*` de `tokens.css` se
-  sustituyen por `@inditex/sewingiopdsweb-styles` en el entorno corporativo. `front/` es solo referencia.
+  sustituyen por `@inditex/sewingiopdsweb-styles` en el entorno corporativo (la plantilla AMIGA de referencia ya no está en el repo).
 
 ## Pruebas rápidas
 `.venv/bin/python -m pytest -q tests` (determinista, sin red; incluye la API). Front: `cd frontend && npm run types:check && npm run build`. `.venv/bin/python demo.py` (flujo completo con LLM). Sin LLM: `./revisor revisar-texto --fichero
