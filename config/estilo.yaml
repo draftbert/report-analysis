@@ -19,7 +19,7 @@ palabras_prohibidas:
   - termino: "negligencia"
     sugerencia: "(describir el hecho objetivo)"
     motivo: "Juicio de valor con posibles implicaciones legales."
-  - termino: "fraude"
+  - termino: "fraude" #Ojo revisar para auditorias de fraude (Rirsgos de fraude si aplica en alguna auditoria)
     sugerencia: "indicios que requieren análisis adicional"
     motivo: "Calificación reservada; requiere validación de Dirección/Legal."
   - termino: "grave"
