@@ -89,6 +89,23 @@ def cmd_usar(args):
     return f"Expediente activo: {ruta}"
 
 
+def cmd_eliminar(args):
+    """Borra un expediente entero; pide escribir la referencia como confirmación."""
+    import shutil
+    exp = _abrir(args)
+    print(f"Se eliminará {exp.ruta} con todo su contenido (documentos, informe, historial, trazas, salidas).")
+    try:
+        escrito = args.confirmar or input(f"Escribe la referencia «{exp.referencia}» para confirmar: ").strip()
+    except EOFError:
+        escrito = ""
+    if escrito != exp.referencia:
+        sys.exit("Confirmación incorrecta: no se ha eliminado nada.")
+    shutil.rmtree(exp.ruta)
+    if FICHERO_ACTIVO.exists() and FICHERO_ACTIVO.read_text(encoding="utf-8").strip() == str(exp.ruta):
+        FICHERO_ACTIVO.unlink()
+    return f"Expediente {exp.referencia} eliminado."
+
+
 def cmd_estado(args):
     from .acciones import accion_estado
     from .llm import ClienteLLM
@@ -363,6 +380,8 @@ def construir_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("usar", help="Fijar el expediente activo"); s.set_defaults(fn=cmd_usar); s.add_argument("ruta")
     sub.add_parser("estado", help="Estado y siguiente paso").set_defaults(fn=cmd_estado)
+    s = sub.add_parser("eliminar", help="Eliminar un expediente (pide escribir su referencia)"); s.set_defaults(fn=cmd_eliminar)
+    s.add_argument("--confirmar", help="Referencia del expediente, para no preguntar (scripts)")
     sub.add_parser("menu", help="Menú interactivo").set_defaults(fn=cmd_menu)
 
     s = sub.add_parser("redactar-contexto", help="Introducción y resumen ejecutivo desde contexto/ y papeles_trabajo/ (LLM)"); s.set_defaults(fn=cmd_redactar_contexto)
