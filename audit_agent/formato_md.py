@@ -18,7 +18,7 @@ Convenciones (tolerantes a mayúsculas, tildes y espacios):
     **Causa raíz:** ...
     **Cómo se ha llegado:** ...
     **Consecuencias:** ...
-    **Recomendación:** ...                    (en sugerencias: **Propuesta de mejora:**)
+    **Recomendación:** ...                    (en sugerencias: **Propuesta de mejora:**; en el informe, «Sugerencia de mejora N.k»)
     **Notas del auditor:** (solo en 01_conclusiones.md; se envían al modelo en `regenerar`)
 
 Las líneas que empiezan por `>` son instrucciones para la persona y se ignoran.
@@ -243,7 +243,7 @@ def _apartado_conclusion(c: dict, num: int, es_sugerencia: bool) -> str:
         L.append("")
     if (c.get("consecuencias") or "").strip():
         L.append(c["consecuencias"].strip() + "\n")
-    etiqueta = "Propuesta de mejora" if es_sugerencia else "Recomendación"
+    etiqueta = "Sugerencia de mejora" if es_sugerencia else "Recomendación"
     for k, rec in enumerate(partir_recomendaciones(c.get("recomendacion", "")), 1):
         L.append(f"**{etiqueta} {num}.{k}.** {rec}\n")
     return "\n".join(L)

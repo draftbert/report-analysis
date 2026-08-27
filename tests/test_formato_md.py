@@ -42,7 +42,7 @@ def test_informe_round_trip_y_pendientes():
     assert "## Introducción" in md and "## Resumen ejecutivo" in md and "## Detalle de conclusiones" in md and "## Sugerencias de mejora" in md
     assert "Fuente:" not in md and "Estado:" not in md and "**Incidencia detectada:**" not in md  # WYSIWYG: sin etiquetas de campo
     assert "*A continuación, se muestran los detalles descriptivos de la situación anterior:*" in md
-    assert "**Propuesta de mejora 1.1.** Automatizar la alerta" in md
+    assert "**Sugerencia de mejora 1.1.** Automatizar la alerta" in md
     back = parsear_informe(md)
     assert back["introduccion"] == datos["introduccion"] and back["resumen_ejecutivo"] == datos["resumen_ejecutivo"]
     c = back["conclusiones"][0]
@@ -91,10 +91,10 @@ def test_evaluacion_global_y_textos_fijos_round_trip():
 
 def test_parser_tolera_marcadores_de_recomendacion():
     md = render_informe({"introduccion": "I", "resumen_ejecutivo": "R", "conclusiones": [C1], "sugerencias": [C2]}, PROY)
-    md = md.replace("**Propuesta de mejora 1.1.** Automatizar la alerta", "**Sugerencia de mejora N.1.** Automatizar la alerta")
+    md = md.replace("**Sugerencia de mejora 1.1.** Automatizar la alerta", "**Propuesta de mejora N.1.** Automatizar la alerta")
     back = parsear_informe(md)
     assert back["sugerencias"][0]["recomendacion"] == "Automatizar la alerta"
-    assert "**Propuesta de mejora 1.1.** Automatizar la alerta" in render_informe({**back, "introduccion": "I", "resumen_ejecutivo": "R"}, PROY)
+    assert "**Sugerencia de mejora 1.1.** Automatizar la alerta" in render_informe({**back, "introduccion": "I", "resumen_ejecutivo": "R"}, PROY)
 
 
 def test_tipo_antiguo_conclusion_se_lee_como_recomendacion():

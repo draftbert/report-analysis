@@ -104,7 +104,7 @@ function apartadoMd(c: Conclusion, i: number, sug: boolean) {
   const meta = [`- Prueba: ${c.prueba}`, `- Nivel de riesgo: ${c.nivel_riesgo}`, `- Área: ${c.area}`, `- Responsable: ${c.responsable}`, `- Plazo: ${c.plazo}`, `- Ref. recomendación: ${c.referencia_recomendacion}`];
   const det = c.como_se_ha_llegado ? `*A continuación, se muestran los detalles descriptivos de la situación anterior:*\n${c.como_se_ha_llegado}\n\n` : "";
   return `### ${i}. ${c.titulo}\n\n${meta.join("\n")}\n\n${c.incidencia}\n\n${c.causa_raiz ? c.causa_raiz + "\n\n" : ""}${det}${c.consecuencias}\n\n` +
-    recs.map((r, k) => `**${sug ? "Propuesta de mejora" : "Recomendación"} ${i}.${k + 1}.** ${r}`).join("\n\n");
+    recs.map((r, k) => `**${sug ? "Sugerencia de mejora" : "Recomendación"} ${i}.${k + 1}.** ${r}`).join("\n\n");
 }
 
 function estado(): ExpedienteEstado {
