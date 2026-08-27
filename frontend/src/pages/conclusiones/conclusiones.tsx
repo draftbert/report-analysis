@@ -44,7 +44,7 @@ const Tarjeta = ({ c, hallazgos, onGuardar, onEstado, onRegenerar }: {
       <div className="conc__meta">
         <div className="row">
           <span className="label">Tipo</span>
-          {(["conclusion", "sugerencia"] as Tipo[]).map((t) => <button key={t} className={`pill ${v.tipo === t ? "pill--active" : ""}`} onClick={() => set("tipo", t)}>{t === "conclusion" ? "Conclusión" : "Sugerencia de mejora"}</button>)}
+          {(["recomendacion", "sugerencia"] as Tipo[]).map((t) => <button key={t} className={`pill ${v.tipo === t ? "pill--active" : ""}`} onClick={() => set("tipo", t)}>{t === "recomendacion" ? "Recomendación" : "Sugerencia de mejora"}</button>)}
         </div>
         <div className="row">
           <RiskBadge nivel={v.nivel_riesgo} propuesto={c.riesgo_propuesto} />
@@ -106,7 +106,7 @@ export const Conclusiones = () => {
   const volcar = async () => { try { const r = await api.redactarConclusiones(ref); setResultado({ estado: "ok", mensaje: r.mensaje, resultado: null }); recargar(); } catch (e) { setResultado({ estado: "error", mensaje: (e as Error).message, resultado: null }); } };
 
   const abrirAsistente = () => {
-    const pendientes = lista.filter((c) => c.estado === "aprobada" && c.tipo === "conclusion" && !c.recomendacion.trim());
+    const pendientes = lista.filter((c) => c.estado === "aprobada" && c.tipo === "recomendacion" && !c.recomendacion.trim());
     if (!pendientes.length) { notificar({ texto: "Todas las conclusiones aprobadas tienen recomendación." }); return; }
     setAsistente({ pendientes, idx: 0, respuestas: {}, auto: [], texto: "" });
   };
@@ -130,7 +130,7 @@ export const Conclusiones = () => {
   return (
     <div className="page">
       <div className="page__header">
-        <div><h2 className="page__title">Conclusiones</h2><p className="page__subtitle">Una por incidencia del papel de trabajo: incidencia, causa raíz, detalles, consecuencias y recomendación. Aquí manda el auditor.</p></div>
+        <div><h2 className="page__title">Conclusiones</h2><p className="page__subtitle">Una por incidencia del papel de trabajo: incidencia, causa raíz, detalles, consecuencias y recomendación. Cada bloque es una Recomendación (con plan de acción) o una Sugerencia de mejora. Aquí manda el auditor.</p></div>
         <div className="page__actions">
           <JobButton etiqueta={lista.length ? "Extraer de nuevo" : "Extraer del papel de trabajo"} primario={!lista.length} confirmar={lista.length ? "Se regenerarán todas las conclusiones (el fichero actual se guarda en historial). ¿Continuar?" : undefined} lanzar={() => api.extraer(ref, true)} onFin={fin} />
           <button className="btn" onClick={aprobarTodas} disabled={!lista.length}><CheckCheck size={14} strokeWidth={1.5} />Aprobar todas</button>
@@ -142,7 +142,7 @@ export const Conclusiones = () => {
       </div>
       {c && (
         <div className="kpis">
-          <div className="kpi"><div className="kpi__value">{c.total}</div><div className="kpi__label">Conclusiones</div></div>
+          <div className="kpi"><div className="kpi__value">{c.total - c.sugerencias}</div><div className="kpi__label">Recomendaciones</div></div>
           <div className="kpi__divider" />
           <div className="kpi"><div className="kpi__value">{c.aprobada}</div><div className="kpi__label">Aprobadas</div></div>
           <div className="kpi__divider" />

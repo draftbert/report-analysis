@@ -8,8 +8,8 @@ lo que se revisa y lo que alimenta el informe y el PPT.
 Estructura de cada conclusión (detalle de conclusiones del informe):
   incidencia detectada -> causa raíz -> cómo se ha llegado (datos, tablas)
   -> consecuencias -> recomendación (validada o aportada por el auditor).
-Las sugerencias de mejora comparten estructura, con «propuesta de mejora» en
-lugar de recomendación y sin plan de acción obligatorio.
+Cada bloque es de tipo «recomendacion» (con recomendación y plan de acción)
+o «sugerencia» (mejora sin plan de acción obligatorio).
 
 Precaución (heredada de audit-engine): las clases que viajan al modelo se
 compilan con `to_strict_json_schema` -> todos los campos son obligatorios y
@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 
 NIVELES_RIESGO = ("Crítico", "Alto", "Medio", "Bajo")
 ESCALA_EVALUACION_GLOBAL = ("Deficiente", "Insuficiente", "Mejorable", "Razonable", "Adecuado")
-TIPOS_CONCLUSION = ("conclusion", "sugerencia")
+TIPOS_CONCLUSION = ("recomendacion", "sugerencia")
 
 
 class Conclusion(BaseModel):
@@ -35,7 +35,7 @@ class Conclusion(BaseModel):
     conclusiones. Cadena vacía = no deducible de la fuente."""
 
     titulo: str = Field(description="Título breve de la incidencia (una línea).")
-    tipo: str = Field(default="conclusion", description="'conclusion' si la incidencia requiere recomendación y plan de acción; 'sugerencia' si es una mejora sin plan de acción obligatorio.")
+    tipo: str = Field(default="recomendacion", description="'recomendacion' si la incidencia requiere recomendación y plan de acción (va al detalle de conclusiones); 'sugerencia' si es una mejora sin plan de acción obligatorio (va a sugerencias de mejora).")
     prueba: str = Field(default="", description="Referencia de la prueba del papel de trabajo de la que procede (número y título, p. ej. '2.11 a) Contrastar el tarifario negociado…').")
     incidencia: str = Field(description="Qué incidencia se ha detectado: uno o dos párrafos en prosa que describen la situación (qué ocurre y cómo se hace hoy), con los datos del papel de trabajo. Sin viñetas.")
     causa_raiz: str = Field(description="Por qué ha pasado: párrafo en prosa con la causa raíz inferida del papel de trabajo (proceso manual, falta de plantilla, limitaciones de la herramienta…). Vacío si no se puede inferir.")
