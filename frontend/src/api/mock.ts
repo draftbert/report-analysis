@@ -172,6 +172,7 @@ export const clienteMock: Api = {
   listarExpedientes: async () => [estado(), { referencia: "CNC-2026-03", nombre: "Auditoría de Compras No Comerciales", fecha: "Mayo 2026", fase: "2 · Conclusiones en revisión", siguiente: "Lee 01_conclusiones.md, ajusta y marca `Estado: aprobada`", modificado: "2026-08-20T17:05:00" }],
   crearExpediente: async (d) => ({ ...estado(), referencia: d.referencia, nombre: d.nombre, fecha: d.fecha, distribucion: d.distribucion, fase: "0 · Sin papeles de trabajo", siguiente: "Copia el papel de trabajo final a papeles_trabajo/", contexto: [], papeles: [], conclusiones: null, informe: null, ppt: null, archivos: [] }),
   estado: async () => estado(),
+  eliminarExpediente: async (ref, confirmacion) => { if (confirmacion !== ref) throw new Error(`Para eliminar el expediente escribe exactamente su referencia: ${ref}`); return { mensaje: `Expediente ${ref} eliminado.` }; },
   job: async <T,>(id: string) => (jobs[id] ?? { estado: "error", accion: "?", mensaje: "Trabajo desconocido", resultado: null }) as Job<T>,
   documentos: async () => docs,
   subir: async (_ref, carpeta, ficheros) => { await espera(600); docs = { ...docs, [carpeta]: [...docs[carpeta], ...ficheros.map((f) => ({ nombre: f.name, bytes: f.size, lector: f.name.split(".").pop() ?? "texto" }))] }; return docs; },

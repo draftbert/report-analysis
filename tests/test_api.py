@@ -108,3 +108,15 @@ def test_errores_y_jobs(cliente):
     assert r.status_code == 400 and "error" in r.json()
     # cambio sin mensaje
     assert c.post("/api/expedientes/T-2/acciones/cambio", json={"mensaje": " "}).status_code == 400
+
+
+def test_eliminar_expediente_exige_la_referencia(cliente):
+    c, _ = cliente
+    c.post("/api/expedientes", json={"referencia": "T-3", "nombre": "P"})
+    r = c.request("DELETE", "/api/expedientes/T-3", json={"confirmacion": "T-33"})
+    assert r.status_code == 400 and "T-3" in r.json()["error"]
+    assert c.get("/api/expedientes/T-3").status_code == 200
+    r = c.request("DELETE", "/api/expedientes/T-3", json={"confirmacion": "T-3"})
+    assert r.status_code == 200 and "eliminado" in r.json()["mensaje"]
+    assert c.get("/api/expedientes/T-3").status_code == 404
+    assert c.request("DELETE", "/api/expedientes/T-3", json={"confirmacion": "T-3"}).status_code == 404

@@ -29,6 +29,7 @@ export const clienteReal: Api = {
   listarExpedientes: () => req("/expedientes"),
   crearExpediente: (d) => req("/expedientes", json(d)),
   estado: (ref) => req(e(ref)),
+  eliminarExpediente: (ref, confirmacion) => req(e(ref), json({ confirmacion }, "DELETE")),
   job: (id) => req(`/jobs/${id}`),
   documentos: (ref) => req(`${e(ref)}/documentos`),
   subir: (ref, carpeta, ficheros) => {

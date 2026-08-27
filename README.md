@@ -138,6 +138,8 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ejemplo `ejemplos/papel_trabajo_tarifarios.txt` (crea `expedientes/DEMO-TEC-2026`).
 
 Con varios expedientes, fija el activo con `./revisor usar <ruta>` o pásalo con `-e <ruta>`.
+`./revisor eliminar` borra el expediente activo (pide escribir su referencia); en la web, «Eliminar» en la
+lista de expedientes, con la misma confirmación.
 
 ## Configuración del LLM (.env)
 

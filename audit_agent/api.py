@@ -164,6 +164,22 @@ def estado(ref: str):
     return _estado_json(_exp(ref))
 
 
+class Confirmacion(BaseModel):
+    confirmacion: str = ""
+
+
+@app.delete("/api/expedientes/{ref}")
+def eliminar_expediente(ref: str, c: Confirmacion):
+    """Borra el expediente entero (documentos, informe, historial, trazas,
+    salidas). Exige escribir la referencia exacta como confirmación."""
+    exp = _exp(ref)
+    if c.confirmacion.strip() != exp.referencia:
+        raise HTTPException(400, {"error": f"Para eliminar el expediente escribe exactamente su referencia: {exp.referencia}"})
+    with _lock(ref):
+        shutil.rmtree(exp.ruta)
+    return {"mensaje": f"Expediente {exp.referencia} eliminado."}
+
+
 @app.get("/api/jobs/{job_id}")
 def job(job_id: str):
     j = _JOBS.get(job_id)

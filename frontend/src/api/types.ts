@@ -88,6 +88,7 @@ export interface Api {
   listarExpedientes(): Promise<ExpedienteResumen[]>;
   crearExpediente(d: { referencia: string; nombre: string; fecha: string; distribucion: string[] }): Promise<ExpedienteEstado>;
   estado(ref: string): Promise<ExpedienteEstado>;
+  eliminarExpediente(ref: string, confirmacion: string): Promise<{ mensaje: string }>;
   job<T = unknown>(id: string): Promise<Job<T>>;
   documentos(ref: string): Promise<Documentos>;
   subir(ref: string, carpeta: "contexto" | "papeles_trabajo", ficheros: File[]): Promise<Documentos>;
