@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 
 import { api } from "@/api";
 import type { Traza } from "@/api";
+import { AnimatePresence, motion } from "framer-motion";
+import { X } from "lucide-react";
 
 export const Trazas = () => {
   const { ref = "" } = useParams();
@@ -23,16 +25,18 @@ export const Trazas = () => {
           ))}
         </tbody></table>
       )}
+      <AnimatePresence>
       {abierta && (
-        <div className="drawer">
-          <div className="row row--between"><span className="section-title">{String(abierta.accion ?? "")}</span><button className="btn btn--ghost" onClick={() => setAbierta(null)}>Cerrar</button></div>
+        <motion.div className="drawer" initial={{ x: 60, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 60, opacity: 0 }} transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}>
+          <div className="row row--between"><span className="section-title">{String(abierta.accion ?? "")}</span><button className="layout__icon-btn" onClick={() => setAbierta(null)} aria-label="Cerrar"><X size={18} strokeWidth={1.5} /></button></div>
           <span className="detail">{String(abierta.fecha ?? "")} · {String(abierta.modelo ?? "")} · {JSON.stringify(abierta.usage ?? {})}</span>
           {"error" in abierta && abierta.error ? <div className="job-result job-result--error">{String(abierta.error)}</div> : null}
           <span className="label">Prompt de sistema</span><div className="mono">{String(abierta.system ?? "")}</div>
           <span className="label">Prompt de usuario</span><div className="mono">{String(abierta.user ?? "")}</div>
           <span className="label">Respuesta</span><div className="mono">{JSON.stringify(abierta.respuesta ?? abierta.respuesta_bruta ?? abierta.documentos ?? {}, null, 2)}</div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 };

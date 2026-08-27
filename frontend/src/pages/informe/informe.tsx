@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 
 import { api, esperarJob } from "@/api";
 import type { Apartado, Hallazgo, Informe as InformeT, ResultadoCambios, Version } from "@/api";
+import { Pencil, RotateCcw, Send } from "lucide-react";
+
 import { DiffView, JobButton, JobResult, Markdown, MarkdownEditor, Modal, SlideCard, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
@@ -55,7 +57,7 @@ export const Informe = () => {
         <div><h2 className="page__title">Informe</h2><p className="page__subtitle">Cada apartado es una diapositiva del PowerPoint. Lo que se lee aquí es lo que se exporta.</p></div>
         <div className="page__actions">
           {estado?.ppt?.desactualizado && <span className="tag">PowerPoint desactualizado respecto al informe</span>}
-          <button className="btn" onClick={() => setEditor({ modo: "crudo" })} disabled={!inf}>Editar informe completo</button>
+          <button className="btn" onClick={() => setEditor({ modo: "crudo" })} disabled={!inf}><Pencil size={14} strokeWidth={1.5} />Editar informe completo</button>
         </div>
       </div>
       <JobResult r={resultado} onClose={() => setResultado(null)} />
@@ -96,8 +98,8 @@ export const Informe = () => {
               ))}
               <textarea className="textarea" rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="p. ej. Cambia el nivel de riesgo de la conclusión 1 a Alto" onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviarCambio(); } }} />
               <div className="row row--between">
-                <div className="row"><button className="btn btn--small" onClick={deshacer}>Deshacer</button><button className="btn btn--small" onClick={verDiff}>Ver diff</button></div>
-                <button className="btn btn--primary" onClick={enviarCambio} disabled={enviando || !msg.trim()}>{enviando ? <><span className="spinner" />Aplicando…</> : "Aplicar cambio"}</button>
+                <div className="row"><button className="btn btn--small" onClick={deshacer}><RotateCcw size={13} strokeWidth={1.5} />Deshacer</button><button className="btn btn--small" onClick={verDiff}>Ver diff</button></div>
+                <button className="btn btn--primary" onClick={enviarCambio} disabled={enviando || !msg.trim()}>{enviando ? <><span className="spinner" />Aplicando…</> : <><Send size={14} strokeWidth={1.5} />Aplicar cambio</>}</button>
               </div>
               {diff && tab === "chat" && <DiffView diff={diff} />}
             </div>
@@ -118,7 +120,7 @@ export const Informe = () => {
           )}
           {tab === "historial" && (
             <div className="stack">
-              <div className="row"><button className="btn btn--small" onClick={deshacer}>Deshacer última</button><button className="btn btn--small" onClick={verDiff}>Diff contra la anterior</button></div>
+              <div className="row"><button className="btn btn--small" onClick={deshacer}><RotateCcw size={13} strokeWidth={1.5} />Deshacer última</button><button className="btn btn--small" onClick={verDiff}>Diff contra la anterior</button></div>
               {historial.length === 0 ? <span className="detail">Sin versiones anteriores.</span> : (
                 <table className="table"><thead><tr><th>Fecha</th><th>Fichero</th><th>Motivo</th></tr></thead><tbody>
                   {historial.map((v) => <tr key={v.nombre}><td className="detail">{v.fecha}</td><td className="detail">{v.fichero}</td><td className="detail">{v.motivo}</td></tr>)}
