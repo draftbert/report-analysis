@@ -1,0 +1,84 @@
+/*
+ * Tokens de diseño --ids-* (valores equivalentes a los del sistema de diseño
+ * corporativo). Este fichero existe solo para poder construir el front fuera
+ * del entorno corporativo: allí se elimina y se importa
+ * "@inditex/sewingiopdsweb-styles", que define exactamente estos nombres.
+ */
+:root {
+  /* color */
+  --ids-color-bg-default: #ffffff;
+  --ids-color-bg-states-hover: #f5f5f5;
+  --ids-color-bg-low: #f7f7f7;
+  --ids-color-content-default: #100f0f;
+  --ids-color-content-low: #6b6b6b;
+  --ids-color-content-inverse: #ffffff;
+  --ids-color-content-states-hover: #3a3a3a;
+  --ids-color-border-default: #100f0f;
+  --ids-color-border-low: #dbd9d7;
+  --ids-color-alt-red-high: #b3261e;
+  --ids-color-alt-red-low: #fbeeed;
+  --ids-color-alt-orange-high: #c77700;
+  --ids-color-alt-orange-low: #fdf3e5;
+  --ids-color-alt-green-high: #2e7d32;
+  --ids-color-alt-green-low: #ecf5ed;
+  --ids-color-alt-blue-high: #1f4e79;
+  --ids-color-alt-purple-high: #5b3a8c;
+  --ids-color-alt-teal-high: #0f766e;
+  --ids-color-alt-maroon-high: #7a0c0c;
+
+  /* size */
+  --ids-size-6: 1px;
+  --ids-size-25: 4px;
+  --ids-size-50: 8px;
+  --ids-size-75: 12px;
+  --ids-size-100: 16px;
+  --ids-size-150: 24px;
+  --ids-size-200: 32px;
+  --ids-size-250: 40px;
+  --ids-size-300: 48px;
+  --ids-size-800: 128px;
+  --ids-size-border-default: 1px;
+  --ids-size-radius-full: 999px;
+  --ids-size-radius-rounded: 2px;
+
+  /* typography: font shorthand + letter-spacing + text-transform, como en el DS */
+  --ids-typo-font-family-primary: "Helvetica Now Text", "Helvetica Neue", Helvetica, Inter, Arial, sans-serif;
+  --ids-typo-font-family-mono: "SF Mono", Menlo, Consolas, monospace;
+
+  --ids-typo-title-xl: 400 40px/48px var(--ids-typo-font-family-primary);
+  --ids-typo-title-xl-letter-spacing: -0.01em;
+  --ids-typo-title-xl-text-transform: none;
+  --ids-typo-title-l: 400 28px/36px var(--ids-typo-font-family-primary);
+  --ids-typo-title-l-letter-spacing: 0;
+  --ids-typo-title-l-text-transform: none;
+  --ids-typo-title-m: 400 22px/30px var(--ids-typo-font-family-primary);
+  --ids-typo-title-m-letter-spacing: 0;
+  --ids-typo-title-m-text-transform: none;
+  --ids-typo-title-s: 400 18px/26px var(--ids-typo-font-family-primary);
+  --ids-typo-title-s-letter-spacing: 0;
+  --ids-typo-title-s-text-transform: none;
+
+  --ids-typo-body-m: 400 14px/22px var(--ids-typo-font-family-primary);
+  --ids-typo-body-m-letter-spacing: 0;
+  --ids-typo-body-m-text-transform: none;
+  --ids-typo-body-m-high: 600 14px/22px var(--ids-typo-font-family-primary);
+  --ids-typo-body-m-high-letter-spacing: 0;
+  --ids-typo-body-m-high-text-transform: none;
+
+  --ids-typo-label-l-high: 600 13px/20px var(--ids-typo-font-family-primary);
+  --ids-typo-label-l-high-letter-spacing: 0.08em;
+  --ids-typo-label-l-high-text-transform: uppercase;
+  --ids-typo-label-m: 400 12px/16px var(--ids-typo-font-family-primary);
+  --ids-typo-label-m-letter-spacing: 0.08em;
+  --ids-typo-label-m-text-transform: uppercase;
+  --ids-typo-label-m-high: 600 12px/16px var(--ids-typo-font-family-primary);
+  --ids-typo-label-m-high-letter-spacing: 0.08em;
+  --ids-typo-label-m-high-text-transform: uppercase;
+
+  --ids-typo-detail-m: 400 12px/18px var(--ids-typo-font-family-primary);
+  --ids-typo-detail-m-letter-spacing: 0.01em;
+  --ids-typo-detail-m-text-transform: none;
+  --ids-typo-detail-m-high: 600 12px/18px var(--ids-typo-font-family-primary);
+  --ids-typo-detail-m-high-letter-spacing: 0.01em;
+  --ids-typo-detail-m-high-text-transform: none;
+}

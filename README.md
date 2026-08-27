@@ -27,6 +27,23 @@ cp .env.ejemplo .env      # y rellenar las credenciales KAIA_*
 `./revisor` es el lanzador (`./revisor <comando>`); equivale a
 `.venv/bin/python -m audit_agent.cli <comando>`. En Windows: `.venv\Scripts\python -m audit_agent.cli …`.
 
+## Interfaz web
+
+```bash
+cd frontend && npm install && npm run build && cd ..   # una vez (o tras cambiar el front)
+./revisor web                                          # http://127.0.0.1:8000
+```
+
+`./revisor web` arranca la API REST (`audit_agent/api.py`, contrato en
+`docs/SUPERPROMPT_FRONT.md`) y sirve el front compilado. Las acciones del modelo
+corren como trabajos en segundo plano (`/api/jobs/{id}`), en serie por
+expediente. El front (`frontend/`, Vite + React + TypeScript) replica el look &
+feel corporativo (tokens `--ids-*`, CSS BEM, menú lateral) y tiene un modo mock
+para verlo sin back-end (`npm run dev:mock`). Ver `frontend/README.md`.
+
+La CLI (`./revisor …`) y la web trabajan sobre los mismos ficheros del
+expediente: se pueden combinar.
+
 ## El espacio de trabajo: un expediente por auditoría
 
 Todo el estado vive en una carpeta de ficheros de texto que se editan con
@@ -252,6 +269,8 @@ audit_agent/kaia_client.py  Transporte KAIA (OAuth2 + invoke con output_format_s
 audit_agent/reviewer.py     Revisión de texto suelto
 audit_agent/ppt_builder.py  Presentación del informe (PPT)
 audit_agent/cli.py          Comandos y menú interactivo
+audit_agent/api.py          API REST (FastAPI) para el front; `./revisor web`
+frontend/                   Front (Vite + React + TS, look & feel corporativo, modo mock)
 ejemplos/                   Papel de trabajo real (tarifarios), contexto de ejemplo, borrador, entrada sintética y corpus
 scripts/                    Generación de ficheros de entrada sintéticos
 tests/                      Suite determinista (pytest)

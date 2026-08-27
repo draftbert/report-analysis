@@ -15,6 +15,14 @@ expedientes/*/*_archivo_*.zip
 # Salidas generadas en la raíz
 salidas/
 **/calibracion_estilo_trazas/
-docs/referencia/*.png   # capturas internas de referencia, no se versionan
+# capturas internas de referencia, no se versionan
+docs/referencia/*.png
 expedientes/
-docs/referencia/informes_aprobados/   # informes reales de referencia (nombres de personas): no se versionan
+# informes reales de referencia (nombres de personas): no se versionan
+docs/referencia/informes_aprobados/
+
+# Front
+frontend/node_modules/
+frontend/dist/
+# plantilla corporativa de referencia (AMIGA + Sewing DS, paquetes privados): no se versiona
+front/

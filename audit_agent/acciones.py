@@ -536,6 +536,9 @@ def accion_recomendar(ctx: Contexto, ids: list[str] | None = None, preguntar=Non
                 lineas.append(f"  {c['id']}: la versión formateada NO conservaba la base del auditor → se mantiene la original.")
             continue
         texto_auditor = preguntar(c) if preguntar else None
+        if texto_auditor is False:
+            lineas.append(f"  {c['id']}: sin recomendación (no se ha contestado y no se pide proponer).")
+            continue
         if texto_auditor and texto_auditor.strip():
             c["recomendacion"] = texto_auditor.strip()
             cambiado = True
@@ -675,6 +678,8 @@ def accion_corregir(ctx: Contexto, incluir_avisos: bool = False) -> str:
         (aplicados if ok else pendientes).append(p.id)
     snap = exp.escribir("informe", nuevo, "corregir")
     d = diff_texto(texto, nuevo, "02_informe.md")
+    ULTIMO_RESULTADO.clear()
+    ULTIMO_RESULTADO.update({"diff": d, "reescritos": len(aplicados) + len(pendientes), "pendientes": pendientes})
     msg = [d, "", f"Párrafos reescritos: {len(aplicados) + len(pendientes)} de {len(lote)}."]
     if pendientes:
         msg.append(f"⚠ {len(pendientes)} párrafo(s) siguen con errores tras la reescritura: revisar a mano "
@@ -832,6 +837,9 @@ def aplicar_plan(texto: str, plan: PlanCambios) -> tuple[str, list[dict]]:
     return texto, resultado
 
 
+ULTIMO_RESULTADO: dict = {}  # datos estructurados de la última acción (para la API)
+
+
 def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False, instrucciones: str | None = None,
                            origen: str = "03_instrucciones.md") -> str:
     """Aplica instrucciones de cambio sobre 02_informe.md. Por defecto las lee
@@ -879,6 +887,11 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False, instrucciones
             f"INFORME ACTUAL (02_informe.md):\n{texto}")
     plan = ctx.llm.completar_estructurado("aplicar-cambios", ctx.system, user, PlanCambios)
     nuevo, filas = aplicar_plan(texto, plan)
+    ULTIMO_RESULTADO.clear()
+    ULTIMO_RESULTADO.update({"plan": [dict(f, texto_original=c.texto_original, texto_nuevo=c.texto_nuevo)
+                                      for f, c in zip(filas, plan.cambios)],
+                             "pendientes": list(plan.pendientes), "diff": diff_texto(texto, nuevo, "02_informe.md"),
+                             "solo_plan": solo_plan})
 
     lineas = [f"Plan de cambios ({len(plan.cambios)}):"]
     for i, (c, f) in enumerate(zip(plan.cambios, filas), 1):
@@ -967,6 +980,9 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
 
     marca = datetime.now()
     acta = exp.ruta / "reuniones" / f"{marca:%Y-%m-%d_%H%M}_{ruta.stem[:40]}.md"
+    ULTIMO_RESULTADO.clear()
+    ULTIMO_RESULTADO.update(res.model_dump())
+    ULTIMO_RESULTADO["acta"] = acta.relative_to(exp.ruta).as_posix()
     L = [f"# Acta de cambios — reunión «{ruta.stem}» — {marca:%Y-%m-%d %H:%M}", "", res.resumen.strip(), "",
          f"## Cambios en el texto del informe ({len(res.cambios_texto)})", ""]
     if not res.cambios_texto:

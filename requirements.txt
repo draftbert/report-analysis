@@ -16,3 +16,7 @@ pytest>=8.0              # tests deterministas (tests/)
 pymupdf>=1.24             # extractor de PDF (audit_agent/extractores/pdf_.py)
 pytesseract>=0.3.10       # OCR opcional; requiere el binario tesseract-ocr + tesseract-ocr-spa en el sistema
 Pillow>=10.0
+fastapi>=0.115           # API REST para el front (audit_agent/api.py)
+uvicorn>=0.30
+python-multipart>=0.0.9  # subida de ficheros
+httpx>=0.27              # TestClient de FastAPI en los tests

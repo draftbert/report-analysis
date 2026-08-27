@@ -41,6 +41,10 @@ de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-p
 - `aplicar-cambios`: sustituciones acotadas por sección, sin aproximaciones (solo tildes/espacios),
   ambiguo = no aplicado, contradictorio = CONFLICTO. Cada caso raro nuevo va a `tests/test_aplicar_cambios.py`.
 
+- **Web:** `api.py` envuelve `acciones.py` sin lógica propia (jobs en hilo, un lock por expediente); el front
+  (`frontend/`) usa el contrato de `docs/SUPERPROMPT_FRONT.md`; los tokens `--ids-*` de `tokens.css` se
+  sustituyen por `@inditex/sewingiopdsweb-styles` en el entorno corporativo. `front/` es solo referencia.
+
 ## Pruebas rápidas
-`.venv/bin/python -m pytest -q tests` (determinista, sin red). `.venv/bin/python demo.py` (flujo completo con LLM). Sin LLM: `./revisor revisar-texto --fichero
+`.venv/bin/python -m pytest -q tests` (determinista, sin red; incluye la API). Front: `cd frontend && npm run types:check && npm run build`. `.venv/bin/python demo.py` (flujo completo con LLM). Sin LLM: `./revisor revisar-texto --fichero
 ejemplos/observacion_borrador.txt --sin-llm` y los round-trips de `formato_md`.

@@ -4,6 +4,7 @@ CLI del revisor de informes de auditoría interna.
     ./revisor nuevo expedientes/CNC-2026-03 --nombre "Auditoría de Compras" --referencia CNC-2026-03
     ./revisor usar expedientes/CNC-2026-03          # fija el expediente activo
     ./revisor estado                                 # dónde estoy y qué toca
+    ./revisor web                                    # interfaz web (API + front) en http://127.0.0.1:8000
     ./revisor menu                                   # menú interactivo con lo mismo
 
     ./revisor redactar-contexto [--forzar | --secciones introduccion resumen]  → introducción + resumen ejecutivo
@@ -256,6 +257,18 @@ def cmd_historial(args):
     return accion_historial(_abrir(args))
 
 
+def cmd_web(args):
+    """Servidor web: API REST + front compilado (frontend/dist)."""
+    import uvicorn
+    from .api import DIST
+    if not DIST.exists():
+        print("Aviso: frontend/dist no existe (compila el front con `npm run build` en frontend/); la API sí está disponible en /api.",
+              file=sys.stderr)
+    print(f"Revisor de informes en http://{args.host}:{args.puerto}  (Ctrl+C para parar)")
+    uvicorn.run("audit_agent.api:app", host=args.host, port=args.puerto, log_level="info")
+    return ""
+
+
 def cmd_revisar_texto(args):
     from .reviewer import AgenteRevisor
     texto = args.texto or Path(args.fichero).read_text(encoding="utf-8")
@@ -401,6 +414,8 @@ def construir_parser() -> argparse.ArgumentParser:
         s.add_argument("fichero", nargs="?", default="informe", choices=["informe", "conclusiones", "instrucciones"])
     sub.add_parser("historial", help="Versiones guardadas").set_defaults(fn=cmd_historial)
 
+    s = sub.add_parser("web", help="Arrancar el servidor web (API + front)"); s.set_defaults(fn=cmd_web)
+    s.add_argument("--puerto", type=int, default=8000); s.add_argument("--host", default="127.0.0.1")
     s = sub.add_parser("revisar-texto", help="Revisar un texto suelto (sin expediente)"); s.set_defaults(fn=cmd_revisar_texto)
     s.add_argument("--texto"); s.add_argument("--fichero"); s.add_argument("--sin-llm", action="store_true")
     return p
