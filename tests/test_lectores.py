@@ -116,3 +116,25 @@ def test_expediente_antiguo_con_entrada_se_lee_como_papeles(tmp_path):
     (exp.ruta / "entrada").mkdir()
     (exp.ruta / "entrada" / "pt.md").write_text("Prueba 1. CONCLUSIONES: sin incidencias.\n", encoding="utf-8")
     assert [d.carpeta for d in exp.leer_entrada()] == ["papeles_trabajo"]
+
+
+def test_pptx_con_imagen_vinculada_no_tumba_la_lectura(tmp_path):
+    """Caso real: un design thinking .pptx con una imagen vinculada (sin blob)
+    hacía fallar todo el documento con `ValueError: no embedded image`."""
+    from pptx import Presentation
+    from pptx.util import Inches
+    from audit_agent.extractores import pptx_
+    prs = Presentation()
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    s.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text_frame.text = "Motivo de la auditoría"
+    ruta = tmp_path / "dt.pptx"
+    prs.save(str(ruta))
+
+    class Rota:
+        shape_type = 13  # PICTURE
+        @property
+        def image(self):
+            raise ValueError("no embedded image")
+    assert pptx_._image_block(Rota()) is None
+    assert pptx_._blocks_for_shape(Rota()) == []
+    assert "Motivo de la auditoría" in leer(ruta).texto

@@ -65,8 +65,10 @@ class _PageBuilder:
             self._break_page()
 
         for image_bytes in _images_in_paragraph(paragraph, document):
-            self.flush_list()
-            self.blocks.append(_image_block(image_bytes))
+            image = _image_block(image_bytes)
+            if image is not None:
+                self.flush_list()
+                self.blocks.append(image)
 
         text = paragraph.text.strip()
         if text:
@@ -170,7 +172,10 @@ def _table_block(table: DocxTable) -> Table:
     return Table(headers=headers, rows=body_rows)
 
 
-def _image_block(image_bytes: bytes) -> Image:
-    with PILImage.open(BytesIO(image_bytes)) as pil_image:
-        ocr_text = ocr_image(pil_image.convert("RGB"))
+def _image_block(image_bytes: bytes) -> Image | None:
+    try:
+        with PILImage.open(BytesIO(image_bytes)) as pil_image:
+            ocr_text = ocr_image(pil_image.convert("RGB"))
+    except Exception:  # noqa: BLE001 -- formato no legible (EMF/WMF, corrupta): se omite
+        return None
     return Image(caption="Imagen incrustada", ocr_text=ocr_text)

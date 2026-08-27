@@ -69,8 +69,14 @@ def _slide_title(index: int, slide) -> str:
 
 
 def _blocks_for_shape(shape) -> list[Block]:
+    if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+        blocks: list[Block] = []
+        for sub in shape.shapes:  # formas agrupadas: recorrido recursivo
+            blocks.extend(_blocks_for_shape(sub))
+        return blocks
     if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-        return [_image_block(shape)]
+        image = _image_block(shape)
+        return [image] if image is not None else []
     if shape.has_table:
         return [_table_block(shape.table)]
     if shape.has_text_frame:
@@ -94,9 +100,16 @@ def _table_block(table) -> Table:
     return Table(headers=headers, rows=body_rows)
 
 
-def _image_block(shape) -> Image:
-    with PILImage.open(BytesIO(shape.image.blob)) as pil_image:
-        ocr_text = ocr_image(pil_image.convert("RGB"))
+def _image_block(shape) -> Image | None:
+    """Imágenes vinculadas (sin blob incrustado: `ValueError: no embedded image`),
+    marcadores vacíos o formatos que PIL no abre se omiten en vez de tumbar la
+    lectura del documento -- caso real: un design thinking en .pptx."""
+    try:
+        blob = shape.image.blob
+        with PILImage.open(BytesIO(blob)) as pil_image:
+            ocr_text = ocr_image(pil_image.convert("RGB"))
+    except Exception:  # noqa: BLE001 -- imagen no legible: se omite
+        return None
     return Image(caption="Imagen incrustada", ocr_text=ocr_text)
 
 
