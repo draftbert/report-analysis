@@ -35,7 +35,7 @@ from pathlib import Path
 from lxml import etree
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.util import Emu, Inches, Pt
+from pptx.util import Inches, Pt
 
 from .formato_md import partir_recomendaciones, textos_informe
 
