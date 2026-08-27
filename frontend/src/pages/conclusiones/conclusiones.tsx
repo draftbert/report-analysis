@@ -3,6 +3,9 @@ import { useParams } from "react-router-dom";
 
 import { api, esperarJob } from "@/api";
 import type { Conclusion, Estado, Hallazgo, Riesgo, Tipo } from "@/api";
+import { AnimatePresence, motion } from "framer-motion";
+import { CheckCheck, ChevronDown, ChevronUp, FileOutput, SpellCheck } from "lucide-react";
+
 import { JobButton, JobResult, Modal, RiskBadge, StateChip, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
@@ -36,7 +39,7 @@ const Tarjeta = ({ c, hallazgos, onGuardar, onEstado, onRegenerar }: {
         <span className="conc__id">{c.id}</span>
         <input className="input input--inline conc__titulo" value={v.titulo} onChange={(e) => set("titulo", e.target.value)} />
         <StateChip estado={c.estado} onChange={(e) => onEstado(c.id, e)} />
-        <button className="btn btn--ghost btn--small" onClick={() => setAbierta(!abierta)}>{abierta ? "Plegar" : "Desplegar"}</button>
+        <button className="btn btn--ghost btn--small" onClick={() => setAbierta(!abierta)} aria-label={abierta ? "Plegar" : "Desplegar"}>{abierta ? <ChevronUp size={16} strokeWidth={1.5} /> : <ChevronDown size={16} strokeWidth={1.5} />}</button>
       </div>
       <div className="conc__meta">
         <div className="row">
@@ -48,8 +51,9 @@ const Tarjeta = ({ c, hallazgos, onGuardar, onEstado, onRegenerar }: {
           {RIESGOS.map((r) => <button key={r} className={`pill ${v.nivel_riesgo === r ? "pill--active" : ""}`} onClick={() => set("nivel_riesgo", r)}>{r}</button>)}
         </div>
       </div>
+      <AnimatePresence initial={false}>
       {abierta && (
-        <>
+        <motion.div className="stack" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} style={{ overflow: "hidden" }}>
           <div className="meta-grid">
             {([["prueba", "Prueba"], ["area", "Área"], ["responsable", "Responsable"], ["plazo", "Plazo"], ["referencia_recomendacion", "Ref. recomendación"], ["fuente", "Fuente"]] as [keyof Conclusion, string][]).map(([k, l]) => (
               <div className="field" key={k}><span className="field__label">{l}</span><input className="input input--inline" value={String(v[k] ?? "")} onChange={(e) => set(k, e.target.value)} /></div>
@@ -75,8 +79,9 @@ const Tarjeta = ({ c, hallazgos, onGuardar, onEstado, onRegenerar }: {
             <span className="detail">{sucio ? "Sin guardar" : "Guardado"}</span>
             <button className="btn btn--primary btn--small" onClick={guardar} disabled={!sucio}>Guardar</button>
           </div>
-        </>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -128,18 +133,21 @@ export const Conclusiones = () => {
         <div><h2 className="page__title">Conclusiones</h2><p className="page__subtitle">Una por incidencia del papel de trabajo: incidencia, causa raíz, detalles, consecuencias y recomendación. Aquí manda el auditor.</p></div>
         <div className="page__actions">
           <JobButton etiqueta={lista.length ? "Extraer de nuevo" : "Extraer del papel de trabajo"} primario={!lista.length} confirmar={lista.length ? "Se regenerarán todas las conclusiones (el fichero actual se guarda en historial). ¿Continuar?" : undefined} lanzar={() => api.extraer(ref, true)} onFin={fin} />
-          <button className="btn" onClick={aprobarTodas} disabled={!lista.length}>Aprobar todas</button>
-          <button className="btn" onClick={revisar} disabled={!lista.length}>Revisar vocabulario</button>
+          <button className="btn" onClick={aprobarTodas} disabled={!lista.length}><CheckCheck size={14} strokeWidth={1.5} />Aprobar todas</button>
+          <button className="btn" onClick={revisar} disabled={!lista.length}><SpellCheck size={14} strokeWidth={1.5} />Revisar vocabulario</button>
           <JobButton etiqueta="Corregir con el modelo" lanzar={() => api.corregirConclusiones(ref)} onFin={fin} disabled={!lista.length} />
           <button className="btn" onClick={abrirAsistente} disabled={!lista.length}>Recomendar…</button>
-          <button className="btn btn--primary" onClick={volcar} disabled={!c?.aprobada}>Volcar aprobadas al informe</button>
+          <button className="btn btn--primary" onClick={volcar} disabled={!c?.aprobada}><FileOutput size={14} strokeWidth={1.5} />Volcar aprobadas al informe</button>
         </div>
       </div>
       {c && (
         <div className="kpis">
           <div className="kpi"><div className="kpi__value">{c.total}</div><div className="kpi__label">Conclusiones</div></div>
+          <div className="kpi__divider" />
           <div className="kpi"><div className="kpi__value">{c.aprobada}</div><div className="kpi__label">Aprobadas</div></div>
+          <div className="kpi__divider" />
           <div className="kpi"><div className="kpi__value">{c.sin_recomendacion.length}</div><div className="kpi__label">Sin recomendación</div></div>
+          <div className="kpi__divider" />
           <div className="kpi"><div className="kpi__value">{c.sugerencias}</div><div className="kpi__label">Sugerencias de mejora</div></div>
         </div>
       )}

@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 
 import { api } from "@/api";
 import type { Documentos } from "@/api";
+import { FileText, Trash2 } from "lucide-react";
+
 import { Dropzone, useNotificar } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
@@ -30,7 +32,7 @@ export const Entrada = () => {
     docs[carpeta].length === 0 ? <div className="detail">Sin documentos.</div> : (
       <table className="table"><tbody>
         {docs[carpeta].map((d) => (
-          <tr key={d.nombre}><td>{d.nombre}</td><td className="detail">{d.lector} · {tam(d.bytes)}</td><td style={{ textAlign: "right" }}><button className="btn btn--ghost btn--small" onClick={() => borrar(carpeta, d.nombre)}>Eliminar</button></td></tr>
+          <tr key={d.nombre}><td><span className="row" style={{ gap: 8 }}><FileText size={16} strokeWidth={1.5} />{d.nombre}</span></td><td className="detail">{d.lector} · {tam(d.bytes)}</td><td style={{ textAlign: "right" }}><button className="btn btn--ghost btn--small" onClick={() => borrar(carpeta, d.nombre)} aria-label={`Eliminar ${d.nombre}`}><Trash2 size={14} strokeWidth={1.5} />Eliminar</button></td></tr>
         ))}
       </tbody></table>
     )

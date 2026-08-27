@@ -11,9 +11,16 @@ Fuera del entorno corporativo no se pueden instalar `@inditex/*` ni
 - `src/assets/styles/tokens.css` define los tokens `--ids-*` con valores
   equivalentes. En el entorno corporativo se elimina ese fichero y se importa
   `@inditex/sewingiopdsweb-styles` en `main.tsx`: los nombres coinciden.
-- El shell (`src/layout/layout.tsx`) sustituye a `ApplicationLayout` +
-  `Header` + `Menu` de Sewing con los mismos bloques BEM; para migrar, basta
-  con envolver las páginas con esos componentes y pasarles `getMenu`.
+- El shell (`src/layout/layout.tsx`) reproduce `ApplicationLayout` + `Header`
+  (botón atrás, logo, título, botón de menú) + `Menu` desplegable (logo, grupos,
+  pie con avatar y versión) de Sewing, con `framer-motion` para el deslizamiento
+  del menú, las transiciones de página, modales y notificaciones; y la barra de
+  *workflow* de puntos de la plantilla como navegación por fases. Para migrar,
+  basta con envolver las páginas con los componentes reales de Sewing y pasarles
+  `SECCIONES` como `items` del menú.
+- Iconos: `lucide-react` (línea, 1,5 px, monocromos, como los de Sewing); en el
+  entorno corporativo se sustituyen por los de `@inditex/sewingiopdsweb-resources`.
+- `Logo` es una marca tipográfica provisional: en corporativo, `Logo` de Sewing.
 - No hay AMIGA `Auth`/`ConfigProvider`: la app habla con `/api` en el mismo
   origen (el servidor Python sirve `dist/`).
 

@@ -11,12 +11,14 @@
     "types:check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "diff": "7.0.0",
+    "framer-motion": "^11.18.2",
+    "lucide-react": "^0.468.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-router-dom": "7.9.6",
     "react-markdown": "9.0.1",
-    "remark-gfm": "4.0.0",
-    "diff": "7.0.0"
+    "react-router-dom": "7.9.6",
+    "remark-gfm": "4.0.0"
   },
   "devDependencies": {
     "@types/diff": "6.0.0",
