@@ -215,13 +215,16 @@ transcripción de Teams. Se la paso tal cual."
 
 **Qué decir:** "`ppt` exporta el informe entero: cada apartado, una diapositiva."
 
-**Qué enseñar:** el `.pptx` con la estructura de los informes del departamento:
-carátula (CONFIDENCIAL, lista de distribución, ref.), índice y portadillas,
-introducción, resumen ejecutivo con **Evaluación Global** y próximos pasos,
-índice de conclusiones con chip de riesgo, **una diapositiva por conclusión con
-el diseño corporativo** (banda de riesgo, título numerado, prosa, detalles
+**Qué enseñar:** el `.pptx` generado **sobre la plantilla corporativa real**
+(`config/plantilla_informe.pptx`: mismas fuentes, imágenes, tablas y colores):
+carátula (CONFIDENCIAL, lista de distribución, fecha y ref.), índice y portadillas,
+introducción con la frase fija del plan y los bloques Contexto / Objetivo /
+Riesgos a cubrir / Alcance / Principales magnitudes, resumen ejecutivo con el
+punto en la escala de **Evaluación Global** y próximos pasos, **una tabla por
+recomendación** (banda RIESGO, «NN Título», prosa, caja gris de detalles
 descriptivos, consecuencias, Recomendación N.1, Ref., Área / Responsable /
-Plazo), sugerencias de mejora (RIESGO BAJO), anexo de planes de acción y cierre; el zip de `archivar` con `trazas/`,
+Plazo; «(continuación)» si no cabe), sugerencias de mejora (RIESGO BAJO y
+párrafo fijo), anexo de planes de acción; el zip de `archivar` con `trazas/`,
 `historial/`, informe, PPT y `manifest.json` con sha256 ("esto se adjunta al
 expediente en Pentana"); y una traza JSON medio segundo: prompt, respuesta,
 tokens.

@@ -124,10 +124,12 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor diff | deshacer | historial     # control de versiones
 
 # 4. Entregable y cierre
-./revisor ppt                        # exporta el informe ENTERO: cada apartado de 02_informe.md es una
-#   diapositiva (introducción, resumen, una por conclusión con el diseño corporativo de «Detalle de
-#   conclusiones» —banda de riesgo, título numerado, prosa, detalles descriptivos, consecuencias,
-#   Recomendación N.1/N.2, Ref., Área/Responsable/Plazo—, y las sugerencias de mejora)
+./revisor ppt                        # exporta el informe ENTERO sobre la plantilla corporativa
+#   (config/plantilla_informe.pptx): cada apartado de 02_informe.md es una diapositiva de la plantilla
+#   con su texto sustituido (portada, índice, introducción por bloques, portadillas, resumen con la
+#   escala de Evaluación Global, una tabla por recomendación —banda RIESGO, «NN Título», prosa, caja
+#   gris de detalles, consecuencias, Recomendación N.k, Ref., Área/Responsable/Plazo; «(continuación)»
+#   si no cabe—, sugerencias de mejora y anexo de planes de acción). Sin modelo: es determinista.
 ./revisor archivar                   # zip de evidencia con manifest sha256
 
 # Texto suelto (p. ej. un párrafo copiado de Pentana), sin expediente:
@@ -269,7 +271,8 @@ audit_agent/calibracion.py  Calibración de estilo.yaml contra informes aprobado
 audit_agent/llm.py          Cliente LLM unificado (kaia | anthropic | dry-run) con trazas
 audit_agent/kaia_client.py  Transporte KAIA (OAuth2 + invoke con output_format_schema)
 audit_agent/reviewer.py     Revisión de texto suelto
-audit_agent/ppt_builder.py  Presentación del informe (PPT)
+audit_agent/ppt_builder.py  Exportación del informe sobre la plantilla corporativa (config/plantilla_informe.pptx)
+scripts/sanear_plantilla.py Saneado de la plantilla PPT (comentarios, autores, think-cell, metadatos) antes de versionarla
 audit_agent/cli.py          Comandos y menú interactivo
 audit_agent/api.py          API REST (FastAPI) para el front; `./revisor web`
 frontend/                   Front (Vite + React + TS, look & feel corporativo, modo mock)
@@ -281,8 +284,9 @@ docs/referencia/            Proveedor KAIA original de audit-engine (referencia)
 
 ## Siguientes pasos
 
-- Sustituir el PPT autónomo por la plantilla `.potx` corporativa (mismo código;
-  asignar `run.text`, nunca `text_frame.text`).
+- Plantilla PPT: si el departamento cambia la plantilla, pasarla por
+  `scripts/sanear_plantilla.py` y comprobar que las 11 diapositivas mantienen el
+  orden y los nombres de forma que espera `ppt_builder.py` (`tests/test_ppt.py`).
 - Añadir el lector específico del formato real de exportación de Pentana en `lectores.py`.
 - Calibrar `estilo.yaml` con informes aprobados reales (`calibrar-estilo`).
 - Memoria histórica: sugerir conclusiones similares de auditorías cerradas.

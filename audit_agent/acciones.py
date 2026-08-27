@@ -1043,8 +1043,9 @@ def accion_ppt(exp: Expediente) -> str:
         raise ExpedienteError("El informe no tiene conclusiones volcadas (sección `## Detalle de conclusiones` "
                               "con bloques `### N. Título`). Ejecuta `redactar-conclusiones`.")
     ruta = construir_desde_datos(datos, exp.ruta_ppt())
-    return (f"Presentación generada: {ruta} ({len(datos['conclusiones'])} conclusiones, "
-            f"{len(datos['sugerencias'])} sugerencias de mejora).")
+    avisos = "".join(f"\n  Aviso: {a}" for a in getattr(construir_desde_datos, "avisos", []))
+    return (f"Presentación generada sobre la plantilla corporativa: {ruta} ({len(datos['conclusiones'])} conclusiones, "
+            f"{len(datos['sugerencias'])} sugerencias de mejora).{avisos}")
 
 
 # ============================================================ 6b. archivar (retención de evidencia)
