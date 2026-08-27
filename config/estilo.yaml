@@ -64,6 +64,86 @@ primera_persona:
   - "opino"
   - "creo"
 
+# ------------------------------------------------------------------
+# Tono y lenguaje (instrucciones del departamento, agosto 2026).
+# Se inyectan en todos los prompts de redacción y `revisar` las señala como AVISO (nunca error):
+# la guía pide cuestionar cada caso según el contexto, no sustituir en automático. `corregir --avisos`
+# se las pasa al modelo con la alternativa propuesta. Editable sin tocar código.
+tono:
+  principios:
+    - "Evita lenguaje que pueda percibirse como acusatorio, excesivamente rotundo, defensivo, alarmista, innecesariamente negativo o artificial/exageradamente positivo."
+    - "No apliques las sustituciones de forma automática: evalúa el contexto. Una formulación directa puede ser necesaria por precisión técnica, relevancia regulatoria o severidad del hallazgo."
+    - "Evita transmitir que algo debe crearse desde cero cuando procede reforzar, completar, homogeneizar, documentar o monitorizar mecanismos existentes."
+  # Expresiones a cuestionar (aviso en `revisar`), con la fórmula constructiva que las suele sustituir.
+  expresiones_a_cuestionar:
+    - termino: "falta de"
+      alternativa: "se han identificado oportunidades de mejora en… / se han observado debilidades en…"
+    - termino: "ausencia de"
+      alternativa: "la evidencia disponible no permite confirmar que… / el mecanismo actual podría completarse con…"
+    - termino: "no hay"
+      alternativa: "no hemos observado evidencias suficientes que permitan confirmar…"
+    - termino: "no existe"
+      alternativa: "se han observado oportunidades de mejora en… / la evidencia disponible no permite confirmar que… se aplique de forma homogénea"
+    - termino: "no existen"
+      alternativa: "se han observado oportunidades de mejora en… / la evidencia disponible no permite confirmar que…"
+    - termino: "no se cuenta con"
+      alternativa: "el proceso podría reforzarse mediante…"
+    - termino: "no se dispone de"
+      alternativa: "la evidencia disponible no permite concluir que…"
+    - termino: "no se ha identificado ningún"
+      alternativa: "no hemos observado evidencias suficientes que permitan confirmar…"
+    - termino: "no se ha identificado ninguna"
+      alternativa: "no hemos observado evidencias suficientes que permitan confirmar…"
+    - termino: "incumplimiento total"
+      alternativa: "precisar el alcance real del incumplimiento observado (casos, muestra, periodo)"
+    - termino: "sin control"
+      alternativa: "control con oportunidades de mejora en su diseño, ejecución o documentación"
+    - termino: "inadecuado"
+      alternativa: "con oportunidades de mejora en… (cuando sea más preciso)"
+    - termino: "inadecuada"
+      alternativa: "con oportunidades de mejora en… (cuando sea más preciso)"
+  formulas_constructivas:
+    - "se han identificado oportunidades de mejora en…"
+    - "se han observado debilidades en…"
+    - "la evidencia disponible no permite concluir que…"
+    - "no hemos observado evidencias suficientes que permitan confirmar…"
+    - "el proceso podría reforzarse mediante…"
+    - "el mecanismo actual podría completarse con…"
+    - "se recomienda reforzar…"
+    - "se considera conveniente mejorar…"
+    - "la implantación de estas medidas permitiría reforzar…"
+    - "el modelo actual presenta margen de mejora en…"
+  # Absolutos y formulaciones excesivas: precisar el alcance real (casos concretos, muestra, subconjunto).
+  absolutos:
+    criterio: "Cuestiona afirmaciones absolutas cuando puedan transmitir que la debilidad es mayor o afecta a toda la población cuando se han observado casos concretos, una muestra o un subconjunto; introduce precisión sobre el alcance real."
+    ejemplos:
+      - antes: "La implantación efectiva de estas medidas permitiría mitigar los riesgos reputacionales y de cumplimiento."
+        despues: "La implantación efectiva de estas medidas permitiría reforzar la mitigación de los riesgos reputacionales y de cumplimiento."
+      - antes: "Establecer un mecanismo que regule la elaboración, revisión y aprobación de las comunicaciones."
+        despues: "Mejorar el mecanismo de elaboración, revisión y aprobación de las comunicaciones."
+      - antes: "No existe un proceso de revisión."
+        despues: "Se han observado oportunidades de mejora en el proceso de revisión / La evidencia disponible no permite confirmar que el proceso de revisión se esté aplicando de forma homogénea."
+  # Adjetivos calificativos innecesarios (aviso): subjetividad o intensificación sin evidencia adicional.
+  adjetivos_a_cuestionar:
+    - termino: "clara"
+      alternativa: "«establecer una asignación de responsabilidades clara» → «definir la asignación de responsabilidades»"
+    - termino: "claro"
+      alternativa: "eliminar si no aporta precisión"
+    - termino: "significativas"
+      alternativa: "solo si la significatividad está soportada por impacto, severidad o evidencia"
+    - termino: "significativo"
+      alternativa: "solo si está soportado por impacto, severidad o evidencia"
+    - termino: "significativa"
+      alternativa: "solo si está soportada por impacto, severidad o evidencia"
+    - termino: "control inadecuado"
+      alternativa: "control con oportunidades de mejora en su diseño, ejecución o documentación"
+  tiempos_verbales:
+    - "Objetivo y alcance de la auditoría: en pasado o pretérito perfecto cuando describan el trabajo realizado."
+    - "Presente para conclusiones vigentes."
+    - "Pasado para procedimientos realizados, evidencias obtenidas y hechos observados durante la revisión."
+    - "Futuro o condicional solo para planes de acción, próximos pasos o efectos esperados."
+    - "No mezclar presente, pasado y futuro sin justificación."
+
 # Reglas cuantitativas
 # Extensión orientativa (palabras): el informe se lee en diapositivas y la letra debe caber.
 # Se inyecta en los prompts; `condensar` acorta un informe ya escrito respetando hechos y cifras.

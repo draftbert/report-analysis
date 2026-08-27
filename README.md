@@ -124,7 +124,8 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor chat                            # varios cambios sueltos, uno por mensaje, con diff tras cada uno
 #   Ejemplos: ejemplos/transcript_reunion_teams.txt, ejemplos/transcript_reunion_tarifarios.vtt (Teams .vtt sobre el
 #   informe de tarifarios) y ejemplos/mensajes_chat.txt
-./revisor revisar | corregir [--avisos]   # vocabulario prohibido y estilo del informe
+./revisor revisar | corregir [--avisos]   # vocabulario prohibido (error) y tono/adjetivos/frases largas (avisos);
+#   `--avisos` pasa también al modelo los avisos de tono con su alternativa (los evalúa según el contexto)
 ./revisor condensar [--objetivo 0.85]     # acorta un poco el informe con el modelo (≈15 % menos palabras) sin perder
 #   hechos, cifras ni referencias; la recomendación no se toca. Cada campo solo se acepta si es más corto, conserva
 #   las cifras y cumple las reglas; si no, se conserva el original y se dice. Snapshot + diff; `deshacer` lo revierte.
