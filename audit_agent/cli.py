@@ -13,6 +13,8 @@ CLI del revisor de informes de auditoría interna.
     ./revisor recomendar [C-01 ...] [--auto] [--formatear]     → recomendaciones (respeta las del auditor)
     ./revisor redactar-conclusiones                            → vuelca las aprobadas a 02_informe.md
     ./revisor revisar | corregir [--avisos] | aplicar-cambios [--solo-plan]
+    ./revisor reunion transcripcion.txt [--aplicar]   → acta: cambios de texto vs PPT
+    ./revisor cambio "pon el riesgo de la conclusión 1 en Alto"  |  ./revisor chat
     ./revisor diff | deshacer | historial | ppt | archivar
     ./revisor calibrar-estilo <carpeta_informes_aprobados> [--salida x.md] [--sin-llm]
 
@@ -163,6 +165,46 @@ def cmd_aplicar_cambios(args):
     return accion_aplicar_cambios(_contexto(args), solo_plan=args.solo_plan)
 
 
+def cmd_reunion(args):
+    from .acciones import accion_reunion
+    return accion_reunion(_contexto(args), args.transcripcion, aplicar=args.aplicar)
+
+
+def cmd_cambio(args):
+    from .acciones import accion_aplicar_cambios
+    mensaje = " ".join(args.mensaje).strip()
+    if mensaje == "-" or not mensaje:
+        mensaje = sys.stdin.read().strip()
+    return accion_aplicar_cambios(_contexto(args), solo_plan=args.solo_plan, instrucciones=mensaje, origen="mensaje")
+
+
+def cmd_chat(args):
+    """Cambios sencillos como en un chat: cada mensaje se aplica al informe y
+    se muestra el diff. `deshacer`, `diff`, `estado` y `salir` son atajos."""
+    from .acciones import accion_aplicar_cambios, accion_deshacer, accion_diff
+    ctx = _contexto(args)
+    print(f"Chat de cambios sobre {ctx.exp.archivo('informe').name} (Enter vacío o `salir` para terminar; "
+          "`deshacer`, `diff`, `estado` como atajos).")
+    while True:
+        try:
+            mensaje = input("\ncambio> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return "\nHasta luego."
+        if mensaje.lower() in ("", "salir", "exit", "q"):
+            return "Hasta luego."
+        try:
+            if mensaje.lower() == "deshacer":
+                print(accion_deshacer(ctx.exp))
+            elif mensaje.lower() == "diff":
+                print(accion_diff(ctx.exp))
+            elif mensaje.lower() == "estado":
+                print(cmd_estado(args))
+            else:
+                print(accion_aplicar_cambios(ctx, instrucciones=mensaje, origen="chat"))
+        except Exception as exc:  # noqa: BLE001 — el chat no debe morir por un error de acción
+            print(f"✖ {exc}")
+
+
 def cmd_ppt(args):
     from .acciones import accion_ppt
     return accion_ppt(_abrir(args))
@@ -245,6 +287,8 @@ MENU = [
     ("revisar", "Revisar vocabulario prohibido y estilo del informe", cmd_revisar, {}),
     ("corregir", "Reescribir con el modelo los párrafos con errores (LLM)", cmd_corregir, {"avisos": False}),
     ("aplicar-cambios", "Aplicar las instrucciones de 03_instrucciones.md al informe (LLM)", cmd_aplicar_cambios, {"solo_plan": False}),
+    ("reunion", "Analizar una transcripción de Teams: cambios de texto vs PPT (LLM)", cmd_reunion, {"transcripcion": None, "aplicar": False}),
+    ("chat", "Cambios sencillos tipo chat, aplicados al momento (LLM)", cmd_chat, {}),
     ("diff", "Ver cambios del informe respecto a la última versión guardada", cmd_diff, {"fichero": "informe"}),
     ("deshacer", "Restaurar la versión anterior del informe", cmd_deshacer, {"fichero": "informe"}),
     ("ppt", "Exportar el informe entero a PowerPoint (un apartado = una diapositiva)", cmd_ppt, {}),
@@ -272,6 +316,10 @@ def cmd_menu(args):
         if nombre == "extraer" and _abrir(args).existe("conclusiones"):
             sub.forzar = input("01_conclusiones.md ya existe. ¿Regenerar? (se guarda snapshot) [s/N] ").strip().lower() == "s"
             if not sub.forzar:
+                continue
+        if nombre == "reunion":
+            sub.transcripcion = input("Ruta de la transcripción (.txt/.docx/.vtt): ").strip()
+            if not sub.transcripcion:
                 continue
         if nombre == "redactar-contexto" and _abrir(args).existe("informe"):
             sub.forzar = input("02_informe.md ya tiene introducción/resumen. ¿Regenerarlos? (se guarda snapshot) [s/N] ").strip().lower() == "s"
@@ -331,6 +379,14 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--avisos", action="store_true", help="Incluir también avisos (frases largas)")
     s = sub.add_parser("aplicar-cambios", help="Aplicar 03_instrucciones.md al informe (LLM)"); s.set_defaults(fn=cmd_aplicar_cambios)
     s.add_argument("--solo-plan", action="store_true", help="Mostrar el plan sin tocar el informe")
+    s = sub.add_parser("reunion", help="Transcripción de Teams → acta: cambios de texto (a 03_instrucciones.md) y de PPT (informativo)")
+    s.set_defaults(fn=cmd_reunion)
+    s.add_argument("transcripcion", help="Fichero de la transcripción (.txt, .docx, .vtt…)")
+    s.add_argument("--aplicar", action="store_true", help="Aplicar directamente los cambios de texto detectados")
+    s = sub.add_parser("cambio", help="Aplicar un cambio sencillo escrito como mensaje (LLM)"); s.set_defaults(fn=cmd_cambio)
+    s.add_argument("mensaje", nargs="*", help="Texto del cambio; `-` o vacío para leerlo de stdin")
+    s.add_argument("--solo-plan", action="store_true")
+    sub.add_parser("chat", help="Cambios sencillos en modo chat sobre el informe (LLM)").set_defaults(fn=cmd_chat)
     sub.add_parser("ppt", help="Exportar el informe entero a PowerPoint (un apartado = una diapositiva)").set_defaults(fn=cmd_ppt)
     sub.add_parser("archivar", help="Zip de evidencia del expediente con manifest sha256").set_defaults(fn=cmd_archivar)
 

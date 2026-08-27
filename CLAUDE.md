@@ -33,7 +33,9 @@ de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-p
 - Entrada: `contexto/` (design thinking; alimenta intro/resumen, solo orienta a extraer) y `papeles_trabajo/`
   (fuente de las conclusiones). `entrada/` antiguo se lee como papeles_trabajo.
 - Flujo: redactar-contexto (intro+resumen) → extraer (conclusiones) → aprobar → recomendar →
-  redactar-conclusiones → aplicar-cambios/revisar/corregir → ppt → archivar.
+  redactar-conclusiones → aplicar-cambios/reunion/cambio/chat/revisar/corregir → ppt → archivar.
+- `reunion`: la transcripción NO se aplica directamente; el modelo la separa en texto (→ 03_instrucciones.md,
+  el auditor revisa) / PPT (informativo) / pendientes / acuerdos, y `aplicar-cambios` hace el resto.
 - Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;
   la quita `aprobar`; `redactar-conclusiones` no admite conclusiones que la conserven.
 - `aplicar-cambios`: sustituciones acotadas por sección, sin aproximaciones (solo tildes/espacios),

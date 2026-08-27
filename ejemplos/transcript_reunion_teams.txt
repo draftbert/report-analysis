@@ -1,0 +1,31 @@
+Revisión del informe TEC-2026 (Transporte e-Commerce: tarifarios y SCA)
+Transcripción de la reunión — Microsoft Teams
+26 de agosto de 2026, 16:30 – 17:05
+Participantes: Marta Rey (Gerente de Auditoría Interna), Luis Ferro (Auditor), Carmen Soto (Directora de Auditoría Interna), Pablo Nieto (Transporte e-Commerce)
+
+[16:31:02] Marta Rey: Vale, empezamos. Tenemos el borrador del informe de tarifarios. Luis, ¿lo repasamos por partes?
+[16:31:15] Luis Ferro: Sí. Introducción, resumen ejecutivo, una conclusión con una recomendación y de momento sin sugerencias de mejora.
+[16:31:40] Carmen Soto: Antes de entrar, una cosa de forma para la presentación: quiero que las magnitudes de la introducción vayan en un gráfico de barras, no en lista. Y que uséis la plantilla corporativa nueva, la de fondo blanco.
+[16:32:05] Marta Rey: Apuntado. Eso es solo de la presentación, el texto no cambia.
+[16:32:20] Carmen Soto: Exacto. Y en el resumen ejecutivo, la segunda viñeta es larguísima. Resumidla a una frase: que los extracostes como el fuel y las casuísticas de COD y zonas remotas no se actualizan ni se comunican bien, y ya.
+[16:32:55] Luis Ferro: De acuerdo, la acorto.
+[16:33:10] Carmen Soto: Y en ese mismo resumen que quede explícito que la recomendación TMSCIIF-10 de la auditoría SCIIF de 2022 sigue abierta. Que se lea así, "sigue abierta".
+[16:33:30] Marta Rey: Vamos a la conclusión 1. Pablo, ¿estáis de acuerdo con la descripción?
+[16:33:50] Pablo Nieto: En general sí. Lo único, la viñeta de los detalles donde habláis de PackPro y del 98 por ciento de acierto y del 10 por ciento de peso teórico. Eso es muy técnico y no tiene que ver con el mantenimiento de tarifarios, yo la quitaría.
+[16:34:20] Marta Rey: Estoy de acuerdo, esa viñeta fuera.
+[16:34:30] Carmen Soto: El nivel de riesgo. Lo tenéis en Medio. Con lo que hemos visto de la falta de trazabilidad de los acuerdos yo lo pondría en Alto.
+[16:34:50] Luis Ferro: Vale, riesgo Alto.
+[16:35:05] Marta Rey: La recomendación. Ahora es una sola, la 1.1, con el sistema de carga y la evidencia de acuerdos todo junto. Yo la dividiría en dos, porque tienen responsables distintos.
+[16:35:30] Carmen Soto: Sí. La 1.1 que sea implantar un sistema para la carga y gestión de los tarifarios de todas las operativas de transporte. Y la 1.2, establecer un procedimiento que deje evidencia de los acuerdos alcanzados con los proveedores y garantice su trazabilidad con las tarifas cargadas en la Herramienta de Costes.
+[16:36:10] Pablo Nieto: Para la 1.1 el responsable soy yo, Pablo Nieto, área Transporte e-Commerce, y el plazo realista es 31 de marzo de 2027, porque depende del desarrollo de SCA.
+[16:36:40] Pablo Nieto: La 1.2 la puede asumir Operativa antes, digamos 31 de diciembre de 2026, mismo área.
+[16:37:00] Marta Rey: Perfecto, que quede en el informe: área, responsable y plazo de cada una.
+[16:37:20] Carmen Soto: Otra cosa. Lo de las alertas diarias y la revisión semanal de Transport Business Analytics que aparece en los detalles. Eso está bien, pero no está documentado en ningún procedimiento. Añadidlo como sugerencia de mejora, riesgo bajo: documentar y formalizar ese control de alertas y revisión semanal. Área Transport Business Analytics.
+[16:37:55] Luis Ferro: Vale, nueva sugerencia de mejora.
+[16:38:10] Marta Rey: En la introducción, ¿podemos poner el importe anual facturado por los couriers en el alcance?
+[16:38:25] Luis Ferro: No lo tengo en el papel de trabajo. Se lo pido a Pablo y lo meto cuando lo tenga.
+[16:38:35] Pablo Nieto: Te lo paso esta semana.
+[16:38:50] Carmen Soto: Y para la presentación, que la diapositiva de la conclusión no tenga tanta letra: los detalles descriptivos en una diapositiva aparte, como continuación.
+[16:39:10] Marta Rey: Ok, eso también es de maquetación. Última cosa: la conformidad del área. Pablo, ¿diez días hábiles desde que os mandemos la versión final?
+[16:39:30] Pablo Nieto: Sí, diez días nos vale.
+[16:39:45] Marta Rey: Pues seguimiento en enero. Cerramos. Gracias a todos.

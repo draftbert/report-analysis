@@ -29,14 +29,14 @@ from datetime import datetime
 from pathlib import Path
 
 from . import __version__
-from .esquemas import (Conclusion, ConclusionExtraida, ContextoInforme, Correcciones,
+from .esquemas import (AnalisisReunion, Conclusion, ConclusionExtraida, ContextoInforme, Correcciones,
                        ExtraccionConclusiones, PlanCambios, RecomendacionFormateada,
                        RecomendacionPropuesta)
 from .expediente import Expediente, ExpedienteError
 from .formato_md import (COLETILLA_RIESGO_PROPUESTO, normalizar_nivel, normalizar_tipo,
                          parrafos_con_lineas, parsear_conclusiones, parsear_informe,
                          render_conclusiones, render_informe, textos_informe)
-from .lectores import EXTENSIONES as EXT_ENTRADA, Documento
+from .lectores import EXTENSIONES as EXT_ENTRADA, Documento, LecturaError, leer as leer_documento
 from .llm import ClienteLLM
 from .style_checker import StyleChecker, reglas_como_texto, revisar_markdown
 
@@ -832,12 +832,18 @@ def aplicar_plan(texto: str, plan: PlanCambios) -> tuple[str, list[dict]]:
     return texto, resultado
 
 
-def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False) -> str:
+def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False, instrucciones: str | None = None,
+                           origen: str = "03_instrucciones.md") -> str:
+    """Aplica instrucciones de cambio sobre 02_informe.md. Por defecto las lee
+    de 03_instrucciones.md (y lo vacía al terminar); con `instrucciones` se
+    aplican directamente (mensaje de `cambio`/`chat`) sin tocar el buzón."""
     exp = ctx.exp
-    instrucciones = exp.instrucciones_pendientes()
-    if not instrucciones:
+    directo = instrucciones is not None
+    if not directo:
+        instrucciones = exp.instrucciones_pendientes()
+    if not (instrucciones or "").strip():
         raise ExpedienteError("03_instrucciones.md está vacío: pega debajo de `---` la transcripción o los "
-                              "comentarios a aplicar.")
+                              "comentarios a aplicar." if not directo else "Mensaje vacío.")
     texto = exp.leer("informe")
     if not texto:
         raise ExpedienteError("No hay 02_informe.md sobre el que aplicar cambios.")
@@ -852,7 +858,23 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False) -> str:
             "- Para añadir texto usa `insertar_tras` con un fragmento literal del informe.\n"
             "- Si una instrucción requiere información que no está en el informe ni en los comentarios, o "
             "contradice los hechos, NO la apliques: ponla en `pendientes` explicando qué falta.\n"
-            "- Respeta las reglas de estilo en todo texto nuevo.\n\n"
+            "- Respeta las reglas de estilo en todo texto nuevo.\n"
+            "FORMATO DEL INFORME (respétalo: cada apartado se exporta tal cual a una diapositiva):\n"
+            "- Cada conclusión es `### N. Título` seguido de líneas de metadatos `- Prueba:`, `- Nivel de riesgo:`, "
+            "`- Área:`, `- Responsable:`, `- Plazo:`, `- Ref. recomendación:`; después prosa, la línea en cursiva "
+            "«A continuación, se muestran los detalles descriptivos…» con viñetas `- `, el párrafo de consecuencias y "
+            "las recomendaciones como párrafos `**Recomendación N.k.** texto`.\n"
+            "- Para rellenar área/responsable/plazo, sustituye la línea de metadatos vacía existente (texto_original "
+            "exacto, p. ej. `- Plazo: `) por la rellena; si hay varias recomendaciones con responsables distintos: "
+            "`- Responsable: X (1.1); Y (1.2)`.\n"
+            "- Para añadir una sugerencia de mejora, inserta un bloque completo con esta plantilla al final de la "
+            "sección `## Sugerencias de mejora` (o sustituyendo `_(ninguna)_`), numerado por su posición (la primera "
+            "sugerencia es la 1): `### 1. Título` + `- Prueba: ` + `- Nivel de riesgo: Bajo` + `- Área: …` + párrafo "
+            "de descripción + `**Sugerencia de mejora 1.1.** texto`. Nunca la añadas como viñeta suelta ni dejes "
+            "letras de plantilla como «N».\n"
+            "- Para añadir una conclusión, mismo bloque completo en `## Detalle de conclusiones` con "
+            "`**Recomendación N.1.**`. Para dividir una recomendación: dos párrafos `**Recomendación N.1.**` y "
+            "`**Recomendación N.2.**`.\n\n"
             f"COMENTARIOS / INSTRUCCIONES:\n{instrucciones}\n\n"
             f"INFORME ACTUAL (02_informe.md):\n{texto}")
     plan = ctx.llm.completar_estructurado("aplicar-cambios", ctx.system, user, PlanCambios)
@@ -872,8 +894,8 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False) -> str:
 
     hall = revisar_markdown(ctx.checker, nuevo)
     errores = sum(h["severidad"] == "error" for h in hall)
-    snap = exp.escribir("informe", nuevo, "aplicar-cambios")
-    registro = [f"\n## Cambios aplicados — {_fecha()}\n", "Instrucciones recibidas:\n",
+    snap = exp.escribir("informe", nuevo, "aplicar-cambios" if not directo else "cambio")
+    registro = [f"\n## Cambios aplicados — {_fecha()} ({origen})\n", "Instrucciones recibidas:\n",
                 "> " + instrucciones.replace("\n", "\n> "), ""]
     for i, (c, f) in enumerate(zip(plan.cambios, filas), 1):
         registro.append(f"{i}. **[{f['estado']}]** {c.seccion} — {c.motivo}" + (f" ({f['detalle']})" if f["detalle"] else ""))
@@ -884,18 +906,111 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False) -> str:
         registro.append("\nPendientes:")
         registro += [f"- {p}" for p in plan.pendientes]
     exp.anexar_registro("cambios", "\n".join(registro) + "\n")
-    exp.vaciar_instrucciones()
+    if not directo:
+        exp.vaciar_instrucciones()
 
     n_conf = sum(f["estado"] == "CONFLICTO" for f in filas)
     lineas += ["", diff_texto(texto, nuevo, "02_informe.md"), "",
                (f"⚠ {n_conf} cambio(s) en CONFLICTO con otro anterior: revisar en cambios_aplicados.md.\n" if n_conf else "") +
                f"Aplicados {sum(f['estado'].startswith(('aplicado', 'insertado', 'eliminado')) for f in filas)} "
-               f"de {len(filas)} cambios. Registro en cambios_aplicados.md; 03_instrucciones.md vaciado "
-               f"(lo pegado queda en historial/).",
+               f"de {len(filas)} cambios. Registro en cambios_aplicados.md"
+               + ("; 03_instrucciones.md vaciado (lo pegado queda en historial/)." if not directo else "."),
                f"Revisión determinista tras los cambios: {errores} errores, {len(hall) - errores} avisos."]
     if snap:
         lineas.append(f"Snapshot previo: historial/{snap.name} (`deshacer` lo restaura).")
     return "\n".join(lineas)
+
+
+# ============================================================ 5b. reunión (transcripción de Teams)
+def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = False) -> str:
+    """Lee una transcripción de reunión (Teams: .txt/.docx/.vtt…) y separa lo
+    que afecta al TEXTO del informe (se deja como instrucciones en
+    03_instrucciones.md para que el auditor las revise y aplique) de lo que
+    afecta al PPT (informativo: la presentación es beta y se retoca a mano),
+    más pendientes y acuerdos. Genera un acta en reuniones/."""
+    exp = ctx.exp
+    ruta = Path(ruta_transcript)
+    if not ruta.exists():
+        raise ExpedienteError(f"No existe la transcripción {ruta}.")
+    texto_informe = exp.leer("informe")
+    if not texto_informe:
+        raise ExpedienteError("No hay 02_informe.md: la reunión se contrasta contra el informe.")
+    if ruta.suffix.lower() == ".vtt":
+        transcript = re.sub(r"^(WEBVTT|\d+|\d\d:\d\d[:.\d]* --> .*)$", "", ruta.read_text(encoding="utf-8", errors="replace"), flags=re.M)
+    else:
+        try:
+            transcript = leer_documento(ruta).texto
+        except LecturaError as exc:
+            raise ExpedienteError(str(exc)) from exc
+    transcript = re.sub(r"\n{3,}", "\n\n", transcript).strip()
+    if len(transcript) < 40:
+        raise ExpedienteError("La transcripción está vacía o no tiene texto legible.")
+    user = ("Analiza la transcripción de una reunión de revisión del informe (Gerente/Directora/área auditada) y "
+            "contrástala con el INFORME ACTUAL. Clasifica cada petición:\n"
+            "- `cambios_texto`: todo lo que cambia el CONTENIDO del informe (redacción, añadir/quitar/dividir/fusionar "
+            "recomendaciones o conclusiones, niveles de riesgo, área/responsable/plazo, viñetas, resumen, "
+            "introducción, sugerencias de mejora). Cada `instruccion` debe poder aplicarse sola sobre "
+            "02_informe.md: nombra el apartado (p. ej. «Conclusión 1», «Resumen ejecutivo», «Recomendación 1.1») y, "
+            "si el interlocutor DICTÓ una redacción para el informe, cítala literal; si habló de forma coloquial "
+            "(«…y ya», «larguísima»), formula la instrucción con el sentido, en el registro del informe, sin copiar "
+            "la coloquialidad. Área, responsable y plazo van en las líneas de metadatos de la conclusión (si hay "
+            "varias recomendaciones con responsables distintos, indícalo así: «Responsable: X (1.1); Y (1.2)»). "
+            "Una instrucción por cambio; conserva el orden.\n"
+            "- `cambios_ppt`: lo que solo afecta a la presentación (orden de diapositivas, maquetación, gráficos, "
+            "plantilla, colores, fuentes, imágenes, animaciones). NO va al informe.\n"
+            "- `pendientes`: peticiones que requieren un dato o confirmación que no consta (di qué falta y quién lo aporta).\n"
+            "- `acuerdos_sin_cambio`: acuerdos que no modifican el informe (plazos de conformidad, seguimiento, tareas).\n"
+            "No inventes peticiones que no estén en la transcripción; si algo es ambiguo, a `pendientes`.\n\n"
+            f"TRANSCRIPCIÓN ({ruta.name}):\n{transcript}\n\n"
+            f"INFORME ACTUAL (02_informe.md):\n{texto_informe}")
+    res = ctx.llm.completar_estructurado("reunion", ctx.system, user, AnalisisReunion)
+
+    marca = datetime.now()
+    acta = exp.ruta / "reuniones" / f"{marca:%Y-%m-%d_%H%M}_{ruta.stem[:40]}.md"
+    L = [f"# Acta de cambios — reunión «{ruta.stem}» — {marca:%Y-%m-%d %H:%M}", "", res.resumen.strip(), "",
+         f"## Cambios en el texto del informe ({len(res.cambios_texto)})", ""]
+    if not res.cambios_texto:
+        L.append("(ninguno)")
+    for i, c in enumerate(res.cambios_texto, 1):
+        L.append(f"{i}. **{c.seccion}** — {c.que_cambiar}" + (f" _(pide: {c.solicitado_por})_" if c.solicitado_por else ""))
+        L.append(f"   - Instrucción: {c.instruccion}")
+        if c.cita:
+            L.append(f"   - Cita: «{c.cita.strip()}»")
+    L += ["", f"## Cambios en la presentación (PPT) — informativo, no se aplican ({len(res.cambios_ppt)})", ""]
+    if not res.cambios_ppt:
+        L.append("(ninguno)")
+    for i, c in enumerate(res.cambios_ppt, 1):
+        L.append(f"{i}. {c.que_cambiar}" + (f" _(pide: {c.solicitado_por})_" if c.solicitado_por else "")
+                 + (f" — «{c.cita.strip()}»" if c.cita else ""))
+    L += ["", f"## Pendientes de dato o confirmación ({len(res.pendientes)})", ""] + ([f"- {x}" for x in res.pendientes] or ["(ninguno)"])
+    L += ["", f"## Acuerdos que no cambian el informe ({len(res.acuerdos_sin_cambio)})", ""] + ([f"- {x}" for x in res.acuerdos_sin_cambio] or ["(ninguno)"])
+    acta.write_text("\n".join(L) + "\n", encoding="utf-8")
+
+    if res.cambios_texto:
+        bloque = [f"\nReunión «{ruta.stem}» ({marca:%d/%m/%Y}) — instrucciones detectadas por el sistema; borra o edita las que no procedan:"]
+        bloque += [f"- {c.instruccion.strip()}" + (f" [{c.solicitado_por}]" if c.solicitado_por else "") for c in res.cambios_texto]
+        exp.anexar_registro("instrucciones", "\n".join(bloque) + "\n")
+
+    out = [f"Acta: {acta.relative_to(exp.ruta)}", "", res.resumen.strip(), "",
+           f"El sistema ha detectado {len(res.cambios_texto)} cambio(s) en el TEXTO del informe:"]
+    out += [f"  {i}. [{c.seccion}] {c.que_cambiar}" + (f" (pide: {c.solicitado_por})" if c.solicitado_por else "")
+            for i, c in enumerate(res.cambios_texto, 1)] or ["  (ninguno)"]
+    out.append(f"\nY {len(res.cambios_ppt)} cambio(s) en el PPT (solo informativo; la presentación es beta y se ajusta a mano):")
+    out += [f"  {i}. {c.que_cambiar}" + (f" (pide: {c.solicitado_por})" if c.solicitado_por else "") for i, c in enumerate(res.cambios_ppt, 1)] or ["  (ninguno)"]
+    if res.pendientes:
+        out.append("\nPendientes de dato o confirmación:")
+        out += [f"  • {x}" for x in res.pendientes]
+    if res.acuerdos_sin_cambio:
+        out.append("\nAcuerdos que no cambian el informe:")
+        out += [f"  • {x}" for x in res.acuerdos_sin_cambio]
+    if res.cambios_texto:
+        out.append("\nLas instrucciones de texto se han añadido a 03_instrucciones.md.")
+        if aplicar:
+            out += ["", "=== aplicar-cambios ===", accion_aplicar_cambios(ctx)]
+        else:
+            out.append("Revísalas (borra o edita las que no procedan) y ejecuta `aplicar-cambios`, o usa `reunion --aplicar` "
+                       "para aplicarlas directamente.")
+    return "\n".join(out)
 
 
 # ============================================================ 6. entregables
@@ -927,10 +1042,10 @@ def _sha256(ruta: Path) -> str:
 
 def ficheros_a_archivar(exp: Expediente) -> list[Path]:
     """Ficheros que forman la evidencia del expediente: metadatos, los tres
-    Markdown de trabajo, revisión y registro de cambios, trazas/, historial/
-    y salidas/. Nunca los zips de archivos anteriores."""
+    Markdown de trabajo, revisión y registro de cambios, trazas/, historial/,
+    salidas/ y reuniones/. Nunca los zips de archivos anteriores."""
     ficheros = [exp.archivo(k) for k in ("meta", "conclusiones", "informe", "instrucciones", "revision", "cambios")]
-    for d in ("trazas", "historial", "salidas"):
+    for d in ("trazas", "historial", "salidas", "reuniones"):
         ficheros += sorted(p for p in (exp.ruta / d).rglob("*") if p.is_file())
     return [f for f in ficheros if f.exists() and f.suffix.lower() != ".zip"]
 
