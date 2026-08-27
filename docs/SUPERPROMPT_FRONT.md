@@ -89,6 +89,7 @@ Base `/api`. Todas las respuestas JSON, UTF-8. `{ref}` es la referencia del expe
 - `PUT /expedientes/{ref}/informe` `{ "markdown": "…" }` → guardado (snapshot automático en historial).
 - `POST /expedientes/{ref}/acciones/revisar` → síncrono `{ "hallazgos": [{ "linea", "severidad", "fragmento", "mensaje", "sugerencia" }], "errores": n, "avisos": n }`.
 - `POST /expedientes/{ref}/acciones/corregir` `{ "avisos": bool }` → job; `resultado.diff` (unified diff).
+- `POST /expedientes/{ref}/acciones/condensar` `{ "objetivo": 0.85 }` → job; acorta el informe a ≈ objetivo de sus palabras sin perder hechos ni cifras (la recomendación no se toca); `resultado`: `{ "diff", "aplicados": ["conclusión 1 · incidencia"], "rechazados": ["… (motivo)"], "palabras_antes", "palabras_despues" }`.
 - `POST /expedientes/{ref}/acciones/cambio` `{ "mensaje": "…", "solo_plan": bool }` → job; `resultado`: `{ "plan": [{ "seccion", "motivo", "estado": "aplicado"|"insertado"|"eliminado"|"NO APLICADO"|"CONFLICTO", "detalle" }], "pendientes": ["…"], "diff": "…" }`.
 - `GET /expedientes/{ref}/instrucciones` → `{ "texto": "…pendiente…" }`; `PUT` `{ "texto" }`.
 - `POST /expedientes/{ref}/acciones/aplicar-cambios` `{ "solo_plan": bool }` → job (mismo `resultado` que `cambio`).

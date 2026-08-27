@@ -29,7 +29,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import __version__
-from .esquemas import (AnalisisReunion, Conclusion, ConclusionExtraida, ContextoInforme, Correcciones,
+from .esquemas import (AnalisisReunion, Conclusion, ConclusionExtraida, ContextoInforme, Correcciones, InformeCondensado,
                        ExtraccionConclusiones, PlanCambios, RecomendacionFormateada,
                        RecomendacionPropuesta)
 from .expediente import Expediente, ExpedienteError
@@ -276,7 +276,9 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
             "(«Contexto», «Valoración»…). Sin reproducir campos uno a uno ni copiar recomendaciones completas; sin "
             "inventar cifras.\n"
             "EVALUACIÓN GLOBAL: uno de " + " / ".join(textos["escala_evaluacion_global"]) + ", coherente con el "
-            "resumen; vacío si la evidencia no permite sostenerla.\n\n"
+            "resumen; vacío si la evidencia no permite sostenerla.\n"
+            "EXTENSIÓN: cada bloque de la introducción y cada viñeta del resumen deben caber en su diapositiva: "
+            "respeta la extensión orientativa del sistema; concreto y sin redundancias, sin omitir hechos ni cifras.\n\n"
             f"DOCUMENTOS DE ENTRADA:\n{_texto_entrada(docs)}{conclusiones_txt}")
     res = ctx.llm.completar_estructurado("redactar-contexto", ctx.system, user, ContextoInforme)
     datos = {"introduccion": actual.get("introduccion", ""), "resumen_ejecutivo": actual.get("resumen_ejecutivo", ""),
@@ -346,7 +348,9 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "menor sin plan de acción.\n"
             "- `nivel_riesgo`: propón Alto/Medio/Bajo por impacto y probabilidad (el auditor lo validará); "
             "`riesgo_soportado_por_evidencia` true SOLO si el PT menciona explícitamente severidad o riesgo.\n"
-            "- Campo vacío antes que inventar hechos. Ordena de mayor a menor riesgo."
+            "- Campo vacío antes que inventar hechos. Ordena de mayor a menor riesgo.\n"
+            "- EXTENSIÓN: cada conclusión ocupa una diapositiva; respeta la extensión orientativa del sistema "
+            "(prosa concreta, sin repetir en `consecuencias` lo ya dicho en `incidencia`, una viñeta por dato)."
             f"{_ejemplo_conclusion()}\n\n"
             f"DOCUMENTOS DE ENTRADA:\n{_texto_entrada(docs)}")
     res = ctx.llm.completar_estructurado("extraer", ctx.system, user, ExtraccionConclusiones)
@@ -684,6 +688,124 @@ def accion_corregir(ctx: Contexto, incluir_avisos: bool = False) -> str:
     if pendientes:
         msg.append(f"⚠ {len(pendientes)} párrafo(s) siguen con errores tras la reescritura: revisar a mano "
                    "(`revisar` para verlos).")
+    if snap:
+        msg.append(f"Snapshot previo: historial/{snap.name} (`deshacer` lo restaura).")
+    return "\n".join(msg)
+
+
+# ============================================================ 4b. condensar (acortar un poco el informe)
+_RE_CIFRAS = re.compile(r"\d[\d.,:/%]*|[A-Z]{2,}[A-Z\d-]*-\d+")
+
+
+def _cifras(texto: str) -> set[str]:
+    """Cifras, porcentajes, fechas y códigos (TMSCIIF-10) que el texto condensado debe
+    conservar. Los ordinales de enumeración («1)», «2)») no son datos."""
+    salida = set()
+    for m in _RE_CIFRAS.finditer(texto or ""):
+        c = m.group(0).strip(".,:")
+        if c and not (c.isdigit() and len(c) <= 2 and texto[m.end():m.end() + 1] == ")"):
+            salida.add(c)
+    return salida
+
+
+def _palabras_n(texto: str) -> int:
+    return len(re.findall(r"\w+", texto or ""))
+
+
+def _acepta_condensado(ctx: Contexto, original: str, nuevo: str, fijas: tuple[str, ...] = ()) -> str | None:
+    """None si la versión condensada es válida; si no, el motivo para conservar el original."""
+    if not (original or "").strip():
+        return None if not (nuevo or "").strip() else "el original estaba vacío"
+    if not (nuevo or "").strip():
+        return "el modelo devolvió el campo vacío"
+    if _palabras_n(nuevo) > _palabras_n(original):
+        return "la versión nueva es más larga"
+    faltan = _cifras(original) - _cifras(nuevo)
+    if faltan:
+        return "pierde cifras o referencias: " + ", ".join(sorted(faltan)[:6])
+    for f in fijas:
+        if f in original and f not in nuevo:
+            return "pierde la frase fija «" + f[:40] + "…»"
+    if any(h.severidad == "error" for h in ctx.checker.revisar_texto(re.sub(r"\*\*[^*]+?:\*\*\s*", "", nuevo)).hallazgos):
+        return "incumple las reglas de estilo"
+    return None
+
+
+def accion_condensar(ctx: Contexto, objetivo: float = 0.85) -> str:
+    """Acorta un poco el informe con el modelo (≈ `objetivo` de las palabras actuales) sin
+    perder hechos, cifras, referencias ni estructura. La recomendación no se envía ni se
+    toca. Cada campo se acepta solo si es más corto, conserva las cifras y cumple las
+    reglas; si no, se mantiene el original y se informa. Snapshot previo en historial/."""
+    exp = ctx.exp
+    texto = exp.leer("informe")
+    if not texto:
+        raise ExpedienteError("No hay 02_informe.md que condensar.")
+    datos = parsear_informe(texto)
+    objetivo = min(max(objetivo, 0.5), 0.98)
+    campos = ("incidencia", "como_se_ha_llegado", "consecuencias")
+
+    def lote_de(lista):
+        return [{"numero": i, "titulo": c.get("titulo", ""), **{k: c.get(k, "") for k in campos}} for i, c in enumerate(lista, 1)]
+
+    lote = {"introduccion": datos["introduccion"], "resumen_ejecutivo": datos["resumen_ejecutivo"],
+            "conclusiones": lote_de(datos["conclusiones"]), "sugerencias": lote_de(datos["sugerencias"])}
+    antes = _palabras_n(texto)
+    user = (f"{_contexto_proyecto(exp)}\n\n"
+            f"Condensa el informe de auditoría interna hasta aproximadamente el {int(objetivo * 100)} % de sus palabras "
+            "actuales (reducción moderada, no drástica), para que cada apartado quepa mejor en su diapositiva.\n"
+            "Reglas:\n"
+            "- Conserva TODOS los hechos, cifras, porcentajes, importes, fechas, periodos, sistemas, muestras, nombres "
+            "de tablas y referencias (p. ej. TMSCIIF-10). No añadas nada nuevo ni cambies el sentido.\n"
+            "- Acorta eliminando redundancias, subordinadas prescindibles, muletillas y repeticiones entre apartados "
+            "(lo que ya dice `incidencia` no se repite en `consecuencias`).\n"
+            "- Conserva la estructura y el Markdown: en la introducción, las frases fijas literales del principio y "
+            "del final y las etiquetas en negrita (**Contexto:**, **Objetivo de la auditoría:**…); en el resumen, sus "
+            "párrafos y una viñeta «/ » por conclusión; en los detalles, una viñeta `- ` por dato, sin fusionar ni "
+            "eliminar datos.\n"
+            "- Mantén el registro (primera persona del plural para el equipo auditor, impersonal para los hechos) y "
+            "el patrón deber ser → identificado → datos → riesgo → materialización.\n"
+            "- Si un campo ya es breve, devuélvelo sin cambios. Devuelve todos los apartados con su `numero`.\n\n"
+            + json.dumps(lote, ensure_ascii=False, indent=2))
+    res = ctx.llm.completar_estructurado("condensar", ctx.system, user, InformeCondensado)
+    textos = textos_informe()
+    fijas_intro = (textos["plan_auditoria"].split("{anio}")[0].strip(), textos["normas"][:60])
+    aplicados, rechazados = [], []
+
+    def aplicar(nombre, original, nuevo, fijas=()):
+        motivo = _acepta_condensado(ctx, original, nuevo, fijas)
+        if motivo is None and (nuevo or "").strip() != (original or "").strip():
+            aplicados.append(nombre)
+            return nuevo.strip()
+        if motivo:
+            rechazados.append(f"{nombre} ({motivo})")
+        return original
+
+    datos["introduccion"] = aplicar("introducción", datos["introduccion"], res.introduccion, fijas_intro)
+    datos["resumen_ejecutivo"] = aplicar("resumen ejecutivo", datos["resumen_ejecutivo"], res.resumen_ejecutivo)
+    for clave, etiqueta, devueltos in (("conclusiones", "conclusión", res.conclusiones), ("sugerencias", "sugerencia", res.sugerencias)):
+        por_num = {a.numero: a for a in devueltos}
+        for i, c in enumerate(datos[clave], 1):
+            a = por_num.get(i)
+            if a is None:
+                rechazados.append(f"{etiqueta} {i} (el modelo no la devolvió)")
+                continue
+            for k in campos:
+                c[k] = aplicar(f"{etiqueta} {i} · {k}", c.get(k, ""), getattr(a, k))
+    nuevo = render_informe(datos, exp.proyecto)
+    if not aplicados:
+        ULTIMO_RESULTADO.clear()
+        ULTIMO_RESULTADO.update({"diff": "", "aplicados": [], "rechazados": rechazados, "palabras_antes": antes, "palabras_despues": antes})
+        return "No se ha condensado ningún apartado." + ("\n  Conservados: " + "; ".join(rechazados) if rechazados else "")
+    snap = exp.escribir("informe", nuevo, "condensar")
+    despues = _palabras_n(nuevo)
+    d = diff_texto(texto, nuevo, "02_informe.md")
+    ULTIMO_RESULTADO.clear()
+    ULTIMO_RESULTADO.update({"diff": d, "aplicados": aplicados, "rechazados": rechazados,
+                             "palabras_antes": antes, "palabras_despues": despues})
+    msg = [d, "", f"Informe condensado: {antes} → {despues} palabras ({100 - round(despues * 100 / max(antes, 1))} % menos); "
+           f"{len(aplicados)} apartado(s)/campo(s) acortados."]
+    if rechazados:
+        msg.append("Conservados sin cambio: " + "; ".join(rechazados))
     if snap:
         msg.append(f"Snapshot previo: historial/{snap.name} (`deshacer` lo restaura).")
     return "\n".join(msg)

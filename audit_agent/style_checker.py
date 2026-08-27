@@ -172,4 +172,28 @@ def reglas_como_texto(checker: StyleChecker) -> str:
     niveles = cfg.get("reglas", {}).get("niveles_riesgo_validos", [])
     if niveles:
         lineas.append("Nivel de riesgo: exactamente uno de " + " / ".join(niveles) + ".")
+    ext = extension_como_texto(checker)
+    if ext:
+        lineas.append(ext)
     return "\n".join(lineas)
+
+
+ETIQUETAS_EXTENSION = {
+    "intro_bloque": "cada bloque de la introducción", "resumen_total": "resumen ejecutivo completo",
+    "resumen_vineta": "cada viñeta del resumen", "incidencia": "cuerpo en prosa de una conclusión (deber ser + identificado)",
+    "causa_raiz": "causa raíz", "detalle_vineta": "cada viñeta de detalles descriptivos",
+    "consecuencias": "párrafo de consecuencias", "recomendacion": "recomendación propuesta por el modelo",
+}
+
+
+def extension_como_texto(checker: StyleChecker) -> str:
+    """Presupuesto de palabras por apartado (sección `extension` del YAML), para
+    que el texto quepa en la diapositiva sin perder hechos ni cifras."""
+    ext = checker.cfg.get("extension") or {}
+    if not ext:
+        return ""
+    partes = [f"{ETIQUETAS_EXTENSION.get(k, k)} ≈ {v} palabras" for k, v in ext.items() if k in ETIQUETAS_EXTENSION]
+    if ext.get("detalles_max"):
+        partes.append(f"como máximo {ext['detalles_max']} viñetas de detalles")
+    return ("EXTENSIÓN ORIENTATIVA (el informe se lee en diapositivas; conciso sin omitir hechos ni cifras): "
+            + "; ".join(partes) + ".")

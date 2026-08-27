@@ -161,6 +161,7 @@ Guarda y:
 ```bash
 ./revisor revisar
 ./revisor corregir
+./revisor condensar          # opcional: si el texto se ve denso en las diapositivas, ≈15 % menos palabras sin perder cifras
 ```
 
 **Qué enseñar:** el **diff**: solo se ha reescrito ese párrafo; y "Snapshot

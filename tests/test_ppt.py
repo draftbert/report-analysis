@@ -111,9 +111,10 @@ def test_diapositiva_de_recomendacion(tmp_path):
     assert t.cell(0, 3).text.split("\n") == ["Área", "Transporte", "", "Responsable", "A. Pérez", "", "Plazo", "Fuera de plazo"]
     # la caja gris flotante de la plantilla no sobrevive (los detalles son una fila)
     assert not any(sh.name == "Rectángulo 4" for sh in octava.shapes)
-    # formato heredado de la plantilla: título 16 pt, cuerpo «ABC Monument Grotesk Thin» 11 pt
+    # fuente heredada de la plantilla («ABC Monument Grotesk Thin») con los tamaños de TAMANOS (un punto menos)
     p0, p2 = t.cell(0, 1).text_frame.paragraphs[0], t.cell(0, 1).text_frame.paragraphs[2]
-    assert p0.runs[0].font.size.pt == 16 and p2.runs[0].font.size.pt == 11 and p2.runs[0].font.name == "ABC Monument Grotesk Thin"
+    assert p0.runs[0].font.size.pt == 15 and p2.runs[0].font.size.pt == 10 and p2.runs[0].font.name == "ABC Monument Grotesk Thin"
+    assert t.cell(0, 2).text_frame.paragraphs[0].runs[0].font.size.pt == 11
 
 
 def test_sugerencia_y_anexo(tmp_path):
