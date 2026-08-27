@@ -168,34 +168,40 @@ previo en historial/ (`deshacer` lo restaura)".
 
 ---
 
-## 7. Aplicar los comentarios de una reunión (4 min, 1 llamada) — el momento fuerte
+## 7. La reunión de revisión: transcripción de Teams (4 min, 1–2 llamadas) — el momento fuerte
 
-Abre `03_instrucciones.md` y pega **debajo de la línea `---`**:
-
-```
-Reunión de cierre con el Gerente:
-GERENTE: La conclusión sobre los acuerdos con proveedores que no se transparentan
-al equipo de validación queda como riesgo Alto y el responsable del plan de acción
-es Operativa e-Commerce. En el resumen ejecutivo menciona explícitamente que la
-recomendación TMSCIIF-10 sigue abierta. Y añade el importe anual facturado por los
-couriers en la introducción.
-```
+**Qué decir:** "Salgo de la reunión con el Gerente y la Directora con la
+transcripción de Teams. Se la paso tal cual."
 
 ```bash
-./revisor aplicar-cambios
+./revisor reunion ejemplos/transcript_reunion_teams.txt
 ```
 
 **Qué enseñar, en este orden:**
-1. El **plan de cambios**: cada instrucción convertida en un cambio concreto,
-   con la sección exacta.
-2. **Pendientes**: el importe anual facturado no está en ninguna fuente → el
-   modelo **no se lo inventa**, lo devuelve como pendiente. (Es el punto que
-   más tranquiliza a un auditor: díselo.)
-3. El diff y `cambios_aplicados.md`; `03_instrucciones.md` vacío y lo pegado
-   en `historial/`.
+1. El sistema **cuenta lo que ha detectado**, separado en dos: cambios en el
+   **texto del informe** (dividir la recomendación 1.1 en dos con área,
+   responsable y plazo, riesgo Alto, acortar una viñeta del resumen, quitar la
+   viñeta de PackPro, nueva sugerencia de mejora…) y cambios en el **PPT**
+   (gráfico de magnitudes, plantilla nueva, detalles en diapositiva aparte),
+   que solo informa porque la presentación es beta.
+2. **Pendientes**: el importe anual facturado no está en ningún sitio → no se
+   inventa; queda como pendiente con quién lo aporta. Y los **acuerdos** que no
+   tocan el informe (conformidad en diez días, seguimiento en enero).
+3. El acta en `reuniones/` y las instrucciones de texto en
+   `03_instrucciones.md`: "el auditor borra o edita lo que no proceda".
+4. `./revisor aplicar-cambios` → plan, diff y registro (`reunion --aplicar` lo
+   hace de una vez).
 
 > Si preguntan "¿y si dos instrucciones se contradicen?": se aplica la primera
 > y la segunda queda marcada como CONFLICTO; nunca se pisa en silencio.
+
+**Y los cambios sueltos del día a día (1 min):**
+
+```bash
+./revisor cambio "En el resumen ejecutivo, sustituye 'que requieren mejora' por 'relevantes'"
+./revisor chat            # o en modo chat: un mensaje, un diff; `deshacer` si no convence
+```
+(más mensajes de ejemplo en `ejemplos/mensajes_chat.txt`).
 
 ---
 
@@ -248,7 +254,7 @@ numerado, que muestra el estado y el siguiente paso en cada vuelta:
 
 Las opciones siguen el mismo orden que esta guía (redactar-contexto → extraer →
 aprobar todas → recomendar → redactar-conclusiones → revisar → corregir →
-aplicar-cambios → ppt → archivar).
+aplicar-cambios → reunion → chat → ppt → archivar).
 
 ## Plan B: sin acceso al modelo
 

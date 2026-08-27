@@ -13,7 +13,8 @@ sobreescritura deja un snapshot en `historial/` (deshacer / diff).
       papeles_trabajo/        papel de trabajo final exportado de Pentana (todas las pruebas)
       01_conclusiones.md      conclusiones (incidencias) propuestas -> el auditor edita, aprueba y recomienda
       02_informe.md           informe: introducción, resumen ejecutivo, detalle de conclusiones, sugerencias
-      03_instrucciones.md     buzón: transcripción / comentarios -> aplicar-cambios
+      03_instrucciones.md     buzón: comentarios -> aplicar-cambios (también lo rellena `reunion`)
+      reuniones/              actas generadas por `reunion` a partir de transcripciones de Teams
       revision.md             último informe de vocabulario y estilo
       cambios_aplicados.md    registro de los cambios aplicados por el modelo
       historial/              snapshots automáticos antes de cada sobreescritura
@@ -40,7 +41,7 @@ ARCHIVOS = {
     "revision": "revision.md",
     "cambios": "cambios_aplicados.md",
 }
-DIRECTORIOS = ("contexto", "papeles_trabajo", "historial", "salidas", "trazas")
+DIRECTORIOS = ("contexto", "papeles_trabajo", "reuniones", "historial", "salidas", "trazas")
 CARPETAS_DOCUMENTOS = ("contexto", "papeles_trabajo")
 EXTENSIONES_ENTRADA = EXTENSIONES  # ver lectores.py
 

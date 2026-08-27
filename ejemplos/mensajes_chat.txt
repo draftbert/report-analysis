@@ -1,0 +1,8 @@
+# Mensajes de ejemplo para `./revisor cambio "..."` o para escribirlos uno a uno en `./revisor chat`.
+# Cada línea es un mensaje independiente sobre el informe TEC-2026.
+Cambia el nivel de riesgo de la conclusión 1 a Alto.
+En el resumen ejecutivo, sustituye "deficiencias de control que requieren mejora" por "deficiencias de control relevantes".
+Quita de la conclusión 1 la viñeta de detalles que habla de PackPro y del 98% de acierto.
+Añade al final de la introducción, justo antes de la frase de las Normas Internacionales, este párrafo: "El trabajo de campo se ha desarrollado entre abril y junio de 2026."
+Divide la Recomendación 1.1 en dos: la 1.1 sobre implantar el sistema de carga y gestión de tarifarios, y la 1.2 sobre establecer un procedimiento que deje evidencia de los acuerdos con los proveedores.
+En la conclusión 1 pon Área: Transporte e-Commerce, Responsable: Pablo Nieto y Plazo: 31/03/2027.

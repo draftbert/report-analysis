@@ -363,7 +363,8 @@ def parsear_conclusiones(texto: str) -> list[dict]:
     return salida
 
 
-_RE_REC = re.compile(r"^\*\*(?:Recomendaci[oó]n|Propuesta de mejora)\s*\d+\.\d+\.?\*\*\s*(.*)$", re.IGNORECASE)
+# Admite «N.1» / «X.1» (placeholders que a veces deja el modelo): el render renumera siempre.
+_RE_REC = re.compile(r"^\*\*(?:Recomendaci[oó]n|Propuesta de mejora|Sugerencia de mejora)\s*[\dNX]+(?:\.\d+)?\.?\*\*\s*(.*)$", re.IGNORECASE)
 
 
 def _parsear_apartado(lineas: list[str]) -> dict:

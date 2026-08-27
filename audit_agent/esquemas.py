@@ -136,3 +136,29 @@ class PropuestaRegla(BaseModel):
 class PropuestasEstilo(BaseModel):
     propuestas: list[PropuestaRegla]
     patrones_observados: str = Field(default="", description="Rasgos de estilo consistentes en los informes aprobados que no se traducen en una regla concreta (estructura de frases, terminología, tono). Vacío si no hay.")
+
+
+class CambioTextoDetectado(BaseModel):
+    """Petición de una reunión que afecta al TEXTO del informe."""
+
+    seccion: str = Field(description="Apartado del informe afectado: Introducción, Resumen ejecutivo, Conclusión N (título), Sugerencia N, Anexo…")
+    que_cambiar: str = Field(description="Qué hay que cambiar, explicado al auditor en una o dos frases.")
+    instruccion: str = Field(description="Instrucción AUTOCONTENIDA en imperativo para aplicarla sobre 02_informe.md sin leer la transcripción: nombra el apartado y, si el interlocutor dio la redacción, cítala literal. Ej.: «En la conclusión 1, dividir la Recomendación 1.1 en dos: 1.1 … y 1.2 …».")
+    solicitado_por: str = Field(default="", description="Quién lo pidió (nombre o rol), si consta.")
+    cita: str = Field(default="", description="Fragmento literal de la transcripción que lo soporta.")
+
+
+class CambioPPTDetectado(BaseModel):
+    """Petición que afecta solo a la presentación (maquetación, orden, gráficos…)."""
+
+    que_cambiar: str = Field(description="Qué se pidió cambiar en el PPT (diseño, orden de diapositivas, gráficos, plantilla, colores, imágenes).")
+    solicitado_por: str = Field(default="")
+    cita: str = Field(default="")
+
+
+class AnalisisReunion(BaseModel):
+    resumen: str = Field(description="Resumen de la reunión en 3-5 frases: qué se revisó y qué se acordó.")
+    cambios_texto: list[CambioTextoDetectado] = Field(default_factory=list)
+    cambios_ppt: list[CambioPPTDetectado] = Field(default_factory=list)
+    pendientes: list[str] = Field(default_factory=list, description="Peticiones que no pueden aplicarse sin un dato o confirmación que no consta (indicar qué falta y quién debe aportarlo).")
+    acuerdos_sin_cambio: list[str] = Field(default_factory=list, description="Acuerdos de la reunión que no modifican el informe (plazos de conformidad, seguimiento, reparto de tareas).")

@@ -40,7 +40,8 @@ expedientes/CNC-2026-03/
   01_conclusiones.md      conclusiones y sugerencias propuestas → el auditor edita, aprueba y recomienda
   02_informe.md           el informe: introducción · resumen ejecutivo · detalle de conclusiones · sugerencias
                           (cada apartado se escribe como se leerá en su diapositiva; `ppt` lo exporta 1:1)
-  03_instrucciones.md     buzón: pega la transcripción / comentarios → `aplicar-cambios`
+  03_instrucciones.md     buzón de instrucciones: lo rellenas tú o `reunion` → `aplicar-cambios`
+  reuniones/              actas de `reunion` (texto vs PPT vs pendientes vs acuerdos)
   revision.md             hallazgos de vocabulario y estilo (acumulado)
   cambios_aplicados.md    qué cambios pidió el modelo y cuáles se aplicaron
   historial/              snapshot automático antes de cada sobreescritura (`diff`, `deshacer`)
@@ -93,8 +94,15 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor redactar-contexto --secciones resumen   # opcional: resumen ejecutivo con las conclusiones validadas
 
 # 3. Cambios durante la revisión (Gerente, Directora, reunión con el área)
-#   Pega en 03_instrucciones.md la transcripción / comentarios y…
-./revisor aplicar-cambios [--solo-plan]   # cambios concretos, aplicados y registrados
+./revisor reunion transcripcion_teams.txt [--aplicar]
+#   Lee la transcripción de la reunión (Teams: .txt/.docx/.vtt), la contrasta con el informe y
+#   te dice qué ha detectado que hay que cambiar: (a) en el TEXTO del informe → queda como
+#   instrucciones en 03_instrucciones.md para que las revises; (b) en el PPT → solo informativo
+#   (la presentación es beta y se retoca a mano); más pendientes de dato y acuerdos. Acta en reuniones/.
+./revisor aplicar-cambios [--solo-plan]   # aplica 03_instrucciones.md: cambios concretos, registrados
+./revisor cambio "pon el riesgo de la conclusión 1 en Alto"   # un cambio suelto, aplicado al momento
+./revisor chat                            # varios cambios sueltos, uno por mensaje, con diff tras cada uno
+#   Ejemplos: ejemplos/transcript_reunion_teams.txt y ejemplos/mensajes_chat.txt
 ./revisor revisar | corregir [--avisos]   # vocabulario prohibido y estilo del informe
 ./revisor diff | deshacer | historial     # control de versiones
 
@@ -156,6 +164,7 @@ cada documento, qué lector se usó y el texto exacto enviado al modelo.
 
 ## Trazabilidad y retención
 
+- `reuniones/` guarda el acta de cada transcripción analizada.
 - `trazas/` guarda, por cada llamada al modelo, un JSON con fecha, acción, modelo,
   prompt completo, respuesta estructurada y tokens; y por cada lectura de
   `contexto/` y `papeles_trabajo/`, el texto normalizado enviado. Es la evidencia de **cómo se redactó

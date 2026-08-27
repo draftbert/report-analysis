@@ -87,3 +87,11 @@ def test_evaluacion_global_y_textos_fijos_round_trip():
     assert back["evaluacion_global"] == "Mejorable" and back["resumen_ejecutivo"] == "Res.\n\n- / a"
     assert back["conclusiones"][0]["nivel_riesgo"] == "Crítico"
     assert render_informe({**back, "introduccion": "I"}, PROY) == md
+
+
+def test_parser_tolera_marcadores_de_recomendacion():
+    md = render_informe({"introduccion": "I", "resumen_ejecutivo": "R", "conclusiones": [C1], "sugerencias": [C2]}, PROY)
+    md = md.replace("**Propuesta de mejora 1.1.** Automatizar la alerta", "**Sugerencia de mejora N.1.** Automatizar la alerta")
+    back = parsear_informe(md)
+    assert back["sugerencias"][0]["recomendacion"] == "Automatizar la alerta"
+    assert "**Propuesta de mejora 1.1.** Automatizar la alerta" in render_informe({**back, "introduccion": "I", "resumen_ejecutivo": "R"}, PROY)
