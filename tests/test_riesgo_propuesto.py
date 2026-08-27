@@ -13,7 +13,7 @@ from audit_agent.formato_md import COLETILLA_RIESGO_PROPUESTO, parsear_conclusio
 COLETILLA = COLETILLA_RIESGO_PROPUESTO
 
 
-def _conc(titulo, nivel, soportado, rec="Implantar un control automático.", tipo="conclusion"):
+def _conc(titulo, nivel, soportado, rec="Implantar un control automático.", tipo="recomendacion"):
     return ConclusionExtraida(titulo=titulo, tipo=tipo, prueba="2.11 a)", incidencia="En 6 de 45 pedidos la aprobación fue posterior.",
                               causa_raiz="Sin circuito de urgencia", como_se_ha_llegado="Muestra de 45 pedidos.",
                               consecuencias="Gasto sin autorización efectiva", recomendacion=rec, nivel_riesgo=nivel,

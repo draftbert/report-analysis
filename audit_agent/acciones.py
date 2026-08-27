@@ -161,7 +161,7 @@ def _documentos_entrada(exp: Expediente, accion: str = "lectura") -> str:
 def _conc_a_dict(c: Conclusion, ident: str, estado: str = "propuesta", notas: str = "") -> dict:
     d = c.model_dump()
     d["nivel_riesgo"] = normalizar_nivel(d["nivel_riesgo"])
-    d["tipo"] = normalizar_tipo(d.get("tipo", "conclusion"))
+    d["tipo"] = normalizar_tipo(d.get("tipo", "recomendacion"))
     d.update({"id": ident, "estado": estado, "notas": notas})
     soportado = d.pop("riesgo_soportado_por_evidencia", None)
     d.pop("recomendacion_del_pt", None)
@@ -342,8 +342,8 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "auditoría); cópiala literal y marca `recomendacion_del_pt`=true. Si una recomendación se referencia a "
             "nivel de prueba, asígnala ÚNICAMENTE a la(s) conclusión(es) cuya incidencia cubre directamente; no la "
             "repitas por defecto en todas. Las demás quedan vacías (el auditor o `recomendar` las completarán).\n"
-            "- `tipo`: 'conclusion' si requiere recomendación y plan de acción; 'sugerencia' si es una mejora menor "
-            "sin plan de acción.\n"
+            "- `tipo`: 'recomendacion' si requiere recomendación y plan de acción; 'sugerencia' si es una mejora "
+            "menor sin plan de acción.\n"
             "- `nivel_riesgo`: propón Alto/Medio/Bajo por impacto y probabilidad (el auditor lo validará); "
             "`riesgo_soportado_por_evidencia` true SOLO si el PT menciona explícitamente severidad o riesgo.\n"
             "- Campo vacío antes que inventar hechos. Ordena de mayor a menor riesgo."
@@ -408,7 +408,7 @@ def accion_aprobar(exp: Expediente, ids: list[str], estado: str = "aprobada") ->
         msg += f" No encontradas: {', '.join(faltan)}."
     if estado == "aprobada" and cambiadas:
         sin_rec = [c["id"] for c in _leer_conclusiones(exp)
-                   if c["id"] in cambiadas and c["tipo"] == "conclusion" and not c["recomendacion"].strip()]
+                   if c["id"] in cambiadas and c["tipo"] == "recomendacion" and not c["recomendacion"].strip()]
         if sin_rec:
             msg += f"\nSin recomendación todavía: {', '.join(sin_rec)} → escríbela en el fichero o ejecuta `recomendar`."
     return msg
@@ -597,7 +597,7 @@ def accion_redactar_conclusiones(ctx: Contexto) -> str:
         motivos = []
         if c.get("riesgo_propuesto"):
             motivos.append("nivel de riesgo aún «propuesto por el modelo» (valídalo con `aprobar`)")
-        if c["tipo"] == "conclusion" and not c["recomendacion"].strip():
+        if c["tipo"] == "recomendacion" and not c["recomendacion"].strip():
             motivos.append("sin recomendación (`recomendar` o escríbela)")
         if c["tipo"] == "sugerencia" and not c["recomendacion"].strip():
             motivos.append("sin propuesta de mejora")
@@ -608,7 +608,7 @@ def accion_redactar_conclusiones(ctx: Contexto) -> str:
     actual = parsear_informe(exp.leer("informe")) if exp.existe("informe") else {}
     datos = {"introduccion": actual.get("introduccion", ""), "resumen_ejecutivo": actual.get("resumen_ejecutivo", ""),
              "evaluacion_global": actual.get("evaluacion_global", ""),
-             "conclusiones": [c for c, _ in listas if c["tipo"] == "conclusion"],
+             "conclusiones": [c for c, _ in listas if c["tipo"] == "recomendacion"],
              "sugerencias": [c for c, _ in listas if c["tipo"] == "sugerencia"]}
     snap = exp.escribir("informe", render_informe(datos, exp.proyecto), "redactar-conclusiones")
     hall = revisar_markdown(ctx.checker, exp.leer("informe"))
@@ -1146,7 +1146,7 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
         e["conclusiones"].update({
             "total": len(cs), "sugerencias": sum(c["tipo"] == "sugerencia" for c in cs),
             "con_notas": [c["id"] for c in cs if c.get("notas", "").strip()],
-            "sin_recomendacion": [c["id"] for c in cs if c["estado"] == "aprobada" and c["tipo"] == "conclusion"
+            "sin_recomendacion": [c["id"] for c in cs if c["estado"] == "aprobada" and c["tipo"] == "recomendacion"
                                   and not c["recomendacion"].strip()],
             "riesgo_pendiente": [c["id"] for c in cs if c["estado"] == "aprobada" and c.get("riesgo_propuesto")],
         })

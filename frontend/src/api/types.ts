@@ -1,5 +1,5 @@
 export type Estado = "propuesta" | "aprobada" | "descartada";
-export type Tipo = "conclusion" | "sugerencia";
+export type Tipo = "recomendacion" | "sugerencia"; // bloque con recomendación y plan de acción | mejora sin plan
 export type Riesgo = "Crítico" | "Alto" | "Medio" | "Bajo" | "";
 
 export interface ExpedienteResumen {

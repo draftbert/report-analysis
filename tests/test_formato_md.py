@@ -5,7 +5,7 @@ from audit_agent.formato_md import (parsear_conclusiones, parsear_informe, rende
                                     render_informe)
 
 PROY = {"nombre": "N", "referencia": "R", "fecha": "F", "distribucion": ["D1", "D2"]}
-C1 = {"id": "C-01", "titulo": "Tarifario desactualizado", "tipo": "conclusion", "estado": "propuesta", "prueba": "2.11 b)",
+C1 = {"id": "C-01", "titulo": "Tarifario desactualizado", "tipo": "recomendacion", "estado": "propuesta", "prueba": "2.11 b)",
       "nivel_riesgo": "Medio", "riesgo_propuesto": True, "responsable": "Operativa", "fuente": "PT 2.11",
       "incidencia": "Inc.\n\n| Mercado | Courier |\n|---|---|\n| USA | FedEx |", "causa_raiz": "Sin plantilla común",
       "como_se_ha_llegado": "- Sesiones con el área\n- Revisión del flujo:\n  1) renegociación\n  2) carga manual",
@@ -26,7 +26,7 @@ def test_conclusiones_round_trip():
 
 def test_conclusiones_editadas_a_mano():
     md = render_conclusiones([C1], PROY)
-    md = md.replace("- Tipo: conclusion", "- Tipo: Sugerencia de mejora").replace("- Estado: propuesta", "- estado: APROBADA")
+    md = md.replace("- Tipo: recomendacion", "- Tipo: Sugerencia de mejora").replace("- Estado: propuesta", "- estado: APROBADA")
     md = md.replace("**Recomendación:** ", "**Recomendación:** Texto del auditor\ncon dos líneas.")
     md += "\n## C-05 · Añadida a mano\n\n- Estado: aprobada\n\n**Incidencia detectada:** X\n\n**Consecuencias:** Y\n"
     back = parsear_conclusiones(md)
@@ -95,3 +95,9 @@ def test_parser_tolera_marcadores_de_recomendacion():
     back = parsear_informe(md)
     assert back["sugerencias"][0]["recomendacion"] == "Automatizar la alerta"
     assert "**Propuesta de mejora 1.1.** Automatizar la alerta" in render_informe({**back, "introduccion": "I", "resumen_ejecutivo": "R"}, PROY)
+
+
+def test_tipo_antiguo_conclusion_se_lee_como_recomendacion():
+    md = render_conclusiones([C1], PROY).replace("- Tipo: recomendacion", "- Tipo: conclusion")
+    assert parsear_conclusiones(md)[0]["tipo"] == "recomendacion"
+    assert "- Tipo: recomendacion" in render_conclusiones(parsear_conclusiones(md), PROY)

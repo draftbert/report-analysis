@@ -7,7 +7,7 @@ Convenciones (tolerantes a mayúsculas, tildes y espacios):
 
     ## C-01 · Título                          (01_conclusiones.md: campos etiquetados, se validan aquí)
     ### 1. Título                             (02_informe.md: apartado WYSIWYG = diapositiva; ver render_informe)
-    - Tipo: conclusion | sugerencia
+    - Tipo: recomendacion | sugerencia    (recomendación con plan de acción, o mejora sin plan)
     - Estado: propuesta | aprobada | descartada
     - Prueba: 2.11 a) …                       (referencia del papel de trabajo)
     - Nivel de riesgo: Alto | Medio | Bajo [ (propuesto por el modelo, sin evidencia en PT) ]
@@ -53,7 +53,7 @@ def textos_informe() -> dict:
 TEXTOS = textos_informe()
 
 ESTADOS = ("propuesta", "aprobada", "descartada")
-TIPOS = ("conclusion", "sugerencia")
+TIPOS = ("recomendacion", "sugerencia")
 
 # Coletilla que marca un nivel de riesgo estimado por el modelo sin evidencia
 # en el papel de trabajo (PT). La quita `aprobar` cuando el auditor valida.
@@ -118,13 +118,15 @@ def normalizar_nivel(valor: str) -> str:
 
 
 def normalizar_tipo(valor: str) -> str:
+    """'recomendacion' | 'sugerencia'. Acepta el valor antiguo «conclusion» y
+    etiquetas visibles («Recomendación», «Sugerencia de mejora»)."""
     v = _norm(valor)
-    return "sugerencia" if v.startswith("sug") or v.startswith("mejora") else "conclusion"
+    return "sugerencia" if v.startswith("sug") or v.startswith("mejora") else "recomendacion"
 
 
 # ====================================================================== RENDER
 def _bloque(c: dict, cabecera: str, con_estado: bool, con_notas: bool) -> str:
-    tipo = normalizar_tipo(c.get("tipo", "conclusion"))
+    tipo = normalizar_tipo(c.get("tipo", "recomendacion"))
     lineas = [cabecera, ""]
     if con_estado:
         lineas.append(f"- Tipo: {tipo}")
@@ -159,8 +161,8 @@ CABECERA_CONCLUSIONES = """# Detalle de conclusiones y sugerencias de mejora —
 > Cómo trabajar este fichero:
 > - Cada bloque es una incidencia detectada en los papeles de trabajo: qué se ha
 >   detectado, por qué (causa raíz), cómo se ha llegado (datos y tablas) y consecuencias.
-> - `Tipo: conclusion` lleva recomendación y plan de acción; `Tipo: sugerencia` es una
->   mejora sin plan de acción (irá a «Sugerencias de mejora»). Cámbialo si procede.
+> - `Tipo: recomendacion` lleva recomendación y plan de acción (irá al detalle de conclusiones);
+>   `Tipo: sugerencia` es una mejora sin plan de acción (irá a «Sugerencias de mejora»). Cámbialo si procede.
 > - Corrige el texto directamente y cambia `Estado: propuesta` por `aprobada` o `descartada`.
 > - Recomendación: si la tienes, escríbela en «Recomendación:» y se respetará tal cual
 >   (`recomendar` solo le da formato). Si la dejas vacía, `recomendar` la propone. Varias
@@ -278,7 +280,7 @@ def render_informe(datos: dict, proyecto: dict) -> str:
 # ====================================================================== PARSE
 def _parsear_bloque(lineas: list[str]) -> dict:
     """Parsea las líneas de una conclusión (sin la cabecera) a dict."""
-    c: dict = {"tipo": "conclusion", "estado": "propuesta", "prueba": "", "nivel_riesgo": "", "area": "",
+    c: dict = {"tipo": "recomendacion", "estado": "propuesta", "prueba": "", "nivel_riesgo": "", "area": "",
                "responsable": "", "plazo": "", "referencia_recomendacion": "", "fuente": "", "notas": "",
                "riesgo_propuesto": False}
     for clave, _ in CAMPOS_TEXTO:
@@ -371,7 +373,7 @@ def _parsear_apartado(lineas: list[str]) -> dict:
     """Apartado WYSIWYG del informe -> dict con los mismos campos que una
     conclusión (la prosa del cuerpo va a `incidencia`; `causa_raiz` queda
     vacía porque en el informe ya no se distinguen)."""
-    c: dict = {"tipo": "conclusion", "estado": "aprobada", "prueba": "", "nivel_riesgo": "", "area": "",
+    c: dict = {"tipo": "recomendacion", "estado": "aprobada", "prueba": "", "nivel_riesgo": "", "area": "",
                "responsable": "", "plazo": "", "referencia_recomendacion": "", "fuente": "", "notas": "",
                "riesgo_propuesto": False, "incidencia": "", "causa_raiz": "", "como_se_ha_llegado": "",
                "consecuencias": "", "recomendacion": ""}
@@ -472,7 +474,7 @@ def parsear_informe(texto: str) -> dict:
                     lineas_res.append(l)
             datos["resumen_ejecutivo"] = "\n".join(lineas_res).strip()
         elif "conclusion" in t:
-            datos["conclusiones"] = _parsear_lista(lineas, "conclusion")
+            datos["conclusiones"] = _parsear_lista(lineas, "recomendacion")
         elif "sugerencia" in t or "mejora" in t:
             datos["sugerencias"] = _parsear_lista(lineas, "sugerencia")
     return datos

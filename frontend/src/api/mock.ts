@@ -3,7 +3,7 @@
 import type { Acta, Api, Conclusion, Documentos, Estado, ExpedienteEstado, Hallazgo, Informe, Job, ResultadoCambios, Traza, Version } from "./types";
 
 const C01: Conclusion = {
-  id: "C-01", titulo: "Mantenimiento manual y desactualización del maestro de tarifas", tipo: "conclusion", estado: "aprobada",
+  id: "C-01", titulo: "Mantenimiento manual y desactualización del maestro de tarifas", tipo: "recomendacion", estado: "aprobada",
   prueba: "2.11 b) Gestión del maestro de tarifas", nivel_riesgo: "Alto", riesgo_propuesto: false, area: "Transporte e-Commerce",
   responsable: "Pablo Nieto (1.1); Operativa (1.2)", plazo: "31/03/2027 (1.1); 31/12/2026 (1.2)", referencia_recomendacion: "TMSCIIF-10",
   fuente: "papel_trabajo.txt — 2.11 CONCLUSIONES",
@@ -117,17 +117,17 @@ function estado(): ExpedienteEstado {
     conclusiones: {
       total: conclusiones.length, propuesta: conclusiones.filter((c) => c.estado === "propuesta").length, aprobada: aprobadas.length,
       descartada: conclusiones.filter((c) => c.estado === "descartada").length, sugerencias: conclusiones.filter((c) => c.tipo === "sugerencia").length,
-      sin_recomendacion: aprobadas.filter((c) => c.tipo === "conclusion" && !c.recomendacion).map((c) => c.id),
+      sin_recomendacion: aprobadas.filter((c) => c.tipo === "recomendacion" && !c.recomendacion).map((c) => c.id),
       riesgo_pendiente: aprobadas.filter((c) => c.riesgo_propuesto).map((c) => c.id), con_notas: conclusiones.filter((c) => c.notas).map((c) => c.id),
     },
-    informe: { contexto: true, n_conclusiones: aprobadas.filter((c) => c.tipo === "conclusion").length, n_sugerencias: aprobadas.filter((c) => c.tipo === "sugerencia").length, errores: 1, avisos: 2, modificado: "2026-08-27T10:41:12", versiones: historial.length },
+    informe: { contexto: true, n_conclusiones: aprobadas.filter((c) => c.tipo === "recomendacion").length, n_sugerencias: aprobadas.filter((c) => c.tipo === "sugerencia").length, errores: 1, avisos: 2, modificado: "2026-08-27T10:41:12", versiones: historial.length },
     instrucciones_pendientes: instrucciones.trim().length > 0, ppt: { nombre: "ResumenEjecutivo_TEC-2026.pptx", desactualizado: true },
     archivos: ["TEC-2026_archivo_20260826-1300.zip"], llm: "kaia · gpt-5-mini (mock)",
   };
 }
 
 function informe(): Informe {
-  const cs = conclusiones.filter((c) => c.estado === "aprobada" && c.tipo === "conclusion");
+  const cs = conclusiones.filter((c) => c.estado === "aprobada" && c.tipo === "recomendacion");
   const ss = conclusiones.filter((c) => c.estado === "aprobada" && c.tipo === "sugerencia");
   const apartados = [
     { id: "introduccion", tipo: "introduccion" as const, titulo: "Introducción", markdown: introduccion, numero: 0, nivel_riesgo: "" as const },
@@ -189,7 +189,7 @@ export const clienteMock: Api = {
   recomendar: (_ref, o) => job("recomendar", () => {
     const lineas: string[] = [];
     conclusiones = conclusiones.map((c) => {
-      if (c.estado !== "aprobada" || c.tipo !== "conclusion" || c.recomendacion) { if (c.estado === "aprobada" && c.recomendacion && c.tipo === "conclusion") lineas.push(`  ${c.id}: recomendación ya presente, se respeta tal cual.`); return c; }
+      if (c.estado !== "aprobada" || c.tipo !== "recomendacion" || c.recomendacion) { if (c.estado === "aprobada" && c.recomendacion && c.tipo === "recomendacion") lineas.push(`  ${c.id}: recomendación ya presente, se respeta tal cual.`); return c; }
       const r = o.respuestas[c.id];
       if (r && r.trim()) { lineas.push(`  ${c.id}: recomendación del auditor registrada tal cual.`); return { ...c, recomendacion: r.trim() }; }
       if (o.auto) { lineas.push(`  ${c.id}: recomendación propuesta por el modelo (revísala en el fichero).`); return { ...c, recomendacion: "Incorporar en CPF el desglose de los conceptos de COD, linehaul y zonas remotas, y validar periódicamente las estimaciones frente a las facturas reales." }; }
@@ -197,7 +197,7 @@ export const clienteMock: Api = {
     });
     return { mensaje: "Recomendaciones:\n" + lineas.join("\n") };
   }),
-  redactarConclusiones: async () => { const bloq = conclusiones.filter((c) => c.estado === "aprobada" && c.tipo === "conclusion" && !c.recomendacion); return { mensaje: `Detalle de conclusiones (${conclusiones.filter((c) => c.estado === "aprobada" && c.tipo === "conclusion" && c.recomendacion).length}) y sugerencias de mejora (${conclusiones.filter((c) => c.estado === "aprobada" && c.tipo === "sugerencia").length}) volcados a 02_informe.md tal cual fueron aprobados (sin modelo).` + (bloq.length ? `\n⚠ NO incluidas: ${bloq.map((c) => c.id + " (sin recomendación)").join("; ")}` : "") }; },
+  redactarConclusiones: async () => { const bloq = conclusiones.filter((c) => c.estado === "aprobada" && c.tipo === "recomendacion" && !c.recomendacion); return { mensaje: `Detalle de conclusiones (${conclusiones.filter((c) => c.estado === "aprobada" && c.tipo === "recomendacion" && c.recomendacion).length}) y sugerencias de mejora (${conclusiones.filter((c) => c.estado === "aprobada" && c.tipo === "sugerencia").length}) volcados a 02_informe.md tal cual fueron aprobados (sin modelo).` + (bloq.length ? `\n⚠ NO incluidas: ${bloq.map((c) => c.id + " (sin recomendación)").join("; ")}` : "") }; },
   informe: async () => informe(),
   guardarInforme: async (_ref, d) => { if (d.introduccion !== undefined) introduccion = d.introduccion; if (d.resumen_ejecutivo !== undefined) resumen = d.resumen_ejecutivo; if (d.evaluacion_global !== undefined) evaluacionGlobal = d.evaluacion_global; return informe(); },
   revisar: async () => ({ hallazgos: HALLAZGOS, errores: 1, avisos: 1 }),

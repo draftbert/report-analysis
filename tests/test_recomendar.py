@@ -14,7 +14,7 @@ from audit_agent.expediente import ExpedienteError
 from audit_agent.formato_md import parsear_conclusiones, parsear_informe
 
 
-def _conc(titulo, rec="", tipo="conclusion"):
+def _conc(titulo, rec="", tipo="recomendacion"):
     return ConclusionExtraida(titulo=titulo, tipo=tipo, prueba="2.11 b)", incidencia="Tarifario desactualizado en la HC.",
                               causa_raiz="Sin plantilla común de carga", como_se_ha_llegado="Sesiones con el área.",
                               consecuencias="Error en la valoración de costes", recomendacion=rec, nivel_riesgo="Medio",
