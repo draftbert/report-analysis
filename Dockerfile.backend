@@ -1,0 +1,30 @@
+# Backend: API REST (FastAPI) + CLI del revisor de informes.
+# Contexto de build: raíz del repositorio. Los expedientes viven en el volumen /app/expedientes.
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+
+# Tesseract para el OCR opcional de PDF escaneados (audit_agent/extractores/ocr.py).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY audit_agent/ audit_agent/
+COPY config/ config/
+COPY ejemplos/ ejemplos/
+COPY revisor README.md ./
+# El contenedor corre con el uid/gid del usuario del host (compose: `user:`), así los ficheros que
+# escribe en el volumen expedientes/ son suyos. /app debe ser escribible para cualquier uid.
+RUN mkdir -p expedientes && chmod -R a+rwX /app
+ENV HOME=/tmp
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/salud', timeout=3)" || exit 1
+
+# En producción el front lo sirve su propio contenedor (nginx) y hace proxy de /api aquí.
+CMD ["python", "-m", "uvicorn", "audit_agent.api:app", "--host", "0.0.0.0", "--port", "8000"]

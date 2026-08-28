@@ -25,7 +25,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import acciones
+from . import __version__, acciones
 from .acciones import CONFIG_DEFECTO, Contexto, estado_expediente
 from .expediente import ARCHIVOS, Expediente, ExpedienteError
 from .formato_md import (COLETILLA_RIESGO_PROPUESTO, _apartado_conclusion, parsear_conclusiones,
@@ -135,6 +135,13 @@ class NuevoExpediente(BaseModel):
     nombre: str
     fecha: str = ""
     distribucion: list[str] = []
+
+
+@app.get("/api/salud")
+def salud():
+    """Comprobación de vida para Docker/monitorización: versión y nº de expedientes."""
+    return {"estado": "ok", "version": __version__,
+            "expedientes": len(list(DIR_EXPEDIENTES.glob("*/expediente.yaml"))) if DIR_EXPEDIENTES.exists() else 0}
 
 
 @app.get("/api/expedientes")

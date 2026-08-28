@@ -1,0 +1,36 @@
+# Producción: backend (API + CLI) y front (nginx). Variables en .env.defaults / .env.secrets (ver run.sh).
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: revisor-informes/backend:${VERSION:-latest}
+    container_name: revisor-backend
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"   # uid/gid del host (los exporta run.sh)
+    env_file:
+      - .env.defaults
+      - .env.secrets
+    volumes:
+      - ./expedientes:/app/expedientes          # datos de trabajo: documentos, informes, historial, trazas, salidas
+      - ./config:/app/config:ro                 # criterio de estilo, textos fijos, plantilla PPT (editables sin rebuild)
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/salud', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+    image: revisor-informes/frontend:${VERSION:-latest}
+    container_name: revisor-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONT_PORT:-8080}:80"

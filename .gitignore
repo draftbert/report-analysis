@@ -25,3 +25,6 @@ frontend/dist/
 
 # Plantilla PPT original (con comentarios/autores): solo se versiona la saneada en config/
 /*.pptx
+
+# Credenciales del despliegue Docker (ver run.sh)
+.env.secrets

@@ -34,6 +34,20 @@ cd frontend && npm install && npm run build && cd ..   # una vez (o tras cambiar
 ./revisor web                                          # http://127.0.0.1:8000
 ```
 
+### Con Docker (dos contenedores: backend y front)
+
+```bash
+cp .env.default_secrets .env.secrets   # credenciales KAIA (no se versiona); lo no secreto está en .env.defaults
+./run.sh          # producción: backend (API + CLI) y front (nginx con proxy de /api) → http://localhost:8080
+./run.sh --dev    # desarrollo: código montado, recarga automática; front en :3030, API en :8000
+./run.sh --down   # parar
+docker compose exec backend ./revisor estado          # la CLI dentro del contenedor (expedientes/ es un volumen del host)
+```
+
+`Dockerfile.backend` (python:3.12-slim + tesseract) y `frontend/Dockerfile` (build de Vite + nginx). `expedientes/` y
+`config/` se montan desde el host: los datos sobreviven a los rebuilds y el criterio de estilo se cambia sin reconstruir.
+`GET /api/salud` es la comprobación de vida.
+
 `./revisor web` arranca la API REST (`audit_agent/api.py`, contrato en
 `docs/SUPERPROMPT_FRONT.md`) y sirve el front compilado. Las acciones del modelo
 corren como trabajos en segundo plano (`/api/jobs/{id}`), en serie por
