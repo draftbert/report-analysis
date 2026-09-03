@@ -57,7 +57,7 @@ def _exp(ref: str) -> Expediente:
     try:
         return Expediente(DIR_EXPEDIENTES / ref)
     except ExpedienteError:
-        raise HTTPException(404, {"error": f"No existe el expediente {ref}."}) from None
+        raise HTTPException(404, {"error": f"No existe el informe {ref}."}) from None
 
 
 def _ctx(exp: Expediente) -> Contexto:
@@ -213,10 +213,10 @@ def eliminar_expediente(ref: str, c: Confirmacion):
     salidas). Exige escribir la referencia exacta como confirmación."""
     exp = _exp(ref)
     if c.confirmacion.strip() != exp.referencia:
-        raise HTTPException(400, {"error": f"Para eliminar el expediente escribe exactamente su referencia: {exp.referencia}"})
+        raise HTTPException(400, {"error": f"Para eliminar el informe escribe exactamente su referencia: {exp.referencia}"})
     with _lock(ref):
         shutil.rmtree(exp.ruta)
-    return {"mensaje": f"Expediente {exp.referencia} eliminado."}
+    return {"mensaje": f"Informe {exp.referencia} eliminado."}
 
 
 @app.get("/api/jobs/{job_id}")

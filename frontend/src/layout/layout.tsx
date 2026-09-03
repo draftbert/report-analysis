@@ -72,7 +72,7 @@ export const Layout = () => {
                     ))}
                   </div>
                 ))}
-                <NavLink to="/" className="menu__item menu__item--secondary">Todos los expedientes</NavLink>
+                <NavLink to="/" className="menu__item menu__item--secondary">Todos los informes</NavLink>
                 <div className="menu__footer">
                   <span className="menu__avatar">AI</span>
                   <div className="menu__footer-text"><span>Auditoría Interna</span><span className="detail">{estado?.llm ?? ""} · v0.3</span></div>

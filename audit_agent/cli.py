@@ -50,8 +50,8 @@ def resolver_expediente(ruta: str | None) -> Path:
     if len(candidatos) == 1:
         return candidatos[0]
     if not candidatos:
-        sys.exit("No hay ningún expediente. Crea uno: ./revisor nuevo expedientes/<REF> --nombre ... --referencia ...")
-    sys.exit("Hay varios expedientes; indica cuál con -e <ruta> o fija uno con `./revisor usar <ruta>`:\n  "
+        sys.exit("No hay ningún informe. Crea uno: ./revisor nuevo expedientes/<REF> --nombre ... --referencia ...")
+    sys.exit("Hay varios informes; indica cuál con -e <ruta> o fija uno con `./revisor usar <ruta>`:\n  "
              + "\n  ".join(str(c) for c in candidatos))
 
 
@@ -75,7 +75,7 @@ def cmd_nuevo(args):
         shutil.copy(RAIZ / "ejemplos" / "papel_trabajo_tarifarios.txt", exp.ruta / "papeles_trabajo")
         shutil.copy(RAIZ / "ejemplos" / "contexto_auditoria_tarifarios.md", exp.ruta / "contexto")
     FICHERO_ACTIVO.write_text(str(exp.ruta), encoding="utf-8")
-    return (f"Expediente creado en {exp.ruta} y fijado como activo.\n"
+    return (f"Informe creado en {exp.ruta} y fijado como activo.\n"
             f"Copia el design thinking / contexto a {exp.ruta / 'contexto'} (opcional) y el papel de trabajo final a "
             f"{exp.ruta / 'papeles_trabajo'}; después `redactar-contexto` y `extraer`."
             + ("\n(Se ha copiado el papel de trabajo de ejemplo.)" if args.ejemplo else ""))
@@ -86,9 +86,9 @@ def cmd_usar(args):
     candidatos = [Path(args.ruta), DIR_EXPEDIENTES / args.ruta]
     ruta = next((c.resolve() for c in candidatos if (c / "expediente.yaml").exists()), None)
     if ruta is None:
-        sys.exit(f"{args.ruta} no es un expediente (ni ruta ni referencia en expedientes/).")
+        sys.exit(f"{args.ruta} no es un informe (ni ruta ni referencia en expedientes/).")
     FICHERO_ACTIVO.write_text(str(ruta), encoding="utf-8")
-    return f"Expediente activo: {ruta}"
+    return f"Informe activo: {ruta}"
 
 
 def cmd_eliminar(args):
@@ -105,7 +105,7 @@ def cmd_eliminar(args):
     shutil.rmtree(exp.ruta)
     if FICHERO_ACTIVO.exists() and FICHERO_ACTIVO.read_text(encoding="utf-8").strip() == str(exp.ruta):
         FICHERO_ACTIVO.unlink()
-    return f"Expediente {exp.referencia} eliminado."
+    return f"Informe {exp.referencia} eliminado."
 
 
 def cmd_estado(args):
@@ -313,7 +313,7 @@ def cmd_revisar_texto(args):
 
 # ---------------------------------------------------------------- menú interactivo
 MENU = [
-    ("estado", "Ver estado del expediente", cmd_estado, {}),
+    ("estado", "Ver estado del informe", cmd_estado, {}),
     ("redactar-contexto", "Introducción y resumen ejecutivo desde contexto/ y papeles_trabajo/ (LLM)", cmd_redactar_contexto, {"secciones": None, "forzar": False}),
     ("extraer", "Extraer conclusiones y sugerencias de mejora de todas las pruebas (LLM)", cmd_extraer, {"forzar": False}),
     ("aprobar todas", "Aprobar todas las conclusiones", cmd_aprobar, {"ids": ["todas"], "estado": "aprobada"}),
@@ -374,22 +374,22 @@ def cmd_menu(args):
 # ---------------------------------------------------------------- parser
 def construir_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="revisor", description="Revisor de informes de auditoría interna")
-    p.add_argument("-e", "--expediente", help="Ruta del expediente (por defecto: el activo o el único en expedientes/)")
+    p.add_argument("-e", "--expediente", help="Ruta del informe (por defecto: el activo o el único en expedientes/)")
     p.add_argument("--config", default=str(CONFIG_DEFECTO))
     p.add_argument("--modelo", help="Modelo LLM (por defecto KAIA_AGENT_MODEL_NAME)")
     p.add_argument("--proveedor", choices=["kaia", "anthropic", "dry-run"], help="Por defecto: LLM_PROVEEDOR o autodetección")
     p.add_argument("--esfuerzo", choices=["minimal", "low", "medium", "high"], help="reasoning_effort para modelos gpt-5*")
     sub = p.add_subparsers(dest="comando", required=True)
 
-    s = sub.add_parser("nuevo", help="Crear un expediente"); s.set_defaults(fn=cmd_nuevo)
+    s = sub.add_parser("nuevo", help="Crear un informe"); s.set_defaults(fn=cmd_nuevo)
     s.add_argument("ruta"); s.add_argument("--nombre", required=True); s.add_argument("--referencia", required=True)
     s.add_argument("--fecha"); s.add_argument("--distribucion", help="Lista separada por comas")
     s.add_argument("--ejemplo", action="store_true", help="Copiar el papel de trabajo y el contexto de ejemplo")
 
-    s = sub.add_parser("usar", help="Fijar el expediente activo (ruta o referencia)"); s.set_defaults(fn=cmd_usar); s.add_argument("ruta", help="Ruta del expediente o su referencia (expedientes/<REF>)")
+    s = sub.add_parser("usar", help="Fijar el informe activo (ruta o referencia)"); s.set_defaults(fn=cmd_usar); s.add_argument("ruta", help="Ruta del informe o su referencia (expedientes/<REF>)")
     sub.add_parser("estado", help="Estado y siguiente paso").set_defaults(fn=cmd_estado)
-    s = sub.add_parser("eliminar", help="Eliminar un expediente (pide escribir su referencia)"); s.set_defaults(fn=cmd_eliminar)
-    s.add_argument("--confirmar", help="Referencia del expediente, para no preguntar (scripts)")
+    s = sub.add_parser("eliminar", help="Eliminar un informe (pide escribir su referencia)"); s.set_defaults(fn=cmd_eliminar)
+    s.add_argument("--confirmar", help="Referencia del informe, para no preguntar (scripts)")
     sub.add_parser("menu", help="Menú interactivo").set_defaults(fn=cmd_menu)
 
     s = sub.add_parser("redactar-contexto", help="Introducción y resumen ejecutivo desde contexto/ y papeles_trabajo/ (LLM)"); s.set_defaults(fn=cmd_redactar_contexto)
@@ -430,7 +430,7 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--solo-plan", action="store_true")
     sub.add_parser("chat", help="Cambios sencillos en modo chat sobre el informe (LLM)").set_defaults(fn=cmd_chat)
     sub.add_parser("ppt", help="Exportar el informe entero a PowerPoint (un apartado = una diapositiva)").set_defaults(fn=cmd_ppt)
-    sub.add_parser("archivar", help="Zip de evidencia del expediente con manifest sha256").set_defaults(fn=cmd_archivar)
+    sub.add_parser("archivar", help="Zip de evidencia del informe con manifest sha256").set_defaults(fn=cmd_archivar)
 
     s = sub.add_parser("calibrar-estilo", help="Contrastar estilo.yaml con informes aprobados (no modifica el YAML)")
     s.set_defaults(fn=cmd_calibrar_estilo)
@@ -445,7 +445,7 @@ def construir_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("web", help="Arrancar el servidor web (API + front)"); s.set_defaults(fn=cmd_web)
     s.add_argument("--puerto", type=int, default=8000); s.add_argument("--host", default="127.0.0.1")
-    s = sub.add_parser("revisar-texto", help="Revisar un texto suelto (sin expediente)"); s.set_defaults(fn=cmd_revisar_texto)
+    s = sub.add_parser("revisar-texto", help="Revisar un texto suelto (sin informe)"); s.set_defaults(fn=cmd_revisar_texto)
     s.add_argument("--texto"); s.add_argument("--fichero"); s.add_argument("--sin-llm", action="store_true")
     return p
 

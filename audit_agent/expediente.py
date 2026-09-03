@@ -72,7 +72,7 @@ class Expediente:
         self.ruta = Path(ruta).resolve()
         if not (self.ruta / ARCHIVOS["meta"]).exists():
             raise ExpedienteError(
-                f"{self.ruta} no es un expediente (falta {ARCHIVOS['meta']}). "
+                f"{self.ruta} no es un informe (falta {ARCHIVOS['meta']}). "
                 "Crea uno con: python -m audit_agent.cli nuevo <ruta> --nombre ... --referencia ...")
         for d in DIRECTORIOS:
             (self.ruta / d).mkdir(exist_ok=True)
@@ -84,7 +84,7 @@ class Expediente:
               distribucion: list[str] | None = None) -> "Expediente":
         ruta = Path(ruta)
         if (ruta / ARCHIVOS["meta"]).exists():
-            raise ExpedienteError(f"Ya existe un expediente en {ruta}")
+            raise ExpedienteError(f"Ya existe un informe en {ruta}")
         ruta.mkdir(parents=True, exist_ok=True)
         for d in DIRECTORIOS:
             (ruta / d).mkdir(exist_ok=True)

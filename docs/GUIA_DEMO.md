@@ -22,7 +22,7 @@ cd revisor-informes
   Sin modelo la demo no tiene sentido: ve al **plan B** del final.
 - Abre VS Code en la carpeta del repo, con el terminal integrado abajo y la
   **vista previa Markdown** a la derecha (`Ctrl+Shift+V` sobre un `.md`).
-- Borra el expediente de la demo anterior para empezar limpio:
+- Borra el informe de la demo anterior para empezar limpio:
 
 ```bash
 rm -rf expedientes/DEMO-VIVO && rm -f .expediente_activo
@@ -35,7 +35,7 @@ rm -rf expedientes/DEMO-VIVO && rm -f .expediente_activo
 
 ---
 
-## 1. Crear el expediente y la entrada (2 min)
+## 1. Crear el informe y la entrada (2 min)
 
 **Qué decir:** "Cada auditoría es una carpeta. Al empezar, el design thinking o
 el memorando de planificación va a `contexto/`; cuando termina el trabajo de
@@ -240,7 +240,7 @@ Tres mensajes:
 2. **Determinista donde importa**: vocabulario y estructura son reglas del
    departamento (`estilo.yaml`); el volcado al informe no pasa por el modelo.
 3. **Trazable**: cada salida del modelo queda ligada a su entrada y se archiva
-   con el expediente.
+   con el informe.
 
 Siguiente paso: calibrar el vocabulario con informes reales
 (`./revisor calibrar-estilo <carpeta>`) y conectar la exportación real de Pentana.
@@ -265,10 +265,10 @@ aplicar-cambios → reunion → chat → ppt → archivar).
 - **Todo lo determinista funciona igual**: `estado`, `revisar-conclusiones`,
   `aprobar`, `redactar-conclusiones`, `revisar`, `diff`, `deshacer`, `historial`,
   `ppt`, `archivar`. Puedes hacer los pasos 4 (sin `recomendar`), 5, 6 (solo
-  `revisar`) y 8 sobre el expediente `expedientes/DEMO-TEC-2026`, que trae
+  `revisar`) y 8 sobre el informe `expedientes/DEMO-TEC-2026`, que trae
   conclusiones e informe generados por el modelo en una ejecución anterior.
 - Para enseñar el resultado de los pasos con modelo, abre en vista previa los
-  ficheros de ese expediente y su `cambios_aplicados.md`.
+  ficheros de ese informe y su `cambios_aplicados.md`.
 - `./revisor revisar-texto --fichero ejemplos/observacion_borrador.txt --sin-llm`
   es un buen abridor: un párrafo con ocho infracciones detectadas al instante.
 
@@ -277,10 +277,10 @@ aplicar-cambios → reunion → chat → ppt → archivar).
 | Síntoma | Causa | Qué hacer |
 |---|---|---|
 | `LLM: no disponible` en `estado` | `.env` sin credenciales o token caducado | Revisar `.env`; la demo determinista sigue siendo posible |
-| `01_conclusiones.md ya existe...` | Repetir `extraer` sobre un expediente usado | `--forzar` (guarda snapshot) o expediente nuevo |
+| `01_conclusiones.md ya existe...` | Repetir `extraer` sobre un informe usado | `--forzar` (guarda snapshot) o informe nuevo |
 | `02_informe.md ya tiene introducción/resumen` | Repetir `redactar-contexto` | `--forzar` o `--secciones resumen` |
 | `No hay conclusiones con Estado: aprobada` | Se saltó el paso 4 | `./revisor aprobar todas` |
 | `Ninguna conclusión aprobada está lista` | Falta recomendación o el riesgo sigue «propuesto» | `./revisor recomendar` / `aprobar` |
 | `03_instrucciones.md está vacío` | El texto se pegó encima de la línea `---` | Pegarlo debajo del `---` |
 | Una llamada tarda más de un minuto | Cola en KAIA | Esperar; mientras, enseñar `config/estilo.yaml` o una traza |
-| `Hay varios expedientes; indica cuál` | Más de un expediente sin activo fijado | `./revisor usar expedientes/DEMO-VIVO` |
+| `Hay varios informes; indica cuál` | Más de un informe sin activo fijado | `./revisor usar expedientes/DEMO-VIVO` |

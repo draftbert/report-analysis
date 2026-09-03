@@ -5,7 +5,7 @@ Genera una aplicación web completa (front-end) para una herramienta interna de 
 ## 1. Contexto y principios del producto
 
 - Usuarios: auditores internos (no técnicos) y sus gerentes. Idioma de toda la interfaz: **español**.
-- Unidad de trabajo: el **expediente** (una auditoría). Un auditor trabaja en él durante días: sube documentos, revisa lo que propone el modelo, aprueba, edita el informe, aplica los comentarios de reuniones, exporta a PowerPoint y archiva.
+- Unidad de trabajo: el **informe** (una auditoría). Un auditor trabaja en él durante días: sube documentos, revisa lo que propone el modelo, aprueba, edita el informe, aplica los comentarios de reuniones, exporta a PowerPoint y archiva.
 - Principio inviolable que la UI debe transmitir: **nada va al informe sin validación humana**. Todo lo que propone el modelo se muestra como propuesta (con estado, badges y acciones de aprobar/descartar); las recomendaciones que escribe el auditor se respetan literalmente; toda acción del modelo deja traza.
 - Estructura del informe (siempre la misma): **Introducción → Resumen ejecutivo → Detalle de conclusiones → Sugerencias de mejora**. Cada conclusión tiene: incidencia detectada, causa raíz, «detalles descriptivos» (viñetas con datos), consecuencias y recomendación(es) numeradas N.1, N.2…, más metadatos (prueba de origen, nivel de riesgo, área, responsable, plazo, referencia a recomendación abierta).
 - El informe es **WYSIWYG con la presentación**: cada apartado del informe es una diapositiva del PPT exportado. La UI debe hacer visible esa equivalencia (cada apartado se muestra como una «tarjeta-diapositiva»).
@@ -36,11 +36,11 @@ GET /api/jobs/{job_id} → { "estado": "en_curso" | "ok" | "error", "accion": "e
 
 ## 5. Contrato de API (fijo)
 
-Base `/api`. Todas las respuestas JSON, UTF-8. `{ref}` es la referencia del expediente (p. ej. `TEC-2026`). Los errores devuelven `4xx/5xx` con `{ "error": "mensaje para el usuario" }`.
+Base `/api`. Todas las respuestas JSON, UTF-8. `{ref}` es la referencia del informe (p. ej. `TEC-2026`). Los errores devuelven `4xx/5xx` con `{ "error": "mensaje para el usuario" }`.
 
-### Expedientes
+### Informes
 - `GET /expedientes` → `[{ "referencia", "nombre", "fecha", "fase", "siguiente", "modificado" }]`
-- `POST /expedientes` `{ "referencia", "nombre", "fecha", "distribucion": ["…"] }` → expediente creado.
+- `POST /expedientes` `{ "referencia", "nombre", "fecha", "distribucion": ["…"] }` → informe creado.
 - `GET /expedientes/{ref}` → estado completo:
 ```json
 { "referencia": "TEC-2026", "nombre": "Auditoría de Transporte e-Commerce", "fecha": "Junio 2026",
@@ -112,9 +112,9 @@ Base `/api`. Todas las respuestas JSON, UTF-8. `{ref}` es la referencia del expe
 
 ## 6. Pantallas y flujos (en orden de uso)
 
-**A. Expedientes** (`/`): lista tipo tabla (referencia, nombre, fase, siguiente paso, última modificación) + botón «Nuevo expediente» (modal: referencia, nombre, fecha, lista de distribución editable). Click → expediente.
+**A. Informes** (`/`): lista tipo tabla (referencia, nombre, fase, siguiente paso, última modificación) + botón «Nuevo informe» (modal: referencia, nombre, fecha, lista de distribución editable). Click → informe.
 
-**B. Layout del expediente** (`/expedientes/:ref/*`): cabecera con referencia y nombre, badge de fase y una línea destacada «Siguiente paso: …» (viene de la API, es la guía del flujo). Navegación lateral fija con las secciones en orden: **Entrada · Contexto del informe · Conclusiones · Informe · Reunión · Entregables · Trazas**, con un pequeño indicador de estado por sección (vacío / en curso / listo).
+**B. Layout del informe** (`/expedientes/:ref/*`): cabecera con referencia y nombre, badge de fase y una línea destacada «Siguiente paso: …» (viene de la API, es la guía del flujo). Navegación lateral fija con las secciones en orden: **Entrada · Contexto del informe · Conclusiones · Informe · Reunión · Entregables · Trazas**, con un pequeño indicador de estado por sección (vacío / en curso / listo).
 
 **C. Entrada** (`…/entrada`): dos dropzones lado a lado: «Contexto de la auditoría (design thinking, planificación) — opcional» y «Papeles de trabajo (papel de trabajo final con todas las pruebas)». Lista de ficheros con lector detectado y botón eliminar. Texto de ayuda con formatos.
 
@@ -142,7 +142,7 @@ Base `/api`. Todas las respuestas JSON, UTF-8. `{ref}` es la referencia del expe
 
 ## 8. Datos de ejemplo para el modo mock
 
-Expediente `TEC-2026` «Auditoría de Transporte e-Commerce: tarifarios y SCA», fecha «Junio 2026», distribución [«Dirección de Transporte e-Commerce», «Dirección Financiera», «Comité de Auditoría»], fase «3 · Informe en redacción», contexto [«contexto_auditoria_tarifarios.md»], papeles [«papel_trabajo.txt»].
+Informe `TEC-2026` «Auditoría de Transporte e-Commerce: tarifarios y SCA», fecha «Junio 2026», distribución [«Dirección de Transporte e-Commerce», «Dirección Financiera», «Comité de Auditoría»], fase «3 · Informe en redacción», contexto [«contexto_auditoria_tarifarios.md»], papeles [«papel_trabajo.txt»].
 
 Conclusiones:
 1. `C-01` · conclusion · aprobada · riesgo Alto · prueba «2.11 b) Gestión del maestro de tarifas» · área «Transporte e-Commerce» · responsable «Pablo Nieto (1.1); Operativa (1.2)» · plazo «31/03/2027 (1.1); 31/12/2026 (1.2)» · ref «TMSCIIF-10». Título: «Mantenimiento manual y desactualización del maestro de tarifas». Incidencia: «El mantenimiento del maestro de tarifas en la Herramienta de Costes es un proceso manual sin una plantilla común. Durante nuestra revisión hemos identificado que los acuerdos alcanzados entre Operativa y los proveedores no siempre se transmiten al equipo de validación.» Causa raíz: «Proceso dependiente de tareas manuales y formatos heterogéneos por courier.» Detalles: «- Los equipos de validación (BDO, Serviguide e Inditex - China) actualizan el maestro manualmente, incluso a nivel de Código Postal.\n- Cada pedido validado se registra en Snowflake (TRANSPORT_BUSINESS.FOUNDATION.COSTES_ECOM_DETALLE).\n- Existen alertas diarias y una revisión semanal de Transport Business Analytics.» Consecuencias: «La manualidad incrementa el riesgo de tarifas desactualizadas en la Herramienta de Costes, que se traslada a CPF y a la asignación de transportistas en SCA. Respecto a la materialización, no ha sido posible cuantificar el impacto económico.» Recomendación: «Implantar un sistema para la carga y gestión de los tarifarios de todas las operativas de transporte.\n\nEstablecer un procedimiento que deje evidencia de los acuerdos alcanzados con los proveedores y garantice su trazabilidad con las tarifas cargadas.»

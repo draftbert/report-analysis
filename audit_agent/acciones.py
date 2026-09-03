@@ -1410,7 +1410,7 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
 
 def accion_estado(exp: Expediente, checker: StyleChecker | None = None, llm_desc: str = "") -> str:
     e = estado_expediente(exp, checker)
-    L = [f"Expediente {e['referencia']} · {e['nombre']}", f"  Carpeta: {exp.ruta}",
+    L = [f"Informe {e['referencia']} · {e['nombre']}", f"  Carpeta: {exp.ruta}",
          f"  Fase: {e['fase']}"]
     if llm_desc:
         L.append(f"  LLM: {llm_desc}")

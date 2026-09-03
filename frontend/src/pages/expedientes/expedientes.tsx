@@ -68,8 +68,8 @@ export const Expedientes = () => {
       <header className="cartera__top"><Logo /><span className="layout__header-title">Auditoría Interna</span><span className="detail" style={{ marginLeft: "auto" }}>Revisor de informes</span></header>
       <div className="cartera">
         <div className="cartera__header">
-          <div><h1 className="cartera__title">Expedientes</h1><p className="cartera__subtitle">Selecciona una auditoría en curso o crea un expediente nuevo.</p></div>
-          <button className="btn btn--primary" onClick={() => setNuevo(true)}><Plus size={14} strokeWidth={1.75} />Nuevo expediente</button>
+          <div><h1 className="cartera__title">Informes</h1><p className="cartera__subtitle">Selecciona una auditoría en curso o crea un informe nuevo.</p></div>
+          <button className="btn btn--primary" onClick={() => setNuevo(true)}><Plus size={14} strokeWidth={1.75} />Nuevo informe</button>
         </div>
         <div className="cartera__filters">
           <input className="input cartera__search" placeholder="Buscar…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
@@ -104,7 +104,7 @@ export const Expedientes = () => {
           </motion.div>
         )}
 
-        {lista !== null && filtrados.length === 0 && !reciente && <div className="empty">No hay expedientes. Crea uno para empezar.</div>}
+        {lista !== null && filtrados.length === 0 && !reciente && <div className="empty">No hay informes. Crea uno para empezar.</div>}
         <div className="cartera__list">
           {filtrados.map((e, i) => (
             <motion.div key={e.referencia} className="cartera__row" onClick={() => navigate(`/expedientes/${e.referencia}/entrada`)}
@@ -131,18 +131,18 @@ export const Expedientes = () => {
       </div>
 
       {borrar && (
-        <Modal titulo={`Eliminar expediente ${borrar.referencia}`} onClose={() => setBorrar(null)}
+        <Modal titulo={`Eliminar informe ${borrar.referencia}`} onClose={() => setBorrar(null)}
           acciones={<><button className="btn" onClick={() => setBorrar(null)}>Cancelar</button><button className="btn btn--danger" onClick={eliminar} disabled={confirmacion !== borrar.referencia || borrando}>{borrando ? <><span className="spinner" />Eliminando…</> : "Eliminar definitivamente"}</button></>}>
           <p className="body">Se borrará <strong>{borrar.nombre}</strong> con todo su contenido: documentos de entrada, conclusiones, informe, instrucciones, historial, trazas, actas y entregables. Esta acción no se puede deshacer.</p>
           <p className="detail">Si ya generaste un archivo de evidencia (zip), descárgalo antes: también se borra.</p>
-          <div className="field"><span className="field__label">Escribe la referencia del expediente para confirmar</span>
+          <div className="field"><span className="field__label">Escribe la referencia del informe para confirmar</span>
             <input className="input" value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} placeholder={borrar.referencia} autoFocus onKeyDown={(e) => { if (e.key === "Enter") eliminar(); }} />
             {confirmacion && confirmacion !== borrar.referencia && <span className="conc__hallazgo">No coincide con «{borrar.referencia}».</span>}
           </div>
         </Modal>
       )}
       {nuevo && (
-        <Modal titulo="Nuevo expediente" onClose={() => setNuevo(false)} acciones={<><button className="btn" onClick={() => setNuevo(false)}>Cancelar</button><button className="btn btn--primary" onClick={crear} disabled={!form.referencia || !form.nombre}>Crear</button></>}>
+        <Modal titulo="Nuevo informe" onClose={() => setNuevo(false)} acciones={<><button className="btn" onClick={() => setNuevo(false)}>Cancelar</button><button className="btn btn--primary" onClick={crear} disabled={!form.referencia || !form.nombre}>Crear</button></>}>
           <div className="field"><span className="field__label">Referencia</span><input className="input" value={form.referencia} onChange={(e) => setForm({ ...form, referencia: e.target.value })} placeholder="TEC-2026" autoFocus /></div>
           <div className="field"><span className="field__label">Nombre de la auditoría</span><input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Auditoría de Transporte e-Commerce: tarifarios y SCA" /></div>
           <div className="field"><span className="field__label">Fecha del informe</span><input className="input" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} placeholder="Junio 2026" /></div>

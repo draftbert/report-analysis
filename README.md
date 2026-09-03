@@ -58,14 +58,14 @@ Ojo: por HTTP plano la contraseña viaja sin cifrar: para uso continuado, domini
 `./revisor web` arranca la API REST (`audit_agent/api.py`, contrato en
 `docs/SUPERPROMPT_FRONT.md`) y sirve el front compilado. Las acciones del modelo
 corren como trabajos en segundo plano (`/api/jobs/{id}`), en serie por
-expediente. El front (`frontend/`, Vite + React + TypeScript) replica el look &
+informe. El front (`frontend/`, Vite + React + TypeScript) replica el look &
 feel corporativo (tokens `--ids-*`, CSS BEM, menú lateral) y tiene un modo mock
 para verlo sin back-end (`npm run dev:mock`). Ver `frontend/README.md`.
 
 La CLI (`./revisor …`) y la web trabajan sobre los mismos ficheros del
-expediente: se pueden combinar.
+informe: se pueden combinar.
 
-## El espacio de trabajo: un expediente por auditoría
+## El espacio de trabajo: un informe por auditoría
 
 Todo el estado vive en una carpeta de ficheros de texto que se editan con
 cualquier editor (VS Code es ideal: vista previa Markdown + terminal al lado):
@@ -161,16 +161,16 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 #   si no cabe—, sugerencias de mejora y anexo de planes de acción). Sin modelo: es determinista.
 ./revisor archivar                   # zip de evidencia con manifest sha256
 
-# Texto suelto (p. ej. un párrafo copiado de Pentana), sin expediente:
+# Texto suelto (p. ej. un párrafo copiado de Pentana), sin informe:
 ./revisor revisar-texto --fichero borrador.txt [--sin-llm]
 ```
 
 `.venv/bin/python demo.py` ejecuta el flujo completo sobre el papel de trabajo de
 ejemplo `ejemplos/papel_trabajo_tarifarios.txt` (crea `expedientes/DEMO-TEC-2026`).
 
-Con varios expedientes, fija el activo con `./revisor usar <ruta>` o pásalo con `-e <ruta>`.
-`./revisor eliminar` borra el expediente activo (pide escribir su referencia); en la web, «Eliminar» en la
-lista de expedientes, con la misma confirmación.
+Con varios informes, fija el activo con `./revisor usar <ruta>` o pásalo con `-e <ruta>`.
+`./revisor eliminar` borra el informe activo (pide escribir su referencia); en la web, «Eliminar» en la
+lista de informes, con la misma confirmación.
 
 ## Configuración del LLM (.env)
 
