@@ -50,6 +50,13 @@ then
     cd - > /dev/null && exit 1
 fi
 
+# Web session credentials must exist; without them nobody can log in (fail closed)
+if ! grep -q "^REVISOR_UI_PASSWORD='\?.\+" .env.secrets || ! grep -q "^REVISOR_UI_SESSION_SECRET='\?.\+" .env.secrets
+then
+    echo "Warning: REVISOR_UI_PASSWORD / REVISOR_UI_SESSION_SECRET missing in .env.secrets."
+    echo "The web UI will reject every login until you set them (openssl rand -hex 32 for the secret)."
+fi
+
 env_file_arg="--env-file .env.defaults --env-file .env.secrets"
 
 # Run docker compose

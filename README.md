@@ -48,6 +48,13 @@ docker compose exec backend ./revisor estado          # la CLI dentro del conten
 `config/` se montan desde el host: los datos sobreviven a los rebuilds y el criterio de estilo se cambia sin reconstruir.
 `GET /api/salud` es la comprobación de vida.
 
+**Acceso:** la interfaz tiene pantalla de login propia (cookie de sesión firmada de 12 h; `audit_agent/acceso.py`).
+nginx es la puerta única (`auth_request`): sin sesión, cualquier URL de la SPA sirve el login en esa misma URL y
+`/api` devuelve 401. Config en `.env.secrets`: `REVISOR_UI_PASSWORD` y `REVISOR_UI_SESSION_SECRET`
+(`openssl rand -hex 32`); si faltan, nadie entra (cerrado por defecto) y rotar el secreto cierra todas las sesiones.
+Solo el front se publica fuera (`0.0.0.0`); la API no se publica en producción y en desarrollo va en `127.0.0.1`.
+Ojo: por HTTP plano la contraseña viaja sin cifrar: para uso continuado, dominio + HTTPS.
+
 `./revisor web` arranca la API REST (`audit_agent/api.py`, contrato en
 `docs/SUPERPROMPT_FRONT.md`) y sirve el front compilado. Las acciones del modelo
 corren como trabajos en segundo plano (`/api/jobs/{id}`), en serie por

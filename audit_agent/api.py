@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Cookie, FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -135,6 +135,38 @@ class NuevoExpediente(BaseModel):
     nombre: str
     fecha: str = ""
     distribucion: list[str] = []
+
+
+class Credenciales(BaseModel):
+    password: str = ""
+
+
+@app.post("/api/acceso/login")
+def login(credenciales: Credenciales, response: Response):
+    """Inicio de sesión de la interfaz (ver audit_agent/acceso.py). nginx lo expone sin sesión."""
+    from . import acceso
+    if not acceso.password_correcta(credenciales.password):
+        raise HTTPException(401, {"error": "Contraseña incorrecta."})
+    response.status_code = 204
+    response.set_cookie("sesion", acceso.crear_token(), max_age=acceso.DURACION_SESION_S,
+                        httponly=True, samesite="lax", path="/")
+    return response
+
+
+@app.get("/api/acceso/verificar")
+def verificar(sesion: str | None = Cookie(default=None)):
+    """Lo consulta nginx (auth_request) en cada petición: 204 con cookie válida, 401 si no."""
+    from . import acceso
+    if not acceso.validar_token(sesion):
+        raise HTTPException(401, {"error": "Sesión no válida o caducada."})
+    return Response(status_code=204)
+
+
+@app.post("/api/acceso/logout")
+def logout(response: Response):
+    response.status_code = 204
+    response.delete_cookie("sesion", path="/")
+    return response
 
 
 @app.get("/api/salud")

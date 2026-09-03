@@ -6,6 +6,10 @@ class ApiError extends Error {}
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, init);
+  if (res.status === 401) {
+    window.location.reload();     // sesión caducada: nginx sirve la pantalla de acceso en esta misma URL
+    throw new ApiError("Sesión caducada; vuelve a entrar.");
+  }
   if (!res.ok) {
     let mensaje = `${res.status} ${res.statusText}`;
     try {

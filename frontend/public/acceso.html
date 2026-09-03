@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Acceso · Revisor de informes</title>
+  <!-- Autocontenido a propósito: se sirve ANTES de la sesión, sin nada del bundle de la SPA. -->
+  <style>
+    :root { --tinta: #131313; --tinta-baja: #666; --borde: #dcdcdc; --fondo: #fff; --error: #b3261e; }
+    * { box-sizing: border-box; margin: 0; }
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--fondo);
+           color: var(--tinta); font: 14px/1.5 "Helvetica Neue", Helvetica, Arial, sans-serif; }
+    .acceso { width: min(360px, calc(100vw - 48px)); display: flex; flex-direction: column; gap: 28px; }
+    .acceso__marca { font-size: 20px; font-weight: 700; letter-spacing: 0.08em; }
+    .acceso__marca small { display: block; font-size: 11px; font-weight: 400; letter-spacing: 0.18em; color: var(--tinta-baja); text-transform: uppercase; margin-top: 6px; }
+    .acceso__campo { display: flex; flex-direction: column; gap: 8px; }
+    .acceso__label { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tinta-baja); }
+    .acceso__input { padding: 12px 14px; border: 1px solid var(--borde); font: inherit; outline: none; border-radius: 0; width: 100%; }
+    .acceso__input:focus { border-color: var(--tinta); }
+    .acceso__btn { padding: 12px 14px; background: var(--tinta); color: #fff; border: none; font: inherit;
+                   letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
+    .acceso__btn:hover { opacity: 0.88; }
+    .acceso__btn[disabled] { opacity: 0.5; cursor: default; }
+    .acceso__error { color: var(--error); font-size: 13px; min-height: 20px; }
+    .acceso__nota { font-size: 12px; color: var(--tinta-baja); }
+  </style>
+</head>
+<body>
+  <form class="acceso" id="form" autocomplete="off">
+    <div class="acceso__marca">REVISOR DE INFORMES<small>Auditoría interna</small></div>
+    <label class="acceso__campo">
+      <span class="acceso__label">Contraseña</span>
+      <input class="acceso__input" id="password" type="password" autofocus autocomplete="current-password" />
+    </label>
+    <button class="acceso__btn" id="entrar" type="submit">Entrar</button>
+    <div class="acceso__error" id="error" role="alert" aria-live="polite"></div>
+    <div class="acceso__nota">Sesión de 12 horas. Acceso restringido al Departamento de Auditoría Interna.</div>
+  </form>
+  <script>
+    const form = document.getElementById("form");
+    const error = document.getElementById("error");
+    const boton = document.getElementById("entrar");
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      error.textContent = "";
+      boton.disabled = true;
+      try {
+        const res = await fetch("/api/acceso/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: document.getElementById("password").value }),
+        });
+        if (res.ok) {
+          // El login se sirvió en la URL a la que iba el usuario (redirect interno de nginx):
+          // recargar aterriza justo ahí. Si se entró directamente a /acceso.html, a la portada.
+          if (location.pathname === "/acceso.html") location.replace("/");
+          else location.reload();
+          return;
+        }
+        error.textContent = res.status === 401 ? "Contraseña incorrecta." : "No se ha podido iniciar sesión (" + res.status + ").";
+      } catch {
+        error.textContent = "No hay conexión con el servidor. Inténtalo de nuevo.";
+      } finally {
+        boton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
