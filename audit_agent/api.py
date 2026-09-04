@@ -386,6 +386,9 @@ async def reunion(ref: str, transcripcion: UploadFile = File(...), aplicar: bool
         finally:
             if tmp is not None:
                 shutil.rmtree(tmp, ignore_errors=True)   # las muestras de voz no se conservan
+            if destino.suffix.lower() in acciones.EXTENSIONES_REUNION_AV:
+                destino.unlink(missing_ok=True)          # el audio/vídeo subido no se conserva (pesa cientos de MB);
+                                                         # quedan la transcripción y el acta en reuniones/
 
     return _job(ref, "reunion", tarea, ctx=ctx)
 

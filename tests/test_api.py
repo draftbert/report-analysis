@@ -176,5 +176,8 @@ def test_reunion_api_con_audio_y_hablantes(cliente, monkeypatch):
     assert j["estado"] == "ok", j["mensaje"]
     assert "progreso" in j and "progreso_pct" in j          # el front enseña las fases del job
     assert j["resultado"]["transcripcion"].startswith("reuniones/") and j["resultado"]["cambios_texto"]
+    reuniones = api_mod.DIR_EXPEDIENTES / "T-A" / "reuniones"
+    assert not list(reuniones.glob("*.mp3"))                       # el audio subido se borra al terminar
+    assert list(reuniones.glob("*_transcripcion.txt"))             # la transcripción sí se conserva
     assert visto["hablantes"][0][0] == "Marta" and visto["hablantes"][0][1] is not None
     assert not list(__import__("glob").glob("/tmp/muestras_voz_*"))  # las muestras de voz no se conservan

@@ -138,7 +138,9 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor reunion transcripcion_teams.txt [--aplicar]
 ./revisor reunion grabacion.m4a --hablante "Marta" --hablante "Javier=muestra_javier.wav"
 #   Lee la transcripción de la reunión (Teams: .txt/.docx/.vtt) — o un AUDIO o VÍDEO (.mp3/.wav/.m4a/
-#   .mp4/.mov/.mkv…; del vídeo se extrae la pista de audio con ffmpeg y el vídeo nunca sale de la máquina),
+#   .mp4/.mov/.mkv…; del vídeo se extrae la pista de audio con ffmpeg, el vídeo nunca sale de la máquina y el
+#   fichero subido por la web se borra al terminar —con éxito o con error— para no llenar el disco: quedan
+#   la transcripción y el acta),
 #   que se transcribe con KAIA (/api/v2/transcribe/upload, diarización; hasta 4 hablantes conocidos:
 #   con muestra de voz de 2-10 s para todos, el transcript sale con sus nombres; la transcripción
 #   queda en reuniones/ y las muestras no se conservan) —, la contrasta con el informe y
