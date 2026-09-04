@@ -591,11 +591,37 @@ def cambios(ref: str):
     return {"markdown": _exp(ref).leer("cambios")}
 
 
+def _listar_reuniones(exp: Expediente) -> list[dict]:
+    """Actas (.md) y transcripciones (.txt/.vtt/.docx) de reuniones/, más recientes primero."""
+    salida = []
+    for p in sorted((exp.ruta / "reuniones").glob("*"), reverse=True):
+        ext = p.suffix.lower()
+        if ext == ".md":
+            tipo, contenido = "acta", p.read_text(encoding="utf-8")
+        elif ext in (".txt", ".vtt"):
+            tipo, contenido = "transcripcion", p.read_text(encoding="utf-8", errors="replace")
+        elif ext == ".docx":
+            tipo, contenido = "transcripcion", "_(documento Word)_"
+        else:
+            continue
+        salida.append({"nombre": p.name, "tipo": tipo, "fecha": p.name[:16].replace("_", " "), "markdown": contenido})
+    return salida
+
+
 @app.get("/api/expedientes/{ref}/reuniones")
 def reuniones(ref: str):
+    return _listar_reuniones(_exp(ref))
+
+
+@app.delete("/api/expedientes/{ref}/reuniones/{nombre}")
+def borrar_reunion(ref: str, nombre: str):
+    """Borra una transcripción o un acta de reuniones/ y devuelve el listado actualizado."""
     exp = _exp(ref)
-    return [{"nombre": p.name, "fecha": p.name[:16].replace("_", " "), "markdown": p.read_text(encoding="utf-8")}
-            for p in sorted((exp.ruta / "reuniones").glob("*.md"), reverse=True)]
+    ruta = exp.ruta / "reuniones" / Path(nombre).name   # Path(...).name: sin rutas relativas
+    if not ruta.is_file():
+        raise HTTPException(404, {"error": f"No existe {Path(nombre).name} en reuniones/."})
+    ruta.unlink()
+    return _listar_reuniones(exp)
 
 
 @app.get("/api/expedientes/{ref}/trazas")

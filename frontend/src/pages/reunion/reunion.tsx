@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 
 import { api, esperarJob } from "@/api";
 import type { Acta, Job, Reunion as ReunionT } from "@/api";
+import { Trash2 } from "lucide-react";
+
 import { Dropzone, JobButton, JobResult, Markdown, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
@@ -127,9 +129,23 @@ export const Reunion = () => {
       )}
       {anteriores.length > 0 && (
         <div className="stack">
-          <span className="section-title">Actas anteriores</span>
+          <span className="section-title">Actas y transcripciones</span>
           <table className="table"><tbody>
-            {anteriores.map((r) => <tr key={r.nombre} data-clickable onClick={() => setAbierta(abierta === r.nombre ? null : r.nombre)}><td className="detail">{r.fecha}</td><td>{r.nombre}</td></tr>)}
+            {anteriores.map((r) => (
+              <tr key={r.nombre} data-clickable onClick={() => setAbierta(abierta === r.nombre ? null : r.nombre)}>
+                <td className="detail">{r.fecha}</td>
+                <td><span className="label">{r.tipo === "acta" ? "Acta" : "Transcripción"}</span> {r.nombre}</td>
+                <td style={{ textAlign: "right" }}>
+                  <button className="btn btn--ghost btn--small" aria-label={`Eliminar ${r.nombre}`}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!window.confirm(`¿Eliminar ${r.tipo === "acta" ? "el acta" : "la transcripción"} «${r.nombre}»? No se puede deshacer.`)) return;
+                      try { setAnteriores(await api.borrarReunion(ref, r.nombre)); if (abierta === r.nombre) setAbierta(null); notificar({ texto: `${r.nombre} eliminado.` }); }
+                      catch (err) { notificar({ texto: (err as Error).message, error: true }); }
+                    }}><Trash2 size={14} strokeWidth={1.5} />Eliminar</button>
+                </td>
+              </tr>
+            ))}
           </tbody></table>
           {abierta && <div className="panel"><Markdown texto={anteriores.find((r) => r.nombre === abierta)?.markdown ?? ""} /></div>}
         </div>

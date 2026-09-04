@@ -181,3 +181,22 @@ def test_reunion_api_con_audio_y_hablantes(cliente, monkeypatch):
     assert list(reuniones.glob("*_transcripcion.txt"))             # la transcripción sí se conserva
     assert visto["hablantes"][0][0] == "Marta" and visto["hablantes"][0][1] is not None
     assert not list(__import__("glob").glob("/tmp/muestras_voz_*"))  # las muestras de voz no se conservan
+
+
+def test_listado_y_borrado_de_reuniones(cliente):
+    c, _ = cliente
+    c.post("/api/expedientes", json={"referencia": "T-R", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
+    reuniones = api_mod.DIR_EXPEDIENTES / "T-R" / "reuniones"
+    (reuniones / "2026-09-04_1001_acta.md").write_text("# Acta", encoding="utf-8")
+    (reuniones / "2026-09-04_0952_x_transcripcion.txt").write_text("Marta: hola", encoding="utf-8")
+    listado = c.get("/api/expedientes/T-R/reuniones").json()
+    assert [(r["nombre"], r["tipo"]) for r in listado] == [
+        ("2026-09-04_1001_acta.md", "acta"), ("2026-09-04_0952_x_transcripcion.txt", "transcripcion")]
+    # borrar la transcripción devuelve el listado actualizado; el acta sigue
+    tras = c.delete("/api/expedientes/T-R/reuniones/2026-09-04_0952_x_transcripcion.txt").json()
+    assert [r["nombre"] for r in tras] == ["2026-09-04_1001_acta.md"]
+    assert not (reuniones / "2026-09-04_0952_x_transcripcion.txt").exists()
+    # nombres con rutas relativas no salen de reuniones/ y un nombre inexistente da 404
+    assert c.delete("/api/expedientes/T-R/reuniones/..%2Fexpediente.yaml").status_code in (404, 405)
+    assert (api_mod.DIR_EXPEDIENTES / "T-R" / "expediente.yaml").exists()
+    assert c.delete("/api/expedientes/T-R/reuniones/no_existe.txt").status_code == 404

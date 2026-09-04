@@ -113,6 +113,7 @@ export const clienteReal: Api = {
   diff: (ref, fichero) => req(`${e(ref)}/diff?fichero=${fichero}`),
   cambios: (ref) => req(`${e(ref)}/cambios`),
   reuniones: (ref) => req(`${e(ref)}/reuniones`),
+  borrarReunion: (ref, nombre) => req(`${e(ref)}/reuniones/${encodeURIComponent(nombre)}`, { method: "DELETE" }),
   ppt: (ref) => req(`${e(ref)}/acciones/ppt`, { method: "POST" }),
   archivar: (ref) => req(`${e(ref)}/acciones/archivar`, { method: "POST" }),
   trazas: (ref) => req(`${e(ref)}/trazas`),

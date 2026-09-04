@@ -1,6 +1,6 @@
 /* Modo mock (VITE_MOCK=1): la app funciona sin back-end con los datos de ejemplo
    del expediente TEC-2026. Los trabajos del modelo se simulan con 2 s de espera. */
-import type { Acta, Api, Conclusion, Documentos, Estado, ExpedienteEstado, Hallazgo, Informe, Job, ResultadoCambios, Traza, Version } from "./types";
+import type { Acta, Api, Conclusion, Documentos, Estado, ExpedienteEstado, Hallazgo, Informe, Job, ResultadoCambios, Reunion, Traza, Version } from "./types";
 
 const C01: Conclusion = {
   id: "C-01", titulo: "Mantenimiento manual y desactualización del maestro de tarifas", tipo: "recomendacion", estado: "aprobada",
@@ -106,6 +106,11 @@ function apartadoMd(c: Conclusion, i: number, sug: boolean) {
   return `### ${i}. ${c.titulo}\n\n${meta.join("\n")}\n\n${c.incidencia}\n\n${c.causa_raiz ? c.causa_raiz + "\n\n" : ""}${det}${c.consecuencias}\n\n` +
     recs.map((r, k) => `**${sug ? "Sugerencia de mejora" : "Recomendación"} ${i}.${k + 1}.** ${r}`).join("\n\n");
 }
+
+let reunionesMock: Reunion[] = [
+  { nombre: "2026-08-27_1030_transcript_reunion_teams.md", tipo: "acta", fecha: "2026-08-27 10:30", markdown: "# Acta de cambios — reunión «transcript_reunion_teams»\n\nSe revisó el borrador y se acordaron cambios." },
+  { nombre: "2026-08-27_1029_reunion_transcripcion.txt", tipo: "transcripcion", fecha: "2026-08-27 10:29", markdown: "Asistentes: Marta, Javier\n\nMarta: Repasamos el borrador…\nJavier: De acuerdo." },
+];
 
 let progresoMock: { progreso?: string; progreso_pct?: number | null; progreso_partes?: ("pendiente" | "en_curso" | "hecha" | "error")[] } = {};
 function simularPartes() {
@@ -234,7 +239,8 @@ export const clienteMock: Api = {
   deshacer: async () => ({ mensaje: "02_informe.md restaurado desde historial/2026-08-27T10-12-00_02_informe_aplicar-cambios.md." }),
   diff: async () => ({ diff: resultadoCambios("").diff, contra: historial[0].nombre }),
   cambios: async () => ({ markdown: "## Cambios aplicados — 2026-08-27 10:12 (03_instrucciones.md)\n\n1. **[aplicado]** ### 1. … — Elevar el nivel de riesgo a Alto\n   - Antes: - Nivel de riesgo: Medio\n   - Después: - Nivel de riesgo: Alto" }),
-  reuniones: async () => [{ nombre: "2026-08-27_1030_transcript_reunion_teams.md", fecha: "2026-08-27 10:30", markdown: `# Acta de cambios — reunión «transcript_reunion_teams»\n\n${ACTA.resumen}` }],
+  reuniones: async () => reunionesMock,
+  borrarReunion: async (_ref, nombre) => { reunionesMock = reunionesMock.filter((r) => r.nombre !== nombre); return reunionesMock; },
   ppt: async () => { await espera(800); return { nombre: "ResumenEjecutivo_TEC-2026.pptx", url: "#" }; },
   archivar: async () => { await espera(800); return { nombre: "TEC-2026_archivo_20260827-1100.zip", url: "#" }; },
   trazas: async () => trazas,

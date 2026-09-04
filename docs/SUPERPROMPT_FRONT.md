@@ -102,7 +102,7 @@ Base `/api`. Todas las respuestas JSON, UTF-8. `{ref}` es la referencia del info
 ```
 - `GET /expedientes/{ref}/historial` → `[{ "fichero": "informe"|"conclusiones"|"instrucciones", "nombre", "fecha", "motivo" }]`
 - `POST /expedientes/{ref}/acciones/deshacer` `{ "fichero": "informe" }` → síncrono; `GET /expedientes/{ref}/diff?fichero=informe` → `{ "diff": "…" }`.
-- `GET /expedientes/{ref}/cambios` → `{ "markdown": "…" }` (registro de cambios aplicados). `GET /expedientes/{ref}/reuniones` → `[{ "nombre", "fecha", "markdown" }]`.
+- `GET /expedientes/{ref}/cambios` → `{ "markdown": "…" }` (registro de cambios aplicados). `GET /expedientes/{ref}/reuniones` → `[{ "nombre", "tipo": "acta"|"transcripcion", "fecha", "markdown" }]` (actas .md y transcripciones .txt/.vtt). `DELETE /expedientes/{ref}/reuniones/{nombre}` borra una y devuelve el listado actualizado.
 
 ### Entregables y trazabilidad
 - `POST /expedientes/{ref}/acciones/ppt` → síncrono `{ "nombre", "url": "/api/expedientes/TEC-2026/salidas/ResumenEjecutivo_TEC-2026.pptx" }`.
