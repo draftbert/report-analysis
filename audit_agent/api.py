@@ -229,7 +229,7 @@ def job(job_id: str):
     j = _JOBS.get(job_id)
     if not j:
         raise HTTPException(404, {"error": "Trabajo desconocido."})
-    return {k: j[k] for k in ("estado", "accion", "mensaje", "resultado")}
+    return {k: j.get(k) for k in ("estado", "accion", "mensaje", "resultado", "progreso", "progreso_pct")}
 
 
 # ---------------------------------------------------------------- documentos
