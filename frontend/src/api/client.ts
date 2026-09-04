@@ -29,6 +29,22 @@ const json = (body: unknown, method = "POST"): RequestInit => ({
 
 const e = (ref: string) => `/expedientes/${encodeURIComponent(ref)}`;
 
+/** POST multipart con XMLHttpRequest para tener el progreso real de subida (fetch no lo expone). */
+const postConProgreso = <T,>(url: string, fd: FormData, onProgreso?: (pct: number) => void) =>
+  new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) onProgreso?.(Math.round((ev.loaded / ev.total) * 100)); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) { onProgreso?.(100); resolve(JSON.parse(xhr.responseText) as T); return; }
+      let mensaje = `${xhr.status} ${xhr.statusText}`;
+      try { const body = JSON.parse(xhr.responseText); mensaje = body.error ?? body.detail?.error ?? mensaje; } catch { /* sin JSON */ }
+      reject(new ApiError(xhr.status === 413 ? "El fichero supera el límite de subida del servidor." : mensaje));
+    };
+    xhr.onerror = () => reject(new ApiError("Error de red durante la subida (¿fichero demasiado grande o conexión cortada?)."));
+    xhr.open("POST", url);
+    xhr.send(fd);
+  });
+
 /** Subida de un fichero con XMLHttpRequest para tener el progreso real (fetch no lo expone). */
 const subirUno = (url: string, fichero: File, onProgreso: (pct: number) => void) =>
   new Promise<Documentos>((resolve, reject) => {
@@ -80,7 +96,7 @@ export const clienteReal: Api = {
   instrucciones: (ref) => req(`${e(ref)}/instrucciones`),
   guardarInstrucciones: (ref, texto) => req(`${e(ref)}/instrucciones`, json({ texto }, "PUT")),
   aplicarCambios: (ref, soloPlan = false) => req(`${e(ref)}/acciones/aplicar-cambios`, json({ solo_plan: soloPlan })),
-  reunion: (ref, fichero, aplicar, hablantes = []) => {
+  reunion: (ref, fichero, aplicar, hablantes = [], onProgreso) => {
     const fd = new FormData();
     fd.append("transcripcion", fichero);
     fd.append("aplicar", String(aplicar));
@@ -90,7 +106,7 @@ export const clienteReal: Api = {
       fd.append("hablantes", h.nombre.trim());
       if (conMuestras && h.muestra) fd.append("muestras", h.muestra);
     }
-    return req(`${e(ref)}/acciones/reunion`, { method: "POST", body: fd });
+    return postConProgreso(`${BASE}${e(ref)}/acciones/reunion`, fd, onProgreso);
   },
   historial: (ref) => req(`${e(ref)}/historial`),
   deshacer: (ref, fichero) => req(`${e(ref)}/acciones/deshacer`, json({ fichero })),

@@ -182,7 +182,7 @@ def test_reunion_video_extrae_el_audio(con_informe, monkeypatch, tmp_path):
                 {"speaker": "A", "text": f"Parte {len(vistos)} de la reunión con contenido suficiente."}]}))
         monkeypatch.setenv("KAIA_TRANSCRIBE_MAX_S", "2")
         accion_reunion(con_informe, larga)
-        assert vistos == ["larga_audio_01.mp3", "larga_audio_02.mp3", "larga_audio_03.mp3"]
+        assert sorted(vistos) == ["larga_audio_01.mp3", "larga_audio_02.mp3", "larga_audio_03.mp3"]
         user = con_informe.llm.llamadas[-1][1]
         assert "Parte 1 de la reunión" in user and "Parte 3 de la reunión" in user
         import json as _json

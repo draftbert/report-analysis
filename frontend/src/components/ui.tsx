@@ -75,13 +75,15 @@ export const JobButton = <T,>({ etiqueta, lanzar, onFin, primario, pequeno, conf
   primario?: boolean; pequeno?: boolean; confirmar?: string; disabled?: boolean;
 }) => {
   const [fase, setFase] = useState<"idle" | "curso" | "hecho">("idle");
+  const [progreso, setProgreso] = useState<{ texto: string; pct: number | null } | null>(null);
   const notificar = useNotificar();
   const click = async () => {
     if (confirmar && !window.confirm(confirmar)) return;
     setFase("curso");
+    setProgreso(null);
     try {
       const { job_id } = await lanzar();
-      const j = (await esperarJob<T>(job_id)) as Job<T>;
+      const j = (await esperarJob<T>(job_id, (tick) => tick.progreso && setProgreso({ texto: tick.progreso, pct: tick.progreso_pct ?? null }))) as Job<T>;
       onFin?.({ estado: j.estado === "ok" ? "ok" : "error", mensaje: j.mensaje, resultado: j.resultado });
       if (j.estado !== "ok") notificar({ texto: j.mensaje, error: true });
       setFase(j.estado === "ok" ? "hecho" : "idle");
@@ -94,7 +96,7 @@ export const JobButton = <T,>({ etiqueta, lanzar, onFin, primario, pequeno, conf
   };
   return (
     <button type="button" className={`btn btn--model ${primario ? "btn--primary" : ""} ${pequeno ? "btn--small" : ""} ${fase === "curso" ? "btn--busy" : ""}`} onClick={click} disabled={fase !== "idle" || disabled} aria-label={etiqueta}>
-      {fase === "curso" ? <><span className="spinner" />Trabajando con el modelo…</>
+      {fase === "curso" ? <><span className="spinner" />{progreso?.texto ?? "Trabajando con el modelo…"}{progreso?.pct != null && <span className="btn__progress" style={{ width: `${progreso.pct}%` }} />}</>
         : fase === "hecho" ? <><Check size={14} strokeWidth={2} />Hecho</>
         : <><Sparkles size={14} strokeWidth={1.5} />{etiqueta}</>}
     </button>

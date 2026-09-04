@@ -99,6 +99,7 @@ class Contexto:
         self.llm = ClienteLLM(modelo=modelo, proveedor=proveedor, trazador=exp.trazar,
                               esfuerzo=esfuerzo)
         self.system = SYSTEM_BASE.format(reglas_estilo=reglas_como_texto(self.checker))
+        self.informar = lambda texto, pct=None: None   # progreso de acciones largas (la API lo conecta al job)
 
 
 # ============================================================ utilidades
@@ -1157,14 +1158,14 @@ def _duracion_audio(ruta: Path) -> float | None:
 
 def _preparar_audio(ruta: Path, destino_dir: Path) -> list[Path]:
     """Deja el audio listo para /transcribe: de un vídeo se extrae la pista de audio y,
-    si dura más que el máximo por llamada del modelo (KAIA_TRANSCRIBE_MAX_S, 1.380 s
-    ≈ 23 min de margen sobre los 1.400 del servicio), se trocea en partes mp3 (mono,
-    16 kHz, 48 kbps) que se transcriben en orden. Los mp3 son temporales."""
+    si dura más que KAIA_TRANSCRIBE_MAX_S (300 s por defecto: el modelo admite 1.400 s
+    por llamada, pero el gateway de KAIA corta en ~240 s y una parte de 5 min se
+    transcribe en ~90 s), se trocea en partes mp3 (mono, 16 kHz, 48 kbps). Temporales."""
     import math
     import os as _os
     import shutil as _shutil
     import subprocess
-    maximo = int(_os.environ.get("KAIA_TRANSCRIBE_MAX_S") or 1380)
+    maximo = int(_os.environ.get("KAIA_TRANSCRIBE_MAX_S") or 300)
     es_video = ruta.suffix.lower() in EXTENSIONES_VIDEO
     duracion = _duracion_audio(ruta)
     trocear = duracion is not None and duracion > maximo
@@ -1205,8 +1206,34 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
     import tempfile
     temporal = Path(tempfile.mkdtemp(prefix="audio_reunion_"))
     try:
+        es_video = ruta.suffix.lower() in EXTENSIONES_VIDEO
+        ctx.informar("Extrayendo el audio del vídeo…" if es_video else "Preparando el audio…", 5)
         partes = _preparar_audio(ruta, temporal)
-        respuestas = [transcribir_audio(p, hablantes) for p in partes]
+        if len(partes) > 1:
+            dur = _duracion_audio(ruta)
+            ctx.informar(f"Audio de {round((dur or 0) / 60)} min: dividido en {len(partes)} partes", 15)
+        # 2 partes a la vez (el gateway aguanta) y un reintento por parte ante cortes puntuales
+        import time
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _una(i: int):
+            for intento in (1, 2):
+                try:
+                    return transcribir_audio(partes[i], hablantes)
+                except Exception:
+                    if intento == 2:
+                        raise
+                    time.sleep(5)
+
+        respuestas: list = [None] * len(partes)
+        ctx.informar(f"Transcribiendo {len(partes)} partes…" if len(partes) > 1 else "Transcribiendo el audio…", 15)
+        hechas = 0
+        with ThreadPoolExecutor(max_workers=min(2, len(partes))) as pool:
+            futuros = {pool.submit(_una, i): i for i in range(len(partes))}
+            for futuro in as_completed(futuros):
+                respuestas[futuros[futuro]] = futuro.result()
+                hechas += 1
+                ctx.informar(f"Transcritas {hechas} de {len(partes)} partes…", 15 + round(65 * hechas / len(partes)))
     except ExpedienteError:
         raise
     except Exception as exc:  # noqa: BLE001 — el fallo del servicio se reporta con contexto
@@ -1280,6 +1307,7 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
             "No inventes peticiones que no estén en la transcripción; si algo es ambiguo, a `pendientes`.\n\n"
             f"TRANSCRIPCIÓN ({ruta.name}):\n{transcript}\n\n"
             f"INFORME ACTUAL (02_informe.md):\n{texto_informe}")
+    ctx.informar("Analizando la reunión y contrastándola con el informe…", 82)
     res = ctx.llm.completar_estructurado("reunion", ctx.system, user, AnalisisReunion)
 
     marca = datetime.now()

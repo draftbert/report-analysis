@@ -72,11 +72,15 @@ def _checker() -> StyleChecker:
     return StyleChecker(CONFIG_DEFECTO)
 
 
-def _job(ref: str, accion: str, fn) -> dict:
-    """Lanza `fn()` en un hilo, en serie por expediente. Devuelve {job_id}."""
+def _job(ref: str, accion: str, fn, ctx=None) -> dict:
+    """Lanza `fn()` en un hilo, en serie por expediente. Devuelve {job_id}. Si se pasa
+    `ctx`, su `informar(texto, pct)` va actualizando `progreso`/`progreso_pct` del job."""
     job_id = uuid.uuid4().hex[:12]
     _JOBS[job_id] = {"estado": "en_curso", "accion": accion, "mensaje": "", "resultado": None,
+                     "progreso": "", "progreso_pct": None,
                      "expediente": ref, "inicio": datetime.now().isoformat(timespec="seconds")}
+    if ctx is not None:
+        ctx.informar = lambda texto, pct=None: _JOBS[job_id].update(progreso=texto, progreso_pct=pct)
 
     def correr():
         with _lock(ref):
@@ -383,7 +387,7 @@ async def reunion(ref: str, transcripcion: UploadFile = File(...), aplicar: bool
             if tmp is not None:
                 shutil.rmtree(tmp, ignore_errors=True)   # las muestras de voz no se conservan
 
-    return _job(ref, "reunion", tarea)
+    return _job(ref, "reunion", tarea, ctx=ctx)
 
 
 # ---------------------------------------------------------------- acciones síncronas

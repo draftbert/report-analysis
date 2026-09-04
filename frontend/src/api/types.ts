@@ -78,7 +78,7 @@ export interface Acta {
   acta: string; resumen: string; cambios_texto: CambioTexto[]; cambios_ppt: CambioPPT[]; pendientes: string[]; acuerdos_sin_cambio: string[];
 }
 
-export interface Job<T = unknown> { estado: "en_curso" | "ok" | "error"; accion: string; mensaje: string; resultado: T | null }
+export interface Job<T = unknown> { estado: "en_curso" | "ok" | "error"; accion: string; mensaje: string; resultado: T | null; progreso?: string; progreso_pct?: number | null }
 export interface Version { fichero: string; nombre: string; fecha: string; motivo: string }
 export interface Traza { nombre: string; fecha: string; accion: string; modelo: string; error?: string | null; tokens: { prompt: number | null; completion: number | null } }
 export interface Reunion { nombre: string; fecha: string; markdown: string }
@@ -116,7 +116,7 @@ export interface Api {
   aplicarCambios(ref: string, soloPlan?: boolean): Promise<{ job_id: string }>;
   /** Transcripción (.txt/.docx/.vtt) o audio (.mp3/.wav/.m4a/.webm…). Con audio, hasta 4 hablantes
    *  con muestra de voz opcional (solo se usan las muestras si todos los hablantes tienen una). */
-  reunion(ref: string, fichero: File, aplicar: boolean, hablantes?: { nombre: string; muestra: File | null }[]): Promise<{ job_id: string }>;
+  reunion(ref: string, fichero: File, aplicar: boolean, hablantes?: { nombre: string; muestra: File | null }[], onProgreso?: (pct: number) => void): Promise<{ job_id: string }>;
   historial(ref: string): Promise<Version[]>;
   deshacer(ref: string, fichero: string): Promise<{ mensaje: string }>;
   diff(ref: string, fichero: string): Promise<{ diff: string; contra: string | null }>;

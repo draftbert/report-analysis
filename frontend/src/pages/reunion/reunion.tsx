@@ -15,6 +15,7 @@ export const Reunion = () => {
   const notificar = useNotificar();
   const [fichero, setFichero] = useState<File | null>(null);
   const [hablantes, setHablantes] = useState<{ nombre: string; muestra: File | null }[]>([]);
+  const [subida, setSubida] = useState<number | null>(null);
   const [aplicar, setAplicar] = useState(false);
   const [acta, setActa] = useState<Acta | null>(null);
   const [sel, setSel] = useState<boolean[]>([]);
@@ -45,7 +46,7 @@ export const Reunion = () => {
         <div><h2 className="page__title">Reunión</h2><p className="page__subtitle">Pasa la transcripción de Teams o el audio de la reunión (se transcribe con el modelo). El sistema separa lo que cambia el texto del informe de lo que afecta al PPT, y lo que queda pendiente de dato.</p></div>
         <div className="page__actions">
           <label className="row detail"><input type="checkbox" checked={aplicar} onChange={(e) => setAplicar(e.target.checked)} /> Aplicar directamente los cambios de texto</label>
-          <JobButton<Acta> primario etiqueta={esAudio(fichero) ? "Transcribir y analizar" : "Analizar la reunión"} disabled={!fichero} lanzar={() => api.reunion(ref, fichero!, aplicar, esAudio(fichero) ? hablantes : [])}
+          <JobButton<Acta> primario etiqueta={esAudio(fichero) ? "Transcribir y analizar" : "Analizar la reunión"} disabled={!fichero} lanzar={() => { setSubida(0); return api.reunion(ref, fichero!, aplicar, esAudio(fichero) ? hablantes : [], (pct) => setSubida(pct < 100 ? pct : null)); }}
             onFin={(r) => { setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setSel(r.resultado.cambios_texto.map(() => true)); recargar(); } }} />
         </div>
       </div>
@@ -65,6 +66,12 @@ export const Reunion = () => {
             </div>
           ))}
           {hablantes.length < 4 && <div><button className="btn btn--small" onClick={() => setHablantes([...hablantes, { nombre: "", muestra: null }])}>+ Añadir hablante</button></div>}
+        </div>
+      )}
+      {subida !== null && (
+        <div className="upload__item" aria-live="polite">
+          <span className="upload__name">Subiendo {fichero?.name}</span><span className="upload__pct">{subida} %</span>
+          <div className="progress" role="progressbar" aria-valuenow={subida} aria-valuemin={0} aria-valuemax={100}><div className="progress__bar" style={{ width: `${subida}%` }} /></div>
         </div>
       )}
       <JobResult r={resultado} onClose={() => setResultado(null)} />

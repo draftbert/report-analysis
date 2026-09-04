@@ -214,3 +214,7 @@ button, input, textarea, select { font-family: inherit; }
 .progress { grid-column: 1 / -1; height: 3px; background: var(--ids-color-bg-states-hover); overflow: hidden; }
 .progress__bar { height: 100%; background: var(--ids-color-content-default); transition: width 0.2s ease; }
 .upload__item--error .progress__bar { background: var(--ids-color-alt-red-high); }
+
+/* barra fina de progreso del job dentro del botón (JobButton) */
+.btn--model { position: relative; overflow: hidden; }
+.btn__progress { position: absolute; left: 0; bottom: 0; height: 2px; background: currentColor; opacity: 0.9; transition: width 0.4s ease; }
