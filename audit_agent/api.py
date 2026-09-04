@@ -80,7 +80,8 @@ def _job(ref: str, accion: str, fn, ctx=None) -> dict:
                      "progreso": "", "progreso_pct": None,
                      "expediente": ref, "inicio": datetime.now().isoformat(timespec="seconds")}
     if ctx is not None:
-        ctx.informar = lambda texto, pct=None: _JOBS[job_id].update(progreso=texto, progreso_pct=pct)
+        ctx.informar = lambda texto, pct=None, partes=None: _JOBS[job_id].update(
+            progreso=texto, progreso_pct=pct, progreso_partes=partes)
 
     def correr():
         with _lock(ref):
@@ -229,7 +230,7 @@ def job(job_id: str):
     j = _JOBS.get(job_id)
     if not j:
         raise HTTPException(404, {"error": "Trabajo desconocido."})
-    return {k: j.get(k) for k in ("estado", "accion", "mensaje", "resultado", "progreso", "progreso_pct")}
+    return {k: j.get(k) for k in ("estado", "accion", "mensaje", "resultado", "progreso", "progreso_pct", "progreso_partes")}
 
 
 # ---------------------------------------------------------------- documentos

@@ -78,7 +78,7 @@ export interface Acta {
   acta: string; resumen: string; cambios_texto: CambioTexto[]; cambios_ppt: CambioPPT[]; pendientes: string[]; acuerdos_sin_cambio: string[];
 }
 
-export interface Job<T = unknown> { estado: "en_curso" | "ok" | "error"; accion: string; mensaje: string; resultado: T | null; progreso?: string; progreso_pct?: number | null }
+export interface Job<T = unknown> { estado: "en_curso" | "ok" | "error"; accion: string; mensaje: string; resultado: T | null; progreso?: string; progreso_pct?: number | null; progreso_partes?: ("pendiente" | "en_curso" | "hecha" | "error")[] | null }
 export interface Version { fichero: string; nombre: string; fecha: string; motivo: string }
 export interface Traza { nombre: string; fecha: string; accion: string; modelo: string; error?: string | null; tokens: { prompt: number | null; completion: number | null } }
 export interface Reunion { nombre: string; fecha: string; markdown: string }

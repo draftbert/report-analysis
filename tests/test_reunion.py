@@ -181,7 +181,12 @@ def test_reunion_video_extrae_el_audio(con_informe, monkeypatch, tmp_path):
             vistos.append(Path(ruta).name) or {"model": "m", "duration": 2.0, "segments": [
                 {"speaker": "A", "text": f"Parte {len(vistos)} de la reunión con contenido suficiente."}]}))
         monkeypatch.setenv("KAIA_TRANSCRIBE_MAX_S", "2")
+        publicado = []
+        con_informe.informar = lambda texto, pct=None, partes=None: publicado.append((texto, partes))
         accion_reunion(con_informe, larga)
+        assert publicado[-1][1] is None or True
+        estados = [p for _, p in publicado if p is not None]
+        assert estados[0] == ["pendiente", "pendiente"] and estados[-1].count("hecha") == 2   # barra por partes
         assert sorted(vistos) == ["larga_audio_01.mp3", "larga_audio_02.mp3"]   # la cola (<margen) va con la última
         user = con_informe.llm.llamadas[-1][1]
         assert "Parte 1 de la reunión" in user and "Parte 2 de la reunión" in user

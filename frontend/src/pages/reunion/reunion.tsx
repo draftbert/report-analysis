@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { api, esperarJob } from "@/api";
-import type { Acta, Reunion as ReunionT } from "@/api";
+import type { Acta, Job, Reunion as ReunionT } from "@/api";
 import { Dropzone, JobButton, JobResult, Markdown, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
@@ -16,6 +16,7 @@ export const Reunion = () => {
   const [fichero, setFichero] = useState<File | null>(null);
   const [hablantes, setHablantes] = useState<{ nombre: string; muestra: File | null }[]>([]);
   const [subida, setSubida] = useState<number | null>(null);
+  const [avance, setAvance] = useState<Job<Acta> | null>(null);
   const [aplicar, setAplicar] = useState(false);
   const [acta, setActa] = useState<Acta | null>(null);
   const [sel, setSel] = useState<boolean[]>([]);
@@ -46,8 +47,9 @@ export const Reunion = () => {
         <div><h2 className="page__title">Reunión</h2><p className="page__subtitle">Pasa la transcripción de Teams o el audio de la reunión (se transcribe con el modelo). El sistema separa lo que cambia el texto del informe de lo que afecta al PPT, y lo que queda pendiente de dato.</p></div>
         <div className="page__actions">
           <label className="row detail"><input type="checkbox" checked={aplicar} onChange={(e) => setAplicar(e.target.checked)} /> Aplicar directamente los cambios de texto</label>
-          <JobButton<Acta> primario etiqueta={esAudio(fichero) ? "Transcribir y analizar" : "Analizar la reunión"} disabled={!fichero} lanzar={() => { setSubida(0); return api.reunion(ref, fichero!, aplicar, esAudio(fichero) ? hablantes : [], (pct) => setSubida(pct < 100 ? pct : null)); }}
-            onFin={(r) => { setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setSel(r.resultado.cambios_texto.map(() => true)); recargar(); } }} />
+          <JobButton<Acta> primario etiqueta={esAudio(fichero) ? "Transcribir y analizar" : "Analizar la reunión"} disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, esAudio(fichero) ? hablantes : [], (pct) => setSubida(pct < 100 ? pct : null)); }}
+            onTick={setAvance}
+            onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setSel(r.resultado.cambios_texto.map(() => true)); recargar(); } }} />
         </div>
       </div>
       <Dropzone titulo="Transcripción o audio de la reunión" descripcion={fichero ? `Seleccionado: ${fichero.name}` : "Transcripción de Teams (.txt, .docx, .vtt) o grabación de audio o vídeo (.mp3, .wav, .m4a, .mp4, .mov, .webm…; del vídeo se extrae solo el audio) de la revisión con el Gerente, la Directora o el área."} formatos=".txt, .docx, .vtt, .md, .mp3, .wav, .m4a, .webm, .ogg, .mp4, .mov, .mkv" multiple={false} onFicheros={(f) => setFichero(f[0] ?? null)} />
@@ -72,6 +74,24 @@ export const Reunion = () => {
         <div className="upload__item" aria-live="polite">
           <span className="upload__name">Subiendo {fichero?.name}</span><span className="upload__pct">{subida} %</span>
           <div className="progress" role="progressbar" aria-valuenow={subida} aria-valuemin={0} aria-valuemax={100}><div className="progress__bar" style={{ width: `${subida}%` }} /></div>
+        </div>
+      )}
+      {avance?.progreso && (
+        <div className="panel stack" aria-live="polite">
+          <div className="row row--between"><span className="label">{avance.progreso}</span>
+            {avance.progreso_pct != null && <span className="detail">{avance.progreso_pct} %</span>}</div>
+          {avance.progreso_partes && avance.progreso_partes.length > 1 && (
+            <>
+              <div className="tramos" role="progressbar" aria-valuenow={avance.progreso_partes.filter((p) => p === "hecha").length} aria-valuemin={0} aria-valuemax={avance.progreso_partes.length}>
+                {avance.progreso_partes.map((p, i) => <span key={i} className={`tramos__parte tramos__parte--${p}`} title={`Parte ${i + 1}: ${p.replace("_", " ")}`} />)}
+              </div>
+              <span className="detail">{avance.progreso_partes.filter((p) => p === "hecha").length} de {avance.progreso_partes.length} partes transcritas
+                {avance.progreso_partes.includes("en_curso") ? ` · en curso: ${avance.progreso_partes.map((p, i) => (p === "en_curso" ? i + 1 : null)).filter(Boolean).join(" y ")}` : ""}</span>
+            </>
+          )}
+          {!avance.progreso_partes?.length && avance.progreso_pct != null && (
+            <div className="progress"><div className="progress__bar" style={{ width: `${avance.progreso_pct}%` }} /></div>
+          )}
         </div>
       )}
       <JobResult r={resultado} onClose={() => setResultado(null)} />

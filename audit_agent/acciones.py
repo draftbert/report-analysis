@@ -99,7 +99,7 @@ class Contexto:
         self.llm = ClienteLLM(modelo=modelo, proveedor=proveedor, trazador=exp.trazar,
                               esfuerzo=esfuerzo)
         self.system = SYSTEM_BASE.format(reglas_estilo=reglas_como_texto(self.checker))
-        self.informar = lambda texto, pct=None: None   # progreso de acciones largas (la API lo conecta al job)
+        self.informar = lambda texto, pct=None, partes=None: None   # progreso de acciones largas (la API lo conecta al job)
 
 
 # ============================================================ utilidades
@@ -1215,28 +1215,44 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
         if len(partes) > 1:
             dur = _duracion_audio(ruta)
             ctx.informar(f"Audio de {round((dur or 0) / 60)} min: dividido en {len(partes)} partes", 15)
-        # 2 partes a la vez (el gateway aguanta) y un reintento por parte ante cortes puntuales
+        # 2 partes a la vez (el gateway aguanta) y un reintento por parte ante cortes puntuales.
+        # El estado por parte (pendiente/en_curso/hecha/error) se publica para la barra del front.
         import time
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
+        estados = ["pendiente"] * len(partes)
+
+        def _publicar():
+            hechas = sum(e == "hecha" for e in estados)
+            ctx.informar(f"Transcritas {hechas} de {len(partes)} partes…" if len(partes) > 1 else "Transcribiendo el audio…",
+                         15 + round(65 * hechas / len(partes)), partes=list(estados))
+
         def _una(i: int):
-            for intento in (1, 2):
-                try:
-                    return transcribir_audio(partes[i], hablantes)
-                except Exception:
-                    if intento == 2:
-                        raise
-                    time.sleep(5)
+            estados[i] = "en_curso"
+            _publicar()
+            try:
+                for intento in (1, 2):
+                    try:
+                        r = transcribir_audio(partes[i], hablantes)
+                        break
+                    except Exception:
+                        if intento == 2:
+                            raise
+                        time.sleep(5)
+            except Exception:
+                estados[i] = "error"
+                _publicar()
+                raise
+            estados[i] = "hecha"
+            _publicar()
+            return r
 
         respuestas: list = [None] * len(partes)
-        ctx.informar(f"Transcribiendo {len(partes)} partes…" if len(partes) > 1 else "Transcribiendo el audio…", 15)
-        hechas = 0
+        _publicar()
         with ThreadPoolExecutor(max_workers=min(2, len(partes))) as pool:
             futuros = {pool.submit(_una, i): i for i in range(len(partes))}
             for futuro in as_completed(futuros):
                 respuestas[futuros[futuro]] = futuro.result()
-                hechas += 1
-                ctx.informar(f"Transcritas {hechas} de {len(partes)} partes…", 15 + round(65 * hechas / len(partes)))
     except ExpedienteError:
         raise
     except Exception as exc:  # noqa: BLE001 — el fallo del servicio se reporta con contexto

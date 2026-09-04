@@ -70,9 +70,9 @@ export const StateChip = ({ estado, onChange }: { estado: Estado; onChange?: (e:
 // ---------------------------------------------------------------- trabajos del modelo
 export interface JobResultado<T = unknown> { estado: "ok" | "error"; mensaje: string; resultado: T | null }
 
-export const JobButton = <T,>({ etiqueta, lanzar, onFin, primario, pequeno, confirmar, disabled }: {
+export const JobButton = <T,>({ etiqueta, lanzar, onFin, onTick, primario, pequeno, confirmar, disabled }: {
   etiqueta: string; lanzar: () => Promise<{ job_id: string }>; onFin?: (j: JobResultado<T>) => void;
-  primario?: boolean; pequeno?: boolean; confirmar?: string; disabled?: boolean;
+  onTick?: (j: Job<T>) => void; primario?: boolean; pequeno?: boolean; confirmar?: string; disabled?: boolean;
 }) => {
   const [fase, setFase] = useState<"idle" | "curso" | "hecho">("idle");
   const [progreso, setProgreso] = useState<{ texto: string; pct: number | null } | null>(null);
@@ -83,7 +83,7 @@ export const JobButton = <T,>({ etiqueta, lanzar, onFin, primario, pequeno, conf
     setProgreso(null);
     try {
       const { job_id } = await lanzar();
-      const j = (await esperarJob<T>(job_id, (tick) => tick.progreso && setProgreso({ texto: tick.progreso, pct: tick.progreso_pct ?? null }))) as Job<T>;
+      const j = (await esperarJob<T>(job_id, (tick) => { onTick?.(tick); if (tick.progreso) setProgreso({ texto: tick.progreso, pct: tick.progreso_pct ?? null }); })) as Job<T>;
       onFin?.({ estado: j.estado === "ok" ? "ok" : "error", mensaje: j.mensaje, resultado: j.resultado });
       if (j.estado !== "ok") notificar({ texto: j.mensaje, error: true });
       setFase(j.estado === "ok" ? "hecho" : "idle");

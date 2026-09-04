@@ -107,6 +107,22 @@ function apartadoMd(c: Conclusion, i: number, sug: boolean) {
     recs.map((r, k) => `**${sug ? "Sugerencia de mejora" : "Recomendación"} ${i}.${k + 1}.** ${r}`).join("\n\n");
 }
 
+let progresoMock: { progreso?: string; progreso_pct?: number | null; progreso_partes?: ("pendiente" | "en_curso" | "hecha" | "error")[] } = {};
+function simularPartes() {
+  const n = 6;
+  const estados: ("pendiente" | "en_curso" | "hecha" | "error")[] = Array(n).fill("pendiente");
+  progresoMock = { progreso: "Audio de 28 min: dividido en 6 partes", progreso_pct: 15, progreso_partes: [...estados] };
+  let hechas = 0;
+  const timer = window.setInterval(() => {
+    const idx = estados.indexOf("en_curso");
+    if (idx >= 0) { estados[idx] = "hecha"; hechas += 1; }
+    const pendientes = estados.map((e, i) => (e === "pendiente" ? i : -1)).filter((i) => i >= 0).slice(0, 2 - estados.filter((e) => e === "en_curso").length);
+    pendientes.forEach((i) => { estados[i] = "en_curso"; });
+    progresoMock = { progreso: hechas >= n ? "Analizando la reunión y contrastándola con el informe…" : `Transcritas ${hechas} de ${n} partes…`, progreso_pct: 15 + Math.round((65 * hechas) / n), progreso_partes: [...estados] };
+    if (hechas >= n) window.clearInterval(timer);
+  }, 400);
+}
+
 function estado(): ExpedienteEstado {
   const aprobadas = conclusiones.filter((c) => c.estado === "aprobada");
   return {
@@ -173,7 +189,10 @@ export const clienteMock: Api = {
   crearExpediente: async (d) => ({ ...estado(), referencia: d.referencia, nombre: d.nombre, fecha: d.fecha, distribucion: d.distribucion, fase: "0 · Sin papeles de trabajo", siguiente: "Copia el papel de trabajo final a papeles_trabajo/", contexto: [], papeles: [], conclusiones: null, informe: null, ppt: null, archivos: [] }),
   estado: async () => estado(),
   eliminarExpediente: async (ref, confirmacion) => { if (confirmacion !== ref) throw new Error(`Para eliminar el informe escribe exactamente su referencia: ${ref}`); return { mensaje: `Informe ${ref} eliminado.` }; },
-  job: async <T,>(id: string) => (jobs[id] ?? { estado: "error", accion: "?", mensaje: "Trabajo desconocido", resultado: null }) as Job<T>,
+  job: async <T,>(id: string) => {
+    const j = jobs[id] ?? { estado: "error", accion: "?", mensaje: "Trabajo desconocido", resultado: null };
+    return (j.estado === "en_curso" && j.accion === "reunion" ? { ...j, ...progresoMock } : j) as Job<T>;
+  },
   documentos: async () => docs,
   subir: async (_ref, carpeta, ficheros, onProgreso) => {
     for (const f of ficheros) { for (let pct = 0; pct <= 100; pct += 20) { onProgreso?.(f.name, pct); await espera(120); } }
@@ -210,7 +229,7 @@ export const clienteMock: Api = {
   instrucciones: async () => ({ texto: instrucciones }),
   guardarInstrucciones: async (_ref, texto) => { instrucciones = texto; return { texto }; },
   aplicarCambios: (_ref) => job("aplicar-cambios", () => { const r = resultadoCambios(instrucciones.split("\n")[0] ?? ""); instrucciones = ""; return { mensaje: "Aplicados 1 de 1 cambios. Registro en cambios_aplicados.md; 03_instrucciones.md vaciado (lo pegado queda en historial/).", resultado: r }; }),
-  reunion: (_ref, _f, aplicar, _hablantes, onProgreso) => { onProgreso?.(100); return job("reunion", () => { instrucciones = ACTA.cambios_texto.map((c) => `- ${c.instruccion} [${c.solicitado_por}]`).join("\n"); return { mensaje: `El sistema ha detectado ${ACTA.cambios_texto.length} cambio(s) en el TEXTO del informe y ${ACTA.cambios_ppt.length} en el PPT (informativo).` + (aplicar ? "\n=== aplicar-cambios ===\nAplicados 4 de 4 cambios." : "\nLas instrucciones de texto se han añadido a 03_instrucciones.md."), resultado: ACTA }; }, 2600); },
+  reunion: (_ref, _f, aplicar, _hablantes, onProgreso) => { onProgreso?.(100); simularPartes(); return job("reunion", () => { instrucciones = ACTA.cambios_texto.map((c) => `- ${c.instruccion} [${c.solicitado_por}]`).join("\n"); return { mensaje: `El sistema ha detectado ${ACTA.cambios_texto.length} cambio(s) en el TEXTO del informe y ${ACTA.cambios_ppt.length} en el PPT (informativo).` + (aplicar ? "\n=== aplicar-cambios ===\nAplicados 4 de 4 cambios." : "\nLas instrucciones de texto se han añadido a 03_instrucciones.md."), resultado: ACTA }; }, 4200); },
   historial: async () => historial,
   deshacer: async () => ({ mensaje: "02_informe.md restaurado desde historial/2026-08-27T10-12-00_02_informe_aplicar-cambios.md." }),
   diff: async () => ({ diff: resultadoCambios("").diff, contra: historial[0].nombre }),

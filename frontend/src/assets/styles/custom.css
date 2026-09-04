@@ -218,3 +218,11 @@ button, input, textarea, select { font-family: inherit; }
 /* barra fina de progreso del job dentro del botón (JobButton) */
 .btn--model { position: relative; overflow: hidden; }
 .btn__progress { position: absolute; left: 0; bottom: 0; height: 2px; background: currentColor; opacity: 0.9; transition: width 0.4s ease; }
+
+/* barra segmentada de la transcripción por partes (Reunión) */
+.tramos { display: flex; gap: 4px; }
+.tramos__parte { flex: 1; height: 8px; background: var(--ids-color-bg-states-hover); transition: background 0.3s; }
+.tramos__parte--en_curso { background: var(--ids-color-content-low); animation: tramo-pulso 1.1s ease-in-out infinite; }
+.tramos__parte--hecha { background: var(--ids-color-content-default); }
+.tramos__parte--error { background: var(--ids-color-alt-red-high); }
+@keyframes tramo-pulso { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }

@@ -174,7 +174,7 @@ def test_reunion_api_con_audio_y_hablantes(cliente, monkeypatch):
                                   "muestras": ("marta.wav", b"\x00" * 16, "audio/wav")},
                            data={"aplicar": "false", "hablantes": ["Marta"]}).json()["job_id"])
     assert j["estado"] == "ok", j["mensaje"]
-    assert "progreso" in j and "progreso_pct" in j          # el front enseña las fases del job
+    assert "progreso" in j and "progreso_pct" in j and "progreso_partes" in j   # el front enseña las fases del job
     assert j["resultado"]["transcripcion"].startswith("reuniones/") and j["resultado"]["cambios_texto"]
     reuniones = api_mod.DIR_EXPEDIENTES / "T-A" / "reuniones"
     assert not list(reuniones.glob("*.mp3"))                       # el audio subido se borra al terminar
