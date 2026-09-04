@@ -205,7 +205,24 @@ def test_reunion_video_extrae_el_audio(con_informe, monkeypatch, tmp_path):
 def test_claves_con_mayusculas_de_kaia_se_normalizan():
     """Caso real: KAIA devolvió «Seccion»/«Que_cambiar» pese al esquema estricto."""
     from audit_agent.llm import _claves_en_minusculas
-    bruto = {"Resumen": "R", "Cambios_texto": [{"Seccion": "Contexto", "Que_cambiar": "X", "Instruccion": "Y"}],
+    bruto = {"Resumen": "R", "Cambios_texto": [{"Seccion": "Contexto", "Que Cambiar": "X", "Instrucción": "Y",
+                                                "Solicitado Por": "Marta"}],
              "cambios_ppt": [], "Pendientes": [], "acuerdos_sin_cambio": []}
     res = AnalisisReunion.model_validate(_claves_en_minusculas(bruto))
     assert res.resumen == "R" and res.cambios_texto[0].seccion == "Contexto" and res.cambios_texto[0].instruccion == "Y"
+    assert res.cambios_texto[0].que_cambiar == "X" and res.cambios_texto[0].solicitado_por == "Marta"
+
+
+def test_si_falla_el_analisis_tras_transcribir_se_indica_la_transcripcion(con_informe, monkeypatch):
+    from audit_agent import acciones
+    from audit_agent.llm import LLMNoDisponible
+    audio = con_informe.exp.ruta / "reuniones" / "r.mp3"
+    audio.parent.mkdir(exist_ok=True)
+    audio.write_bytes(b"\x00")
+    monkeypatch.setattr(acciones, "transcribir_audio", lambda *a, **k: {"model": "m", "duration": 3.0, "segments": [
+        {"speaker": "A", "text": "Texto suficiente para pasar el umbral de longitud de la transcripción."}]})
+    def revienta(*a, **k):
+        raise LLMNoDisponible("La respuesta de KAIA no cumple el esquema AnalisisReunion (tras un reintento): …")
+    monkeypatch.setattr(con_informe.llm, "completar_estructurado", revienta, raising=False)
+    with pytest.raises(ExpedienteError, match="quedó guardada en reuniones/.*reintentar el análisis"):
+        accion_reunion(con_informe, audio)

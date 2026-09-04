@@ -43,12 +43,20 @@ def _leer_float(nombre: str) -> float | None:
         return None
 
 
+def _clave_normal(k) -> str:
+    import re
+    import unicodedata
+    limpio = "".join(c for c in unicodedata.normalize("NFD", str(k)) if unicodedata.category(c) != "Mn")
+    return re.sub(r"[\s\-]+", "_", limpio.strip().lower())
+
+
 def _claves_en_minusculas(obj):
-    """KAIA a veces devuelve las claves con mayúscula inicial («Seccion») pese al
-    esquema estricto. Todos los esquemas del proyecto son snake_case en minúsculas,
-    así que bajar las claves recursivamente es seguro y arregla ese caso."""
+    """KAIA a veces devuelve claves que no respetan su propio esquema estricto
+    (casos reales: «Seccion», «Que Cambiar»). Todos los esquemas del proyecto son
+    snake_case en minúsculas y sin tildes, así que normalizar las claves
+    (minúsculas, sin diacríticos, espacios/guiones → «_») es seguro."""
     if isinstance(obj, dict):
-        return {str(k).lower(): _claves_en_minusculas(v) for k, v in obj.items()}
+        return {_clave_normal(k): _claves_en_minusculas(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_claves_en_minusculas(x) for x in obj]
     return obj
@@ -115,14 +123,20 @@ class ClienteLLM:
                     "No hay proveedor LLM configurado. Define las variables KAIA_* (o "
                     "ANTHROPIC_API_KEY) en .env. Las acciones deterministas siguen disponibles.")
             if self._kaia is not None:
-                bruto, usage = self._kaia.invocar(system, user, modelo_salida,
-                                                  reasoning_effort=esfuerzo)
-                registro["usage"] = usage
-                try:
-                    resultado = modelo_salida.model_validate(_claves_en_minusculas(bruto))
-                except ValidationError as exc:
-                    registro["respuesta_bruta"] = bruto
-                    raise LLMNoDisponible(f"La respuesta de KAIA no cumple el esquema {modelo_salida.__name__}: {exc}") from exc
+                resultado = None
+                for intento in (1, 2):   # una respuesta que no cumple el esquema se reintenta una vez
+                    bruto, usage = self._kaia.invocar(system, user, modelo_salida,
+                                                      reasoning_effort=esfuerzo)
+                    registro["usage"] = usage
+                    try:
+                        resultado = modelo_salida.model_validate(_claves_en_minusculas(bruto))
+                        break
+                    except ValidationError as exc:
+                        registro["respuesta_bruta"] = bruto
+                        registro["reintento_esquema"] = True
+                        if intento == 2:
+                            raise LLMNoDisponible(f"La respuesta de KAIA no cumple el esquema {modelo_salida.__name__} "
+                                                  f"(tras un reintento): {exc}") from exc
             else:
                 resultado = self._completar_anthropic(system, user, modelo_salida, registro)
             registro["respuesta"] = resultado.model_dump()

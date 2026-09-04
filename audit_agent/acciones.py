@@ -37,7 +37,7 @@ from .formato_md import (COLETILLA_RIESGO_PROPUESTO, normalizar_nivel, normaliza
                          parrafos_con_lineas, parsear_conclusiones, parsear_informe,
                          render_conclusiones, render_informe, textos_informe)
 from .lectores import EXTENSIONES as EXT_ENTRADA, Documento, LecturaError, leer as leer_documento
-from .llm import ClienteLLM
+from .llm import ClienteLLM, LLMNoDisponible
 from .style_checker import StyleChecker, reglas_como_texto, revisar_markdown
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -1327,7 +1327,13 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
             f"TRANSCRIPCIÓN ({ruta.name}):\n{transcript}\n\n"
             f"INFORME ACTUAL (02_informe.md):\n{texto_informe}")
     ctx.informar("Analizando la reunión y contrastándola con el informe…", 82)
-    res = ctx.llm.completar_estructurado("reunion", ctx.system, user, AnalisisReunion)
+    try:
+        res = ctx.llm.completar_estructurado("reunion", ctx.system, user, AnalisisReunion)
+    except LLMNoDisponible as exc:
+        if ULTIMO_RESULTADO.get("transcripcion"):
+            raise ExpedienteError(f"{exc}\nLa transcripción quedó guardada en {ULTIMO_RESULTADO['transcripcion']}: "
+                                  "súbela como fichero de reunión para reintentar el análisis sin transcribir de nuevo.") from exc
+        raise
 
     marca = datetime.now()
     acta = exp.ruta / "reuniones" / f"{marca:%Y-%m-%d_%H%M}_{ruta.stem[:40]}.md"
