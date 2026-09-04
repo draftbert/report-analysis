@@ -1221,6 +1221,7 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         estados = ["pendiente"] * len(partes)
+        errores: dict[int, str] = {}
 
         def _publicar():
             hechas = sum(e == "hecha" for e in estados)
@@ -1228,24 +1229,23 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
                          15 + round(65 * hechas / len(partes)), partes=list(estados))
 
         def _una(i: int):
+            """Una parte fallida (tras un reintento) NO tira la reunión entera: se marca
+            el hueco y se sigue — mejor una transcripción con un tramo perdido que nada."""
             estados[i] = "en_curso"
             _publicar()
-            try:
-                for intento in (1, 2):
-                    try:
-                        r = transcribir_audio(partes[i], hablantes)
-                        break
-                    except Exception:
-                        if intento == 2:
-                            raise
-                        time.sleep(5)
-            except Exception:
-                estados[i] = "error"
-                _publicar()
-                raise
-            estados[i] = "hecha"
-            _publicar()
-            return r
+            for intento in (1, 2):
+                try:
+                    r = transcribir_audio(partes[i], hablantes)
+                    estados[i] = "hecha"
+                    _publicar()
+                    return r
+                except Exception as exc:  # noqa: BLE001 — el motivo se conserva por parte
+                    if intento == 2:
+                        errores[i] = str(exc)
+                        estados[i] = "error"
+                        _publicar()
+                        return None
+                    time.sleep(5)
 
         respuestas: list = [None] * len(partes)
         _publicar()
@@ -1253,6 +1253,8 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
             futuros = {pool.submit(_una, i): i for i in range(len(partes))}
             for futuro in as_completed(futuros):
                 respuestas[futuros[futuro]] = futuro.result()
+        if len(errores) == len(partes):
+            raise ExpedienteError(f"No se ha podido transcribir {ruta.name}: {errores[min(errores)][:300]}")
     except ExpedienteError:
         raise
     except Exception as exc:  # noqa: BLE001 — el fallo del servicio se reporta con contexto
@@ -1260,7 +1262,9 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
     finally:
         import shutil as _shutil
         _shutil.rmtree(temporal, ignore_errors=True)   # el audio extraído/troceado es temporal
-    texto = "\n".join(t for t in (dialogo_de(r) for r in respuestas) if t)
+    trozos = [dialogo_de(r) if r is not None else f"[La parte {i + 1} de {len(respuestas)} no se pudo transcribir: fallo del servicio]"
+              for i, r in enumerate(respuestas)]
+    texto = "\n".join(t for t in trozos if t)
     if len(texto) < 40:
         raise ExpedienteError(f"La transcripción de {ruta.name} ha vuelto vacía o ilegible.")
     nombres = [n for n, _ in hablantes]
@@ -1271,13 +1275,17 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
     destino.write_text(texto + "\n", encoding="utf-8")
     exp.trazar("reunion-transcripcion", {
         "fecha": inicio.isoformat(timespec="seconds"), "accion": "reunion-transcripcion", "fichero": ruta.name,
-        "modelo": respuestas[0].get("model"), "proveedor": respuestas[0].get("provider"),
-        "duracion_audio_s": round(sum(r.get("duration") or 0 for r in respuestas), 1) or None,
+        "modelo": next((r.get("model") for r in respuestas if r), None),
+        "proveedor": next((r.get("provider") for r in respuestas if r), None),
+        "duracion_audio_s": round(sum(r.get("duration") or 0 for r in respuestas if r), 1) or None,
         "segundos": round((datetime.now() - inicio).total_seconds(), 1),
-        "partes": len(respuestas), "audio_convertido": partes[0] != ruta,
+        "partes": len(respuestas), "partes_fallidas": sorted(i + 1 for i in errores),
+        "errores_partes": {str(i + 1): e[:200] for i, e in errores.items()}, "audio_convertido": partes[0] != ruta,
         "hablantes": nombres, "con_muestras_de_voz": bool(hablantes) and all(m for _, m in hablantes),
         "caracteres": len(texto), "transcripcion": destino.name})
     ULTIMO_RESULTADO["transcripcion"] = destino.relative_to(exp.ruta).as_posix()
+    if errores:
+        ULTIMO_RESULTADO["partes_fallidas"] = sorted(i + 1 for i in errores)
     return texto
 
 
@@ -1338,10 +1346,13 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
     marca = datetime.now()
     acta = exp.ruta / "reuniones" / f"{marca:%Y-%m-%d_%H%M}_{ruta.stem[:40]}.md"
     transcripcion_previa = ULTIMO_RESULTADO.get("transcripcion")
+    fallidas_previas = ULTIMO_RESULTADO.get("partes_fallidas")
     ULTIMO_RESULTADO.clear()
     ULTIMO_RESULTADO.update(res.model_dump())
     if transcripcion_previa:
         ULTIMO_RESULTADO["transcripcion"] = transcripcion_previa
+    if fallidas_previas:
+        ULTIMO_RESULTADO["partes_fallidas"] = fallidas_previas
     ULTIMO_RESULTADO["acta"] = acta.relative_to(exp.ruta).as_posix()
     L = [f"# Acta de cambios — reunión «{ruta.stem}» — {marca:%Y-%m-%d %H:%M}", "", res.resumen.strip(), "",
          f"## Cambios en el texto del informe ({len(res.cambios_texto)})", ""]
@@ -1370,6 +1381,10 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
     out = [f"Acta: {acta.relative_to(exp.ruta)}"]
     if ULTIMO_RESULTADO.get("transcripcion"):
         out.append(f"Transcripción del audio (revísala si algo no cuadra): {ULTIMO_RESULTADO['transcripcion']}")
+    if ULTIMO_RESULTADO.get("partes_fallidas"):
+        f = ULTIMO_RESULTADO["partes_fallidas"]
+        out.append(f"⚠ {len(f)} parte(s) del audio no se pudieron transcribir ({', '.join(map(str, f))}): "
+                   "el acta puede estar incompleta en esos tramos (marcados en la transcripción).")
     out += ["", res.resumen.strip(), "",
            f"El sistema ha detectado {len(res.cambios_texto)} cambio(s) en el TEXTO del informe:"]
     out += [f"  {i}. [{c.seccion}] {c.que_cambiar}" + (f" (pide: {c.solicitado_por})" if c.solicitado_por else "")

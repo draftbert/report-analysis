@@ -226,3 +226,39 @@ def test_si_falla_el_analisis_tras_transcribir_se_indica_la_transcripcion(con_in
     monkeypatch.setattr(con_informe.llm, "completar_estructurado", revienta, raising=False)
     with pytest.raises(ExpedienteError, match="quedó guardada en reuniones/.*reintentar el análisis"):
         accion_reunion(con_informe, audio)
+
+
+def test_una_parte_fallida_no_tira_la_reunion(con_informe, monkeypatch, tmp_path):
+    import shutil as sh
+    import subprocess
+    from audit_agent import acciones
+    if not sh.which("ffmpeg"):
+        pytest.skip("sin ffmpeg")
+    exp = con_informe.exp
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=5", str(tmp_path / "l.wav")],
+                   capture_output=True, check=True)
+    audio = exp.ruta / "reuniones" / "larga2.wav"
+    audio.parent.mkdir(exist_ok=True)
+    sh.copy(tmp_path / "l.wav", audio)
+    monkeypatch.setenv("KAIA_TRANSCRIBE_MAX_S", "2")
+
+    def falso(ruta, hablantes=None):
+        if "_02" in Path(ruta).name:
+            raise RuntimeError("stream timeout")
+        return {"model": "m", "duration": 2.0, "segments": [{"speaker": "A", "text": "Contenido válido de la parte con texto suficiente."}]}
+
+    monkeypatch.setattr(acciones, "transcribir_audio", falso)
+    monkeypatch.setattr(acciones, "time", __import__("time"), raising=False)
+    con_informe.llm.respuestas["reunion"] = ANALISIS
+    salida = accion_reunion(con_informe, audio)
+    assert "1 parte(s) del audio no se pudieron transcribir (2)" in salida
+    txt = max((exp.ruta / "reuniones").glob("*larga2_transcripcion.txt")).read_text(encoding="utf-8")
+    assert "[La parte 2 de 2 no se pudo transcribir: fallo del servicio]" in txt and "Contenido válido" in txt
+    import json as _json
+    traza = max((exp.ruta / "trazas").glob("*reunion-transcripcion.json"))
+    datos = _json.loads(traza.read_text(encoding="utf-8"))
+    assert datos["partes_fallidas"] == [2] and "stream timeout" in datos["errores_partes"]["2"]
+    # si fallan TODAS, sí es error
+    monkeypatch.setattr(acciones, "transcribir_audio", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("caído")))
+    with pytest.raises(ExpedienteError, match="No se ha podido transcribir"):
+        accion_reunion(con_informe, audio)
