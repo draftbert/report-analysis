@@ -170,6 +170,24 @@ def test_reunion_video_extrae_el_audio(con_informe, monkeypatch, tmp_path):
         accion_reunion(con_informe, video)
         assert visto["audio"].suffix == ".mp3" and visto["audio"] != video
         assert not visto["audio"].exists()          # el mp3 extraído es temporal
+        # audio más largo que el máximo por llamada -> se trocea y se transcribe en orden
+        import os
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=5",
+                        str(tmp_path / "larga.wav")], capture_output=True, check=True)
+        larga = exp.ruta / "reuniones" / "larga.wav"
+        sh.copy(tmp_path / "larga.wav", larga)
+        vistos = []
+        monkeypatch.setattr(acciones, "transcribir_audio", lambda ruta, hablantes=None: (
+            vistos.append(Path(ruta).name) or {"model": "m", "duration": 2.0, "segments": [
+                {"speaker": "A", "text": f"Parte {len(vistos)} de la reunión con contenido suficiente."}]}))
+        monkeypatch.setenv("KAIA_TRANSCRIBE_MAX_S", "2")
+        accion_reunion(con_informe, larga)
+        assert vistos == ["larga_audio_01.mp3", "larga_audio_02.mp3", "larga_audio_03.mp3"]
+        user = con_informe.llm.llamadas[-1][1]
+        assert "Parte 1 de la reunión" in user and "Parte 3 de la reunión" in user
+        import json as _json
+        traza = max((exp.ruta / "trazas").glob("*reunion-transcripcion.json"))
+        assert _json.loads(traza.read_text(encoding="utf-8"))["partes"] == 3
     # sin ffmpeg: .mov no se puede enviar; .mp4 iría directo
     monkeypatch.setattr(sh, "which", lambda _n: None)
     mov = exp.ruta / "reuniones" / "reunion.mov"

@@ -1141,23 +1141,53 @@ from .kaia_client import EXTENSIONES_AUDIO, EXTENSIONES_VIDEO, dialogo_de, trans
 EXTENSIONES_REUNION_AV = tuple(dict.fromkeys(EXTENSIONES_AUDIO + EXTENSIONES_VIDEO))
 
 
-def _audio_de_video(ruta: Path, destino_dir: Path) -> Path:
-    """Extrae la pista de audio de un vídeo con ffmpeg (mono, 16 kHz, mp3 a 48 kbps:
-    ~20 MB/hora). Se usa para no enviar el vídeo entero a KAIA; el mp3 es temporal."""
+def _duracion_audio(ruta: Path) -> float | None:
+    """Duración en segundos vía ffprobe; None si no se puede medir."""
     import shutil as _shutil
     import subprocess
+    if not _shutil.which("ffprobe"):
+        return None
+    try:
+        p = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(ruta)],
+                           capture_output=True, text=True, timeout=120)
+        return float(p.stdout.strip()) if p.returncode == 0 and p.stdout.strip() else None
+    except (ValueError, subprocess.SubprocessError):
+        return None
+
+
+def _preparar_audio(ruta: Path, destino_dir: Path) -> list[Path]:
+    """Deja el audio listo para /transcribe: de un vídeo se extrae la pista de audio y,
+    si dura más que el máximo por llamada del modelo (KAIA_TRANSCRIBE_MAX_S, 1.380 s
+    ≈ 23 min de margen sobre los 1.400 del servicio), se trocea en partes mp3 (mono,
+    16 kHz, 48 kbps) que se transcriben en orden. Los mp3 son temporales."""
+    import math
+    import os as _os
+    import shutil as _shutil
+    import subprocess
+    maximo = int(_os.environ.get("KAIA_TRANSCRIBE_MAX_S") or 1380)
+    es_video = ruta.suffix.lower() in EXTENSIONES_VIDEO
+    duracion = _duracion_audio(ruta)
+    trocear = duracion is not None and duracion > maximo
+    if not es_video and not trocear:
+        return [ruta]
     if not _shutil.which("ffmpeg"):
-        if ruta.suffix.lower() in EXTENSIONES_AUDIO:   # .mp4/.webm: el servicio acepta el contenedor
-            return ruta
-        raise ExpedienteError(f"{ruta.name}: para transcribir vídeo {ruta.suffix} hace falta ffmpeg "
-                              "(instálalo o sube el audio/una grabación .mp4).")
-    salida = destino_dir / (ruta.stem[:40] + "_audio.mp3")
-    proc = subprocess.run(["ffmpeg", "-y", "-i", str(ruta), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(salida)],
-                          capture_output=True, text=True, timeout=1800)
-    if proc.returncode != 0 or not salida.exists() or salida.stat().st_size == 0:
-        detalle = (proc.stderr or "").strip().splitlines()[-1:] or ["ffmpeg falló"]
-        raise ExpedienteError(f"No se ha podido extraer el audio de {ruta.name}: {detalle[0][:200]}")
-    return salida
+        if es_video and ruta.suffix.lower() in EXTENSIONES_AUDIO and not trocear:
+            return [ruta]      # .mp4/.webm cortos: el servicio acepta el contenedor
+        raise ExpedienteError(f"{ruta.name}: hace falta ffmpeg para " +
+                              ("trocear un audio de más de %d s (el modelo admite 1.400 s por llamada)." % maximo
+                               if trocear else f"transcribir vídeo {ruta.suffix} (instálalo o sube el audio)."))
+    partes = max(1, math.ceil((duracion or 1) / maximo)) if duracion else 1
+    salidas = []
+    for i in range(partes):
+        salida = destino_dir / f"{ruta.stem[:40]}_audio_{i + 1:02d}.mp3"
+        orden = ["ffmpeg", "-y", "-ss", str(i * maximo), "-t", str(maximo), "-i", str(ruta),
+                 "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(salida)]
+        proc = subprocess.run(orden, capture_output=True, text=True, timeout=1800)
+        if proc.returncode != 0 or not salida.exists() or salida.stat().st_size == 0:
+            detalle = (proc.stderr or "").strip().splitlines()[-1:] or ["ffmpeg falló"]
+            raise ExpedienteError(f"No se ha podido extraer el audio de {ruta.name}: {detalle[0][:200]}")
+        salidas.append(salida)
+    return salidas
 
 
 def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, str | None]]) -> str:
@@ -1172,23 +1202,19 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
         if muestra and not Path(muestra).exists():
             raise ExpedienteError(f"No existe la muestra de voz {muestra}.")
     inicio = datetime.now()
-    audio = ruta
-    temporal = None
-    if ruta.suffix.lower() in EXTENSIONES_VIDEO:
-        import tempfile
-        temporal = Path(tempfile.mkdtemp(prefix="audio_reunion_"))
-        audio = _audio_de_video(ruta, temporal)
+    import tempfile
+    temporal = Path(tempfile.mkdtemp(prefix="audio_reunion_"))
     try:
-        respuesta = transcribir_audio(audio, hablantes)
+        partes = _preparar_audio(ruta, temporal)
+        respuestas = [transcribir_audio(p, hablantes) for p in partes]
     except ExpedienteError:
         raise
     except Exception as exc:  # noqa: BLE001 — el fallo del servicio se reporta con contexto
         raise ExpedienteError(f"No se ha podido transcribir {ruta.name}: {exc}") from exc
     finally:
-        if temporal is not None:
-            import shutil as _shutil
-            _shutil.rmtree(temporal, ignore_errors=True)   # el audio extraído del vídeo es temporal
-    texto = dialogo_de(respuesta)
+        import shutil as _shutil
+        _shutil.rmtree(temporal, ignore_errors=True)   # el audio extraído/troceado es temporal
+    texto = "\n".join(t for t in (dialogo_de(r) for r in respuestas) if t)
     if len(texto) < 40:
         raise ExpedienteError(f"La transcripción de {ruta.name} ha vuelto vacía o ilegible.")
     nombres = [n for n, _ in hablantes]
@@ -1199,9 +1225,10 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
     destino.write_text(texto + "\n", encoding="utf-8")
     exp.trazar("reunion-transcripcion", {
         "fecha": inicio.isoformat(timespec="seconds"), "accion": "reunion-transcripcion", "fichero": ruta.name,
-        "modelo": respuesta.get("model"), "proveedor": respuesta.get("provider"),
-        "duracion_audio_s": respuesta.get("duration"), "segundos": round((datetime.now() - inicio).total_seconds(), 1),
-        "audio_extraido_de_video": audio is not ruta,
+        "modelo": respuestas[0].get("model"), "proveedor": respuestas[0].get("provider"),
+        "duracion_audio_s": round(sum(r.get("duration") or 0 for r in respuestas), 1) or None,
+        "segundos": round((datetime.now() - inicio).total_seconds(), 1),
+        "partes": len(respuestas), "audio_convertido": partes[0] != ruta,
         "hablantes": nombres, "con_muestras_de_voz": bool(hablantes) and all(m for _, m in hablantes),
         "caracteres": len(texto), "transcripcion": destino.name})
     ULTIMO_RESULTADO["transcripcion"] = destino.relative_to(exp.ruta).as_posix()
