@@ -1156,6 +1156,29 @@ def _duracion_audio(ruta: Path) -> float | None:
         return None
 
 
+def _en_mitades(parte: Path, destino_dir: Path, hablantes) -> dict:
+    """Último recurso para una parte que agota sus intentos: partirla en dos mitades y
+    transcribirlas por separado, devolviendo una respuesta combinada."""
+    import shutil as _shutil
+    import subprocess
+    dur = _duracion_audio(parte)
+    if not _shutil.which("ffmpeg") or not dur or dur < 60:
+        raise ExpedienteError("no se puede partir en mitades (sin ffmpeg o parte demasiado corta)")
+    mitades = []
+    for k, (ini, fin) in enumerate(((0, dur / 2), (dur / 2, None)), 1):
+        salida = destino_dir / f"{parte.stem}_{'ab'[k - 1]}.mp3"
+        orden = ["ffmpeg", "-y", "-ss", str(ini)] + ([] if fin is None else ["-t", str(fin - ini)]) +                 ["-i", str(parte), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(salida)]
+        proc = subprocess.run(orden, capture_output=True, text=True, timeout=600)
+        if proc.returncode != 0 or not salida.exists() or salida.stat().st_size == 0:
+            raise ExpedienteError("ffmpeg no pudo partir la parte")
+        mitades.append(salida)
+    r1, r2 = (transcribir_audio(m, hablantes) for m in mitades)
+    return {"model": r1.get("model") or r2.get("model"), "provider": r1.get("provider"),
+            "duration": (r1.get("duration") or 0) + (r2.get("duration") or 0),
+            "segments": (r1.get("segments") or []) + (r2.get("segments") or []),
+            "text": ((r1.get("text") or "") + "\n" + (r2.get("text") or "")).strip()}
+
+
 def _preparar_audio(ruta: Path, destino_dir: Path) -> list[Path]:
     """Deja el audio listo para /transcribe: de un vídeo se extrae la pista de audio y,
     si dura más que KAIA_TRANSCRIBE_MAX_S (300 s por defecto: el modelo admite 1.400 s
@@ -1229,10 +1252,13 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
                          15 + round(65 * hechas / len(partes)), partes=list(estados))
 
         def _una(i: int):
-            """Una parte fallida (tras un reintento) NO tira la reunión entera: se marca
-            el hueco y se sigue — mejor una transcripción con un tramo perdido que nada."""
+            """Una parte fallida NO tira la reunión entera. Tras el reintento normal se
+            prueba en dos mitades (caso real: un tramo denso tarda más de los ~240 s que
+            aguanta el gateway de KAIA y devuelve 504 siempre; la mitad sí entra). Si aun
+            así falla, se marca el hueco y se sigue."""
             estados[i] = "en_curso"
             _publicar()
+            ultimo = ""
             for intento in (1, 2):
                 try:
                     r = transcribir_audio(partes[i], hablantes)
@@ -1240,12 +1266,19 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
                     _publicar()
                     return r
                 except Exception as exc:  # noqa: BLE001 — el motivo se conserva por parte
-                    if intento == 2:
-                        errores[i] = str(exc)
-                        estados[i] = "error"
-                        _publicar()
-                        return None
-                    time.sleep(5)
+                    ultimo = str(exc)
+                    if intento == 1:
+                        time.sleep(5)
+            try:
+                r = _en_mitades(partes[i], temporal, hablantes)
+                estados[i] = "hecha"
+                _publicar()
+                return r
+            except Exception as exc:  # noqa: BLE001
+                errores[i] = f"{ultimo} | en mitades: {exc}"
+                estados[i] = "error"
+                _publicar()
+                return None
 
         respuestas: list = [None] * len(partes)
         _publicar()

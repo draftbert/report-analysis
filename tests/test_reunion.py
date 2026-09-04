@@ -262,3 +262,35 @@ def test_una_parte_fallida_no_tira_la_reunion(con_informe, monkeypatch, tmp_path
     monkeypatch.setattr(acciones, "transcribir_audio", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("caído")))
     with pytest.raises(ExpedienteError, match="No se ha podido transcribir"):
         accion_reunion(con_informe, audio)
+
+
+def test_parte_que_siempre_da_504_se_transcribe_en_mitades(con_informe, monkeypatch, tmp_path):
+    """Caso real: un tramo denso tarda más de los ~240 s del gateway y da 504 siempre;
+    en dos mitades sí entra y no se pierde nada."""
+    import shutil as sh
+    import subprocess
+    from audit_agent import acciones
+    if not sh.which("ffmpeg"):
+        pytest.skip("sin ffmpeg")
+    exp = con_informe.exp
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=130", str(tmp_path / "l.wav")],
+                   capture_output=True, check=True)
+    audio = exp.ruta / "reuniones" / "densa.wav"
+    audio.parent.mkdir(exist_ok=True)
+    sh.copy(tmp_path / "l.wav", audio)
+    monkeypatch.setenv("KAIA_TRANSCRIBE_MAX_S", "999")   # una sola parte, que "siempre da 504"
+
+    def falso(ruta, hablantes=None):
+        nombre = Path(ruta).name
+        if nombre.endswith(("_a.mp3", "_b.mp3")):
+            mitad = "primera" if nombre.endswith("_a.mp3") else "segunda"
+            return {"model": "m", "duration": 65.0, "segments": [{"speaker": "A", "text": f"Contenido de la {mitad} mitad del tramo denso."}]}
+        raise RuntimeError("KAIA /transcribe devolvió 504: stream timeout")
+
+    monkeypatch.setattr(acciones, "transcribir_audio", falso)
+    monkeypatch.setattr(acciones.time, "sleep", lambda _s: None) if hasattr(acciones, "time") else None
+    con_informe.llm.respuestas["reunion"] = ANALISIS
+    salida = accion_reunion(con_informe, audio)
+    txt = max((exp.ruta / "reuniones").glob("*densa_transcripcion.txt")).read_text(encoding="utf-8")
+    assert "primera mitad" in txt and "segunda mitad" in txt and "no se pudo transcribir" not in txt
+    assert "parte(s) del audio no se pudieron transcribir" not in salida
