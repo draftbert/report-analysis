@@ -80,10 +80,16 @@ export const clienteReal: Api = {
   instrucciones: (ref) => req(`${e(ref)}/instrucciones`),
   guardarInstrucciones: (ref, texto) => req(`${e(ref)}/instrucciones`, json({ texto }, "PUT")),
   aplicarCambios: (ref, soloPlan = false) => req(`${e(ref)}/acciones/aplicar-cambios`, json({ solo_plan: soloPlan })),
-  reunion: (ref, fichero, aplicar) => {
+  reunion: (ref, fichero, aplicar, hablantes = []) => {
     const fd = new FormData();
     fd.append("transcripcion", fichero);
     fd.append("aplicar", String(aplicar));
+    const hs = hablantes.filter((h) => h.nombre.trim());
+    const conMuestras = hs.length > 0 && hs.every((h) => h.muestra);   // el backend solo las usa si están todas
+    for (const h of hs) {
+      fd.append("hablantes", h.nombre.trim());
+      if (conMuestras && h.muestra) fd.append("muestras", h.muestra);
+    }
     return req(`${e(ref)}/acciones/reunion`, { method: "POST", body: fd });
   },
   historial: (ref) => req(`${e(ref)}/historial`),

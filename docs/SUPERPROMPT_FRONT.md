@@ -93,7 +93,7 @@ Base `/api`. Todas las respuestas JSON, UTF-8. `{ref}` es la referencia del info
 - `POST /expedientes/{ref}/acciones/cambio` `{ "mensaje": "…", "solo_plan": bool }` → job; `resultado`: `{ "plan": [{ "seccion", "motivo", "estado": "aplicado"|"insertado"|"eliminado"|"NO APLICADO"|"CONFLICTO", "detalle" }], "pendientes": ["…"], "diff": "…" }`.
 - `GET /expedientes/{ref}/instrucciones` → `{ "texto": "…pendiente…" }`; `PUT` `{ "texto" }`.
 - `POST /expedientes/{ref}/acciones/aplicar-cambios` `{ "solo_plan": bool }` → job (mismo `resultado` que `cambio`).
-- `POST /expedientes/{ref}/acciones/reunion` (multipart `transcripcion` + campo `aplicar`) → job; `resultado`:
+- `POST /expedientes/{ref}/acciones/reunion` (multipart `transcripcion` + campo `aplicar`; si `transcripcion` es audio —.mp3/.wav/.m4a/.webm/.ogg—, opcionalmente `hablantes` (campos de formulario repetidos, máx. 4) y `muestras` (ficheros de audio de 2-10 s emparejados por orden; solo se usan si todos los hablantes traen muestra)) → job; `resultado` añade `transcripcion` (ruta en reuniones/) cuando hubo audio, y además:
 ```json
 { "acta": "reuniones/2026-08-27_1012_transcript.md", "resumen": "…",
   "cambios_texto": [{ "seccion", "que_cambiar", "instruccion", "solicitado_por", "cita" }],

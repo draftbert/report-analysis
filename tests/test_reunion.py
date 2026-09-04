@@ -93,3 +93,55 @@ def test_cambio_directo_no_toca_el_buzon(con_informe):
     assert "Cambia el nivel de riesgo" in ctx.llm.llamadas[-1][1]
     with pytest.raises(ExpedienteError, match="Mensaje vacío"):
         accion_aplicar_cambios(ctx, instrucciones="   ")
+
+
+def test_reunion_desde_audio_transcribe_y_analiza(con_informe, monkeypatch):
+    """Un .mp3 se transcribe con KAIA (aquí sustituido), se guarda la transcripción en
+    reuniones/, se traza sin el audio y el análisis recibe el diálogo con hablantes."""
+    from audit_agent import acciones
+    exp = con_informe.exp
+    audio = exp.ruta / "reuniones" / "revision_borrador.mp3"
+    audio.parent.mkdir(exist_ok=True)
+    audio.write_bytes(b"\x00" * 64)
+    visto = {}
+
+    def falso_transcribir(ruta, hablantes=None):
+        visto["ruta"], visto["hablantes"] = Path(ruta), hablantes
+        return {"model": "gpt-4o-transcribe-diarize", "provider": "openai", "duration": 61.5,
+                "text": "plano", "segments": [
+                    {"speaker": "Marta", "text": "Subimos el riesgo a Alto."},
+                    {"speaker": "Marta", "text": "Y quitamos la viñeta de PackPro."},
+                    {"speaker": "Javier", "text": "De acuerdo con ambas."}]}
+
+    monkeypatch.setattr(acciones, "transcribir_audio", falso_transcribir)
+    con_informe.llm.respuestas["reunion"] = ANALISIS
+    salida = accion_reunion(con_informe, audio, hablantes=[("Marta", None), ("Javier", None)])
+    assert visto["ruta"] == audio and visto["hablantes"] == [("Marta", None), ("Javier", None)]
+    user = con_informe.llm.llamadas[-1][1]
+    assert "Marta: Subimos el riesgo a Alto. Y quitamos la viñeta de PackPro." in user
+    assert "Javier: De acuerdo con ambas." in user and "Asistentes: Marta, Javier" in user
+    txts = list((exp.ruta / "reuniones").glob("*_transcripcion.txt"))
+    assert len(txts) == 1 and "Marta: Subimos" in txts[0].read_text(encoding="utf-8")
+    assert "Transcripción del audio" in salida and "Acta:" in salida
+    trazas = [p for p in (exp.ruta / "trazas").iterdir() if "reunion-transcripcion" in p.name]
+    assert len(trazas) == 1
+    import json
+    traza = json.loads(trazas[0].read_text(encoding="utf-8"))
+    assert traza["duracion_audio_s"] == 61.5 and traza["hablantes"] == ["Marta", "Javier"] and not traza["con_muestras_de_voz"]
+    from audit_agent.acciones import ULTIMO_RESULTADO
+    assert ULTIMO_RESULTADO["transcripcion"].startswith("reuniones/") and ULTIMO_RESULTADO["cambios_texto"]
+
+
+def test_reunion_audio_limita_hablantes_y_muestras(con_informe, monkeypatch):
+    from audit_agent import acciones
+    audio = con_informe.exp.ruta / "reuniones" / "a.mp3"
+    audio.parent.mkdir(exist_ok=True)
+    audio.write_bytes(b"\x00")
+    monkeypatch.setattr(acciones, "transcribir_audio", lambda *a, **k: {"segments": []})
+    with pytest.raises(ExpedienteError, match="Máximo 4 hablantes"):
+        accion_reunion(con_informe, audio, hablantes=[(f"H{i}", None) for i in range(5)])
+    with pytest.raises(ExpedienteError, match="muestra de voz"):
+        accion_reunion(con_informe, audio, hablantes=[("Ana", "/no/existe.wav")])
+    # transcripción vacía -> error claro, sin llamar al LLM
+    with pytest.raises(ExpedienteError, match="vacía o ilegible"):
+        accion_reunion(con_informe, audio, hablantes=None)

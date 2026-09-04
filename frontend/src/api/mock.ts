@@ -210,7 +210,7 @@ export const clienteMock: Api = {
   instrucciones: async () => ({ texto: instrucciones }),
   guardarInstrucciones: async (_ref, texto) => { instrucciones = texto; return { texto }; },
   aplicarCambios: (_ref) => job("aplicar-cambios", () => { const r = resultadoCambios(instrucciones.split("\n")[0] ?? ""); instrucciones = ""; return { mensaje: "Aplicados 1 de 1 cambios. Registro en cambios_aplicados.md; 03_instrucciones.md vaciado (lo pegado queda en historial/).", resultado: r }; }),
-  reunion: (_ref, _f, aplicar) => job("reunion", () => { instrucciones = ACTA.cambios_texto.map((c) => `- ${c.instruccion} [${c.solicitado_por}]`).join("\n"); return { mensaje: `El sistema ha detectado ${ACTA.cambios_texto.length} cambio(s) en el TEXTO del informe y ${ACTA.cambios_ppt.length} en el PPT (informativo).` + (aplicar ? "\n=== aplicar-cambios ===\nAplicados 4 de 4 cambios." : "\nLas instrucciones de texto se han añadido a 03_instrucciones.md."), resultado: ACTA }; }, 2600),
+  reunion: (_ref, _f, aplicar, _hablantes) => job("reunion", () => { instrucciones = ACTA.cambios_texto.map((c) => `- ${c.instruccion} [${c.solicitado_por}]`).join("\n"); return { mensaje: `El sistema ha detectado ${ACTA.cambios_texto.length} cambio(s) en el TEXTO del informe y ${ACTA.cambios_ppt.length} en el PPT (informativo).` + (aplicar ? "\n=== aplicar-cambios ===\nAplicados 4 de 4 cambios." : "\nLas instrucciones de texto se han añadido a 03_instrucciones.md."), resultado: ACTA }; }, 2600),
   historial: async () => historial,
   deshacer: async () => ({ mensaje: "02_informe.md restaurado desde historial/2026-08-27T10-12-00_02_informe_aplicar-cambios.md." }),
   diff: async () => ({ diff: resultadoCambios("").diff, contra: historial[0].nombre }),

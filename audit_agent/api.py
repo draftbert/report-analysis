@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import tempfile
 import threading
 import uuid
 from datetime import datetime
@@ -349,13 +350,40 @@ def aplicar_cambios(ref: str, o: Opciones):
 
 
 @app.post("/api/expedientes/{ref}/acciones/reunion")
-async def reunion(ref: str, transcripcion: UploadFile = File(...), aplicar: bool = Form(False)):
+async def reunion(ref: str, transcripcion: UploadFile = File(...), aplicar: bool = Form(False),
+                  hablantes: list[str] = Form(default=[]), muestras: list[UploadFile] = File(default=[])):
+    """Transcripción (.txt/.docx/.vtt) o audio (.mp3/.wav/.m4a/.webm…). Con audio,
+    `hablantes` (máx. 4) y sus `muestras` de voz (opcionales, emparejadas por orden;
+    solo se usan para la diarización si TODOS los hablantes traen muestra)."""
     exp = _exp(ref); ctx = _ctx(exp)
     nombre = Path(transcripcion.filename or "transcripcion.txt").name
     destino = exp.ruta / "reuniones" / f"{datetime.now():%Y-%m-%d_%H%M}_{nombre}"
     with open(destino, "wb") as f:
         shutil.copyfileobj(transcripcion.file, f)
-    return _job(ref, "reunion", lambda: acciones.accion_reunion(ctx, destino, aplicar=aplicar))
+    nombres = [h.strip() for h in hablantes if h.strip()]
+    if len(nombres) > 4:
+        raise HTTPException(400, {"error": "Máximo 4 hablantes conocidos."})
+    tmp = None
+    pares: list[tuple[str, str | None]] = [(n, None) for n in nombres]
+    if nombres and muestras:
+        tmp = Path(tempfile.mkdtemp(prefix="muestras_voz_"))
+        pares = []
+        for i, n in enumerate(nombres):
+            ruta_m = None
+            if i < len(muestras) and (muestras[i].filename or "").strip():
+                ruta_m = tmp / f"{i}_{Path(muestras[i].filename).name}"
+                with open(ruta_m, "wb") as f:
+                    shutil.copyfileobj(muestras[i].file, f)
+            pares.append((n, str(ruta_m) if ruta_m else None))
+
+    def tarea():
+        try:
+            return acciones.accion_reunion(ctx, destino, aplicar=aplicar, hablantes=pares or None)
+        finally:
+            if tmp is not None:
+                shutil.rmtree(tmp, ignore_errors=True)   # las muestras de voz no se conservan
+
+    return _job(ref, "reunion", tarea)
 
 
 # ---------------------------------------------------------------- acciones síncronas

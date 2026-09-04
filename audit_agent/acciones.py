@@ -1135,8 +1135,47 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False, instrucciones
     return "\n".join(lineas)
 
 
-# ============================================================ 5b. reunión (transcripción de Teams)
-def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = False) -> str:
+# ============================================================ 5b. reunión (transcripción de Teams o audio)
+from .kaia_client import EXTENSIONES_AUDIO, dialogo_de, transcribir_audio  # noqa: E402  (mockeable en tests)
+
+
+def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, str | None]]) -> str:
+    """Audio de reunión -> texto con KAIA (/api/v2/transcribe/upload, diarización).
+    Guarda la transcripción en reuniones/ (el auditor puede revisarla) y deja traza
+    con metadatos (nunca el audio). Máximo 4 hablantes conocidos."""
+    exp = ctx.exp
+    hablantes = [(n.strip(), m) for n, m in hablantes if (n or "").strip()]
+    if len(hablantes) > 4:
+        raise ExpedienteError("Máximo 4 hablantes conocidos para la diarización.")
+    for _, muestra in hablantes:
+        if muestra and not Path(muestra).exists():
+            raise ExpedienteError(f"No existe la muestra de voz {muestra}.")
+    inicio = datetime.now()
+    try:
+        respuesta = transcribir_audio(ruta, hablantes)
+    except Exception as exc:  # noqa: BLE001 — el fallo del servicio se reporta con contexto
+        raise ExpedienteError(f"No se ha podido transcribir {ruta.name}: {exc}") from exc
+    texto = dialogo_de(respuesta)
+    if len(texto) < 40:
+        raise ExpedienteError(f"La transcripción de {ruta.name} ha vuelto vacía o ilegible.")
+    nombres = [n for n, _ in hablantes]
+    if nombres:
+        texto = "Asistentes: " + ", ".join(nombres) + "\n\n" + texto
+    destino = exp.ruta / "reuniones" / f"{inicio:%Y-%m-%d_%H%M}_{ruta.stem[:40]}_transcripcion.txt"
+    destino.parent.mkdir(exist_ok=True)
+    destino.write_text(texto + "\n", encoding="utf-8")
+    exp.trazar("reunion-transcripcion", {
+        "fecha": inicio.isoformat(timespec="seconds"), "accion": "reunion-transcripcion", "fichero": ruta.name,
+        "modelo": respuesta.get("model"), "proveedor": respuesta.get("provider"),
+        "duracion_audio_s": respuesta.get("duration"), "segundos": round((datetime.now() - inicio).total_seconds(), 1),
+        "hablantes": nombres, "con_muestras_de_voz": bool(hablantes) and all(m for _, m in hablantes),
+        "caracteres": len(texto), "transcripcion": destino.name})
+    ULTIMO_RESULTADO["transcripcion"] = destino.relative_to(exp.ruta).as_posix()
+    return texto
+
+
+def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = False,
+                   hablantes: list[tuple[str, str | None]] | None = None) -> str:
     """Lee una transcripción de reunión (Teams: .txt/.docx/.vtt…) y separa lo
     que afecta al TEXTO del informe (se deja como instrucciones en
     03_instrucciones.md para que el auditor las revise y aplique) de lo que
@@ -1149,7 +1188,10 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
     texto_informe = exp.leer("informe")
     if not texto_informe:
         raise ExpedienteError("No hay 02_informe.md: la reunión se contrasta contra el informe.")
-    if ruta.suffix.lower() == ".vtt":
+    ULTIMO_RESULTADO.clear()
+    if ruta.suffix.lower() in EXTENSIONES_AUDIO:
+        transcript = _transcribir_reunion(ctx, ruta, hablantes or [])
+    elif ruta.suffix.lower() == ".vtt":
         transcript = re.sub(r"^(WEBVTT|\d+|\d\d:\d\d[:.\d]* --> .*)$", "", ruta.read_text(encoding="utf-8", errors="replace"), flags=re.M)
     else:
         try:
@@ -1181,8 +1223,11 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
 
     marca = datetime.now()
     acta = exp.ruta / "reuniones" / f"{marca:%Y-%m-%d_%H%M}_{ruta.stem[:40]}.md"
+    transcripcion_previa = ULTIMO_RESULTADO.get("transcripcion")
     ULTIMO_RESULTADO.clear()
     ULTIMO_RESULTADO.update(res.model_dump())
+    if transcripcion_previa:
+        ULTIMO_RESULTADO["transcripcion"] = transcripcion_previa
     ULTIMO_RESULTADO["acta"] = acta.relative_to(exp.ruta).as_posix()
     L = [f"# Acta de cambios — reunión «{ruta.stem}» — {marca:%Y-%m-%d %H:%M}", "", res.resumen.strip(), "",
          f"## Cambios en el texto del informe ({len(res.cambios_texto)})", ""]
@@ -1208,7 +1253,10 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
         bloque += [f"- {c.instruccion.strip()}" + (f" [{c.solicitado_por}]" if c.solicitado_por else "") for c in res.cambios_texto]
         exp.anexar_registro("instrucciones", "\n".join(bloque) + "\n")
 
-    out = [f"Acta: {acta.relative_to(exp.ruta)}", "", res.resumen.strip(), "",
+    out = [f"Acta: {acta.relative_to(exp.ruta)}"]
+    if ULTIMO_RESULTADO.get("transcripcion"):
+        out.append(f"Transcripción del audio (revísala si algo no cuadra): {ULTIMO_RESULTADO['transcripcion']}")
+    out += ["", res.resumen.strip(), "",
            f"El sistema ha detectado {len(res.cambios_texto)} cambio(s) en el TEXTO del informe:"]
     out += [f"  {i}. [{c.seccion}] {c.que_cambiar}" + (f" (pide: {c.solicitado_por})" if c.solicitado_por else "")
             for i, c in enumerate(res.cambios_texto, 1)] or ["  (ninguno)"]

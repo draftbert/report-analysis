@@ -152,3 +152,28 @@ def test_condensar_api(cliente):
     assert j["resultado"]["aplicados"] == ["introducción", "conclusión 1 · incidencia"] and j["resultado"]["diff"]
     assert "Cuerpo con 3 sistemas." in (exp_dir / "02_informe.md").read_text(encoding="utf-8")
     assert "**Recomendación 1.1.** Implantar." in (exp_dir / "02_informe.md").read_text(encoding="utf-8")
+
+
+def test_reunion_api_con_audio_y_hablantes(cliente, monkeypatch):
+    from audit_agent import acciones
+    from tests.test_reunion import ANALISIS
+    c, falso = cliente
+    c.post("/api/expedientes", json={"referencia": "T-A", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
+    (api_mod.DIR_EXPEDIENTES / "T-A" / "02_informe.md").write_text("# I\n\n## Introducción\n\nTexto suficiente para contrastar la reunión.\n", encoding="utf-8")
+    visto = {}
+
+    def falso_transcribir(ruta, hablantes=None):
+        visto["hablantes"] = hablantes
+        return {"model": "gpt-4o-transcribe-diarize", "duration": 5.0,
+                "segments": [{"speaker": "Marta", "text": "Cambiamos el riesgo a Alto y revisamos la redacción entera."}]}
+
+    monkeypatch.setattr(acciones, "transcribir_audio", falso_transcribir)
+    falso.respuestas["reunion"] = ANALISIS
+    j = _esperar(c, c.post("/api/expedientes/T-A/acciones/reunion",
+                           files={"transcripcion": ("revision.mp3", b"\x00" * 32, "audio/mpeg"),
+                                  "muestras": ("marta.wav", b"\x00" * 16, "audio/wav")},
+                           data={"aplicar": "false", "hablantes": ["Marta"]}).json()["job_id"])
+    assert j["estado"] == "ok", j["mensaje"]
+    assert j["resultado"]["transcripcion"].startswith("reuniones/") and j["resultado"]["cambios_texto"]
+    assert visto["hablantes"][0][0] == "Marta" and visto["hablantes"][0][1] is not None
+    assert not list(__import__("glob").glob("/tmp/muestras_voz_*"))  # las muestras de voz no se conservan

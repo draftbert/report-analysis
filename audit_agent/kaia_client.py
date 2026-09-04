@@ -49,6 +49,40 @@ def schema_para(modelo: type[BaseModel]) -> dict:
     }
 
 
+# --------------------------------------------------------------- transcripción de audio
+DEFAULT_TRANSCRIBE_PATH = "/api/v2/transcribe/upload"
+MODELO_TRANSCRIBE = "gpt-4o-transcribe-diarize"   # con separación de hablantes
+MAX_HABLANTES = 4
+EXTENSIONES_AUDIO = (".mp3", ".wav", ".m4a", ".webm", ".ogg", ".oga", ".flac", ".mp4", ".mpga")
+_MIME_AUDIO = {".mp3": "audio/mpeg", ".mpga": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4",
+               ".mp4": "audio/mp4", ".webm": "audio/webm", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".flac": "audio/flac"}
+
+
+def dialogo_de(respuesta: dict) -> str:
+    """Respuesta de /transcribe -> diálogo «Hablante: texto», agrupando segmentos
+    consecutivos del mismo hablante. Sin segmentos, el texto plano."""
+    lineas: list[str] = []
+    ultimo = None
+    for s in respuesta.get("segments") or []:
+        hablante = (s.get("speaker") or "").strip()
+        texto = (s.get("text") or "").strip()
+        if not texto:
+            continue
+        if lineas and hablante and hablante == ultimo:
+            lineas[-1] += " " + texto
+        else:
+            lineas.append((f"{hablante}: " if hablante else "") + texto)
+            ultimo = hablante
+    return "\n".join(lineas) if lineas else (respuesta.get("text") or "").strip()
+
+
+def transcribir_audio(ruta_audio, hablantes=None) -> dict:
+    """Transcribe un audio con KAIA (función de módulo para poder sustituirla en tests).
+    `hablantes`: [(nombre, ruta_muestra | None)], máximo 4."""
+    modelo = os.environ.get("KAIA_TRANSCRIBE_MODEL") or MODELO_TRANSCRIBE
+    return KAIAClient(modelo).transcribir(ruta_audio, hablantes)
+
+
 class KAIAClient:
     def __init__(
         self,
@@ -75,6 +109,7 @@ class KAIAClient:
         self._resource = resource
         self._token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
         self._invoke_url = base_url.rstrip("/") + invoke_path
+        self._transcribe_url = base_url.rstrip("/") + (env("KAIA_TRANSCRIBE_PATH") or DEFAULT_TRANSCRIBE_PATH)
         self.model_name = model_name
         self.temperature = None if es_modelo_reasoning(model_name) else temperature
         self.reasoning_effort = reasoning_effort if es_modelo_reasoning(model_name) else None
@@ -110,6 +145,37 @@ class KAIAClient:
             return self._token
 
     # ------------------------------------------------------------------
+    def transcribir(self, ruta_audio, hablantes=None, timeout: float = 900.0) -> dict:
+        """POST /api/v2/transcribe/upload. Con muestra de voz (2-10 s) para TODOS los
+        hablantes se envían `known_speaker_names`/`known_speaker_references` y el
+        transcript sale con sus nombres; si falta alguna muestra, diarización genérica
+        (los nombres se usan igualmente como contexto en el análisis posterior)."""
+        from pathlib import Path
+        ruta = Path(ruta_audio)
+        hablantes = [(n, m) for n, m in (hablantes or []) if (n or "").strip()]
+        if len(hablantes) > MAX_HABLANTES:
+            raise KAIAError(f"Máximo {MAX_HABLANTES} hablantes conocidos (llegaron {len(hablantes)}).")
+        datos = [("model", os.environ.get("KAIA_TRANSCRIBE_MODEL") or MODELO_TRANSCRIBE)]
+        abiertos = [open(ruta, "rb")]
+        ficheros = [("file", (ruta.name, abiertos[0], _MIME_AUDIO.get(ruta.suffix.lower(), "application/octet-stream")))]
+        if hablantes and all(m for _, m in hablantes):
+            for nombre, muestra in hablantes:
+                datos.append(("known_speaker_names", nombre.strip()))
+                m = Path(muestra)
+                abiertos.append(open(m, "rb"))
+                ficheros.append(("known_speaker_references", (m.name, abiertos[-1], _MIME_AUDIO.get(m.suffix.lower(), "application/octet-stream"))))
+        try:
+            r = requests.post(self._transcribe_url, headers={"Authorization": f"Bearer {self._get_token()}"},
+                              data=datos, files=ficheros, timeout=(30, timeout))
+        except requests.RequestException as exc:
+            raise KAIAError(f"Error de red transcribiendo con KAIA: {exc}") from exc
+        finally:
+            for f in abiertos:
+                f.close()
+        if r.status_code != 200:
+            raise KAIAError(f"KAIA /transcribe devolvió {r.status_code}: {r.text[:300]}")
+        return r.json()
+
     def invocar(self, system: str, user: str, modelo_salida: type[BaseModel],
                 reasoning_effort: str | None = None) -> tuple[dict, dict | None]:
         """Devuelve (structured_output, usage). `reasoning_effort` puntual

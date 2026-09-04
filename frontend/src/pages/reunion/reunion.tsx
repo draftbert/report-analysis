@@ -7,11 +7,14 @@ import { Dropzone, JobButton, JobResult, Markdown, useNotificar } from "@/compon
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
+const esAudio = (f: File | null) => /\.(mp3|wav|m4a|webm|ogg|oga|flac|mp4|mpga)$/i.test(f?.name ?? "");
+
 export const Reunion = () => {
   const { ref = "" } = useParams();
   const { recargar } = useEstado();
   const notificar = useNotificar();
   const [fichero, setFichero] = useState<File | null>(null);
+  const [hablantes, setHablantes] = useState<{ nombre: string; muestra: File | null }[]>([]);
   const [aplicar, setAplicar] = useState(false);
   const [acta, setActa] = useState<Acta | null>(null);
   const [sel, setSel] = useState<boolean[]>([]);
@@ -39,14 +42,31 @@ export const Reunion = () => {
   return (
     <div className="page">
       <div className="page__header">
-        <div><h2 className="page__title">Reunión</h2><p className="page__subtitle">Pasa la transcripción de Teams. El sistema separa lo que cambia el texto del informe de lo que afecta al PPT, y lo que queda pendiente de dato.</p></div>
+        <div><h2 className="page__title">Reunión</h2><p className="page__subtitle">Pasa la transcripción de Teams o el audio de la reunión (se transcribe con el modelo). El sistema separa lo que cambia el texto del informe de lo que afecta al PPT, y lo que queda pendiente de dato.</p></div>
         <div className="page__actions">
           <label className="row detail"><input type="checkbox" checked={aplicar} onChange={(e) => setAplicar(e.target.checked)} /> Aplicar directamente los cambios de texto</label>
-          <JobButton<Acta> primario etiqueta="Analizar la reunión" disabled={!fichero} lanzar={() => api.reunion(ref, fichero!, aplicar)}
+          <JobButton<Acta> primario etiqueta={esAudio(fichero) ? "Transcribir y analizar" : "Analizar la reunión"} disabled={!fichero} lanzar={() => api.reunion(ref, fichero!, aplicar, esAudio(fichero) ? hablantes : [])}
             onFin={(r) => { setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setSel(r.resultado.cambios_texto.map(() => true)); recargar(); } }} />
         </div>
       </div>
-      <Dropzone titulo="Transcripción de la reunión" descripcion={fichero ? `Seleccionada: ${fichero.name}` : "Transcripción de Teams (.txt, .docx, .vtt) de la revisión con el Gerente, la Directora o el área."} formatos=".txt, .docx, .vtt, .md" multiple={false} onFicheros={(f) => setFichero(f[0] ?? null)} />
+      <Dropzone titulo="Transcripción o audio de la reunión" descripcion={fichero ? `Seleccionado: ${fichero.name}` : "Transcripción de Teams (.txt, .docx, .vtt) o grabación de audio (.mp3, .wav, .m4a, .webm) de la revisión con el Gerente, la Directora o el área."} formatos=".txt, .docx, .vtt, .md, .mp3, .wav, .m4a, .webm, .ogg" multiple={false} onFicheros={(f) => setFichero(f[0] ?? null)} />
+      {esAudio(fichero) && (
+        <div className="panel stack">
+          <span className="section-title">Quién habla (opcional, máximo 4)</span>
+          <span className="detail">El audio se transcribe con separación de hablantes. Si además añades una muestra de voz de 2–10 segundos de <strong>cada</strong> persona, la transcripción saldrá con sus nombres; si falta alguna muestra, saldrán como hablantes genéricos y los nombres se usarán solo como contexto del acta. Las muestras no se conservan.</span>
+          {hablantes.map((h, i) => (
+            <div key={i} className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+              <input className="input" style={{ maxWidth: 260 }} placeholder={`Nombre del hablante ${i + 1}`} value={h.nombre}
+                onChange={(e) => setHablantes(hablantes.map((x, k) => (k === i ? { ...x, nombre: e.target.value } : x)))} />
+              <label className="btn btn--ghost btn--small">{h.muestra ? `Muestra: ${h.muestra.name}` : "Añadir muestra de voz"}
+                <input type="file" accept=".mp3,.wav,.m4a,.webm,.ogg" style={{ display: "none" }}
+                  onChange={(e) => setHablantes(hablantes.map((x, k) => (k === i ? { ...x, muestra: e.target.files?.[0] ?? null } : x)))} /></label>
+              <button className="btn btn--ghost btn--small" onClick={() => setHablantes(hablantes.filter((_, k) => k !== i))}>Quitar</button>
+            </div>
+          ))}
+          {hablantes.length < 4 && <div><button className="btn btn--small" onClick={() => setHablantes([...hablantes, { nombre: "", muestra: null }])}>+ Añadir hablante</button></div>}
+        </div>
+      )}
       <JobResult r={resultado} onClose={() => setResultado(null)} />
       {acta && (
         <div className="stack">

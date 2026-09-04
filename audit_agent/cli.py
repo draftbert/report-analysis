@@ -192,7 +192,11 @@ def cmd_aplicar_cambios(args):
 
 def cmd_reunion(args):
     from .acciones import accion_reunion
-    return accion_reunion(_contexto(args), args.transcripcion, aplicar=args.aplicar)
+    hablantes = []
+    for h in (args.hablante or []):
+        nombre, _, muestra = h.partition("=")
+        hablantes.append((nombre.strip(), muestra.strip() or None))
+    return accion_reunion(_contexto(args), args.transcripcion, aplicar=args.aplicar, hablantes=hablantes or None)
 
 
 def cmd_cambio(args):
@@ -423,8 +427,10 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--solo-plan", action="store_true", help="Mostrar el plan sin tocar el informe")
     s = sub.add_parser("reunion", help="Transcripción de Teams → acta: cambios de texto (a 03_instrucciones.md) y de PPT (informativo)")
     s.set_defaults(fn=cmd_reunion)
-    s.add_argument("transcripcion", help="Fichero de la transcripción (.txt, .docx, .vtt…)")
+    s.add_argument("transcripcion", help="Transcripción (.txt, .docx, .vtt…) o AUDIO de la reunión (.mp3, .wav, .m4a, .webm…): el audio se transcribe con KAIA (diarización)")
     s.add_argument("--aplicar", action="store_true", help="Aplicar directamente los cambios de texto detectados")
+    s.add_argument("--hablante", action="append", metavar="NOMBRE[=MUESTRA.wav]",
+                   help="Solo audio: hablante conocido (repetible, máx. 4). Con muestra de voz de 2-10 s para todos, el transcript sale con sus nombres")
     s = sub.add_parser("cambio", help="Aplicar un cambio sencillo escrito como mensaje (LLM)"); s.set_defaults(fn=cmd_cambio)
     s.add_argument("mensaje", nargs="*", help="Texto del cambio; `-` o vacío para leerlo de stdin")
     s.add_argument("--solo-plan", action="store_true")

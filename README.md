@@ -136,7 +136,11 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 
 # 3. Cambios durante la revisión (Gerente, Directora, reunión con el área)
 ./revisor reunion transcripcion_teams.txt [--aplicar]
-#   Lee la transcripción de la reunión (Teams: .txt/.docx/.vtt), la contrasta con el informe y
+./revisor reunion grabacion.m4a --hablante "Marta" --hablante "Javier=muestra_javier.wav"
+#   Lee la transcripción de la reunión (Teams: .txt/.docx/.vtt) — o un AUDIO (.mp3/.wav/.m4a/.webm…),
+#   que se transcribe con KAIA (/api/v2/transcribe/upload, diarización; hasta 4 hablantes conocidos:
+#   con muestra de voz de 2-10 s para todos, el transcript sale con sus nombres; la transcripción
+#   queda en reuniones/ y las muestras no se conservan) —, la contrasta con el informe y
 #   te dice qué ha detectado que hay que cambiar: (a) en el TEXTO del informe → queda como
 #   instrucciones en 03_instrucciones.md para que las revises; (b) en el PPT → solo informativo
 #   (la presentación es beta y se retoca a mano); más pendientes de dato y acuerdos. Acta en reuniones/.

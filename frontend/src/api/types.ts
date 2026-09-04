@@ -114,7 +114,9 @@ export interface Api {
   instrucciones(ref: string): Promise<{ texto: string }>;
   guardarInstrucciones(ref: string, texto: string): Promise<{ texto: string }>;
   aplicarCambios(ref: string, soloPlan?: boolean): Promise<{ job_id: string }>;
-  reunion(ref: string, fichero: File, aplicar: boolean): Promise<{ job_id: string }>;
+  /** Transcripción (.txt/.docx/.vtt) o audio (.mp3/.wav/.m4a/.webm…). Con audio, hasta 4 hablantes
+   *  con muestra de voz opcional (solo se usan las muestras si todos los hablantes tienen una). */
+  reunion(ref: string, fichero: File, aplicar: boolean, hablantes?: { nombre: string; muestra: File | null }[]): Promise<{ job_id: string }>;
   historial(ref: string): Promise<Version[]>;
   deshacer(ref: string, fichero: string): Promise<{ mensaje: string }>;
   diff(ref: string, fichero: string): Promise<{ diff: string; contra: string | null }>;
