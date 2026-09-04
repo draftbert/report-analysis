@@ -1166,9 +1166,10 @@ def _preparar_audio(ruta: Path, destino_dir: Path) -> list[Path]:
     import shutil as _shutil
     import subprocess
     maximo = int(_os.environ.get("KAIA_TRANSCRIBE_MAX_S") or 300)
+    margen = min(5, maximo)   # una cola de segundos no justifica otra parte (y una parte de centésimas da 400)
     es_video = ruta.suffix.lower() in EXTENSIONES_VIDEO
     duracion = _duracion_audio(ruta)
-    trocear = duracion is not None and duracion > maximo
+    trocear = duracion is not None and duracion > maximo + margen
     if not es_video and not trocear:
         return [ruta]
     if not _shutil.which("ffmpeg"):
@@ -1177,12 +1178,14 @@ def _preparar_audio(ruta: Path, destino_dir: Path) -> list[Path]:
         raise ExpedienteError(f"{ruta.name}: hace falta ffmpeg para " +
                               ("trocear un audio de más de %d s (el modelo admite 1.400 s por llamada)." % maximo
                                if trocear else f"transcribir vídeo {ruta.suffix} (instálalo o sube el audio)."))
-    partes = max(1, math.ceil((duracion or 1) / maximo)) if duracion else 1
+    partes = max(1, math.ceil((duracion or 1) / maximo)) if trocear else 1
+    if partes > 1 and (duracion - (partes - 1) * maximo) < margen:
+        partes -= 1            # la última parte absorbe la cola (queda en maximo+margen como mucho)
     salidas = []
     for i in range(partes):
         salida = destino_dir / f"{ruta.stem[:40]}_audio_{i + 1:02d}.mp3"
-        orden = ["ffmpeg", "-y", "-ss", str(i * maximo), "-t", str(maximo), "-i", str(ruta),
-                 "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(salida)]
+        orden = ["ffmpeg", "-y", "-ss", str(i * maximo)] + ([] if i == partes - 1 else ["-t", str(maximo)]) + \
+                ["-i", str(ruta), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(salida)]
         proc = subprocess.run(orden, capture_output=True, text=True, timeout=1800)
         if proc.returncode != 0 or not salida.exists() or salida.stat().st_size == 0:
             detalle = (proc.stderr or "").strip().splitlines()[-1:] or ["ffmpeg falló"]

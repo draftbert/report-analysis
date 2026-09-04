@@ -182,12 +182,12 @@ def test_reunion_video_extrae_el_audio(con_informe, monkeypatch, tmp_path):
                 {"speaker": "A", "text": f"Parte {len(vistos)} de la reunión con contenido suficiente."}]}))
         monkeypatch.setenv("KAIA_TRANSCRIBE_MAX_S", "2")
         accion_reunion(con_informe, larga)
-        assert sorted(vistos) == ["larga_audio_01.mp3", "larga_audio_02.mp3", "larga_audio_03.mp3"]
+        assert sorted(vistos) == ["larga_audio_01.mp3", "larga_audio_02.mp3"]   # la cola (<margen) va con la última
         user = con_informe.llm.llamadas[-1][1]
-        assert "Parte 1 de la reunión" in user and "Parte 3 de la reunión" in user
+        assert "Parte 1 de la reunión" in user and "Parte 2 de la reunión" in user
         import json as _json
         traza = max((exp.ruta / "trazas").glob("*reunion-transcripcion.json"))
-        assert _json.loads(traza.read_text(encoding="utf-8"))["partes"] == 3
+        assert _json.loads(traza.read_text(encoding="utf-8"))["partes"] == 2
     # sin ffmpeg: .mov no se puede enviar; .mp4 iría directo
     monkeypatch.setattr(sh, "which", lambda _n: None)
     mov = exp.ruta / "reuniones" / "reunion.mov"
