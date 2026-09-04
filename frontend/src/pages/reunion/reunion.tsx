@@ -7,7 +7,7 @@ import { Dropzone, JobButton, JobResult, Markdown, useNotificar } from "@/compon
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
-const esAudio = (f: File | null) => /\.(mp3|wav|m4a|webm|ogg|oga|flac|mp4|mpga)$/i.test(f?.name ?? "");
+const esAudio = (f: File | null) => /\.(mp3|wav|m4a|webm|ogg|oga|flac|mp4|mpga|mov|mkv|avi|m4v|wmv|mpe?g)$/i.test(f?.name ?? "");
 
 export const Reunion = () => {
   const { ref = "" } = useParams();
@@ -49,7 +49,7 @@ export const Reunion = () => {
             onFin={(r) => { setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setSel(r.resultado.cambios_texto.map(() => true)); recargar(); } }} />
         </div>
       </div>
-      <Dropzone titulo="Transcripción o audio de la reunión" descripcion={fichero ? `Seleccionado: ${fichero.name}` : "Transcripción de Teams (.txt, .docx, .vtt) o grabación de audio (.mp3, .wav, .m4a, .webm) de la revisión con el Gerente, la Directora o el área."} formatos=".txt, .docx, .vtt, .md, .mp3, .wav, .m4a, .webm, .ogg" multiple={false} onFicheros={(f) => setFichero(f[0] ?? null)} />
+      <Dropzone titulo="Transcripción o audio de la reunión" descripcion={fichero ? `Seleccionado: ${fichero.name}` : "Transcripción de Teams (.txt, .docx, .vtt) o grabación de audio o vídeo (.mp3, .wav, .m4a, .mp4, .mov, .webm…; del vídeo se extrae solo el audio) de la revisión con el Gerente, la Directora o el área."} formatos=".txt, .docx, .vtt, .md, .mp3, .wav, .m4a, .webm, .ogg, .mp4, .mov, .mkv" multiple={false} onFicheros={(f) => setFichero(f[0] ?? null)} />
       {esAudio(fichero) && (
         <div className="panel stack">
           <span className="section-title">Quién habla (opcional, máximo 4)</span>

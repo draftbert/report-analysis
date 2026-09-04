@@ -1136,7 +1136,28 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False, instrucciones
 
 
 # ============================================================ 5b. reunión (transcripción de Teams o audio)
-from .kaia_client import EXTENSIONES_AUDIO, dialogo_de, transcribir_audio  # noqa: E402  (mockeable en tests)
+from .kaia_client import EXTENSIONES_AUDIO, EXTENSIONES_VIDEO, dialogo_de, transcribir_audio  # noqa: E402  (mockeable en tests)
+
+EXTENSIONES_REUNION_AV = tuple(dict.fromkeys(EXTENSIONES_AUDIO + EXTENSIONES_VIDEO))
+
+
+def _audio_de_video(ruta: Path, destino_dir: Path) -> Path:
+    """Extrae la pista de audio de un vídeo con ffmpeg (mono, 16 kHz, mp3 a 48 kbps:
+    ~20 MB/hora). Se usa para no enviar el vídeo entero a KAIA; el mp3 es temporal."""
+    import shutil as _shutil
+    import subprocess
+    if not _shutil.which("ffmpeg"):
+        if ruta.suffix.lower() in EXTENSIONES_AUDIO:   # .mp4/.webm: el servicio acepta el contenedor
+            return ruta
+        raise ExpedienteError(f"{ruta.name}: para transcribir vídeo {ruta.suffix} hace falta ffmpeg "
+                              "(instálalo o sube el audio/una grabación .mp4).")
+    salida = destino_dir / (ruta.stem[:40] + "_audio.mp3")
+    proc = subprocess.run(["ffmpeg", "-y", "-i", str(ruta), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(salida)],
+                          capture_output=True, text=True, timeout=1800)
+    if proc.returncode != 0 or not salida.exists() or salida.stat().st_size == 0:
+        detalle = (proc.stderr or "").strip().splitlines()[-1:] or ["ffmpeg falló"]
+        raise ExpedienteError(f"No se ha podido extraer el audio de {ruta.name}: {detalle[0][:200]}")
+    return salida
 
 
 def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, str | None]]) -> str:
@@ -1151,10 +1172,22 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
         if muestra and not Path(muestra).exists():
             raise ExpedienteError(f"No existe la muestra de voz {muestra}.")
     inicio = datetime.now()
+    audio = ruta
+    temporal = None
+    if ruta.suffix.lower() in EXTENSIONES_VIDEO:
+        import tempfile
+        temporal = Path(tempfile.mkdtemp(prefix="audio_reunion_"))
+        audio = _audio_de_video(ruta, temporal)
     try:
-        respuesta = transcribir_audio(ruta, hablantes)
+        respuesta = transcribir_audio(audio, hablantes)
+    except ExpedienteError:
+        raise
     except Exception as exc:  # noqa: BLE001 — el fallo del servicio se reporta con contexto
         raise ExpedienteError(f"No se ha podido transcribir {ruta.name}: {exc}") from exc
+    finally:
+        if temporal is not None:
+            import shutil as _shutil
+            _shutil.rmtree(temporal, ignore_errors=True)   # el audio extraído del vídeo es temporal
     texto = dialogo_de(respuesta)
     if len(texto) < 40:
         raise ExpedienteError(f"La transcripción de {ruta.name} ha vuelto vacía o ilegible.")
@@ -1168,6 +1201,7 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
         "fecha": inicio.isoformat(timespec="seconds"), "accion": "reunion-transcripcion", "fichero": ruta.name,
         "modelo": respuesta.get("model"), "proveedor": respuesta.get("provider"),
         "duracion_audio_s": respuesta.get("duration"), "segundos": round((datetime.now() - inicio).total_seconds(), 1),
+        "audio_extraido_de_video": audio is not ruta,
         "hablantes": nombres, "con_muestras_de_voz": bool(hablantes) and all(m for _, m in hablantes),
         "caracteres": len(texto), "transcripcion": destino.name})
     ULTIMO_RESULTADO["transcripcion"] = destino.relative_to(exp.ruta).as_posix()
@@ -1189,7 +1223,7 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
     if not texto_informe:
         raise ExpedienteError("No hay 02_informe.md: la reunión se contrasta contra el informe.")
     ULTIMO_RESULTADO.clear()
-    if ruta.suffix.lower() in EXTENSIONES_AUDIO:
+    if ruta.suffix.lower() in EXTENSIONES_REUNION_AV:
         transcript = _transcribir_reunion(ctx, ruta, hablantes or [])
     elif ruta.suffix.lower() == ".vtt":
         transcript = re.sub(r"^(WEBVTT|\d+|\d\d:\d\d[:.\d]* --> .*)$", "", ruta.read_text(encoding="utf-8", errors="replace"), flags=re.M)

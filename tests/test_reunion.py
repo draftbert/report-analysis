@@ -145,3 +145,35 @@ def test_reunion_audio_limita_hablantes_y_muestras(con_informe, monkeypatch):
     # transcripción vacía -> error claro, sin llamar al LLM
     with pytest.raises(ExpedienteError, match="vacía o ilegible"):
         accion_reunion(con_informe, audio, hablantes=None)
+
+
+def test_reunion_video_extrae_el_audio(con_informe, monkeypatch, tmp_path):
+    """De un vídeo se envía a KAIA solo la pista de audio (mp3 temporal extraído con
+    ffmpeg), nunca el vídeo; sin ffmpeg, los contenedores no admitidos dan error claro."""
+    import shutil as sh
+    import subprocess
+    from audit_agent import acciones
+    exp = con_informe.exp
+    visto = {}
+    monkeypatch.setattr(acciones, "transcribir_audio", lambda ruta, hablantes=None: (
+        visto.__setitem__("audio", Path(ruta)) or {"model": "m", "duration": 2.0, "segments": [
+            {"speaker": "A", "text": "Contenido suficiente para el análisis de la reunión de revisión."}]}))
+    con_informe.llm.respuestas["reunion"] = ANALISIS
+    if sh.which("ffmpeg"):
+        wav = tmp_path / "tono.wav"
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+                        "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1", "-shortest", str(tmp_path / "reunion.mp4")],
+                       capture_output=True, check=True)
+        video = exp.ruta / "reuniones" / "reunion.mp4"
+        video.parent.mkdir(exist_ok=True)
+        sh.copy(tmp_path / "reunion.mp4", video)
+        accion_reunion(con_informe, video)
+        assert visto["audio"].suffix == ".mp3" and visto["audio"] != video
+        assert not visto["audio"].exists()          # el mp3 extraído es temporal
+    # sin ffmpeg: .mov no se puede enviar; .mp4 iría directo
+    monkeypatch.setattr(sh, "which", lambda _n: None)
+    mov = exp.ruta / "reuniones" / "reunion.mov"
+    mov.parent.mkdir(exist_ok=True)
+    mov.write_bytes(b"\x00")
+    with pytest.raises(ExpedienteError, match="ffmpeg"):
+        accion_reunion(con_informe, mov)

@@ -427,7 +427,7 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--solo-plan", action="store_true", help="Mostrar el plan sin tocar el informe")
     s = sub.add_parser("reunion", help="Transcripción de Teams → acta: cambios de texto (a 03_instrucciones.md) y de PPT (informativo)")
     s.set_defaults(fn=cmd_reunion)
-    s.add_argument("transcripcion", help="Transcripción (.txt, .docx, .vtt…) o AUDIO de la reunión (.mp3, .wav, .m4a, .webm…): el audio se transcribe con KAIA (diarización)")
+    s.add_argument("transcripcion", help="Transcripción (.txt, .docx, .vtt…), AUDIO o VÍDEO de la reunión (.mp3, .wav, .m4a, .mp4, .mov…): se transcribe con KAIA (diarización); del vídeo se extrae antes el audio con ffmpeg")
     s.add_argument("--aplicar", action="store_true", help="Aplicar directamente los cambios de texto detectados")
     s.add_argument("--hablante", action="append", metavar="NOMBRE[=MUESTRA.wav]",
                    help="Solo audio: hablante conocido (repetible, máx. 4). Con muestra de voz de 2-10 s para todos, el transcript sale con sus nombres")

@@ -54,6 +54,9 @@ DEFAULT_TRANSCRIBE_PATH = "/api/v2/transcribe/upload"
 MODELO_TRANSCRIBE = "gpt-4o-transcribe-diarize"   # con separación de hablantes
 MAX_HABLANTES = 4
 EXTENSIONES_AUDIO = (".mp3", ".wav", ".m4a", ".webm", ".ogg", ".oga", ".flac", ".mp4", ".mpga")
+# Vídeo: se extrae la pista de audio con ffmpeg antes de enviar (el vídeo nunca viaja a KAIA).
+# .mp4/.webm valen también sin ffmpeg: el servicio acepta esos contenedores y lee su audio.
+EXTENSIONES_VIDEO = (".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".wmv", ".mpg", ".mpeg")
 _MIME_AUDIO = {".mp3": "audio/mpeg", ".mpga": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4",
                ".mp4": "audio/mp4", ".webm": "audio/webm", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".flac": "audio/flac"}
 

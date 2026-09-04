@@ -5,8 +5,9 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
 # Tesseract para el OCR opcional de PDF escaneados (audit_agent/extractores/ocr.py).
+# Tesseract: OCR opcional de PDF escaneados. ffmpeg: extraer el audio de los vídeos de reunión.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
