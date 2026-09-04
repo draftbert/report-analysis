@@ -200,3 +200,12 @@ def test_reunion_video_extrae_el_audio(con_informe, monkeypatch, tmp_path):
     mov.write_bytes(b"\x00")
     with pytest.raises(ExpedienteError, match="ffmpeg"):
         accion_reunion(con_informe, mov)
+
+
+def test_claves_con_mayusculas_de_kaia_se_normalizan():
+    """Caso real: KAIA devolvió «Seccion»/«Que_cambiar» pese al esquema estricto."""
+    from audit_agent.llm import _claves_en_minusculas
+    bruto = {"Resumen": "R", "Cambios_texto": [{"Seccion": "Contexto", "Que_cambiar": "X", "Instruccion": "Y"}],
+             "cambios_ppt": [], "Pendientes": [], "acuerdos_sin_cambio": []}
+    res = AnalisisReunion.model_validate(_claves_en_minusculas(bruto))
+    assert res.resumen == "R" and res.cambios_texto[0].seccion == "Contexto" and res.cambios_texto[0].instruccion == "Y"

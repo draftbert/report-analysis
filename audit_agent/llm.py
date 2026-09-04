@@ -43,6 +43,17 @@ def _leer_float(nombre: str) -> float | None:
         return None
 
 
+def _claves_en_minusculas(obj):
+    """KAIA a veces devuelve las claves con mayúscula inicial («Seccion») pese al
+    esquema estricto. Todos los esquemas del proyecto son snake_case en minúsculas,
+    así que bajar las claves recursivamente es seguro y arregla ese caso."""
+    if isinstance(obj, dict):
+        return {str(k).lower(): _claves_en_minusculas(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_claves_en_minusculas(x) for x in obj]
+    return obj
+
+
 class ClienteLLM:
     def __init__(self, modelo: str | None = None, proveedor: str | None = None,
                  trazador: Callable[[str, dict], None] | None = None,
@@ -108,7 +119,7 @@ class ClienteLLM:
                                                   reasoning_effort=esfuerzo)
                 registro["usage"] = usage
                 try:
-                    resultado = modelo_salida.model_validate(bruto)
+                    resultado = modelo_salida.model_validate(_claves_en_minusculas(bruto))
                 except ValidationError as exc:
                     registro["respuesta_bruta"] = bruto
                     raise LLMNoDisponible(f"La respuesta de KAIA no cumple el esquema {modelo_salida.__name__}: {exc}") from exc
