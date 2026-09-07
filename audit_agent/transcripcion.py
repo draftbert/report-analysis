@@ -426,13 +426,17 @@ def accion_etiquetar(exp: Expediente, preguntar_guardar=None) -> str:
     segmentos = []
     for linea in texto_cruda.splitlines():
         m = _RE_SEG.match(linea)
-        if m:
-            quien = m.group(5).strip()
-            nombre = nombres.get(quien, quien) if quien.startswith("SPEAKER_") else quien
-            if quien.startswith("SPEAKER_") and quien not in nombres:
-                nombre = None          # hablante menor descartado en la cruda: no debería aparecer
-            if nombre is not None:
-                segmentos.append((nombre, m.group(6).strip()))
+        if not m:
+            continue
+        quien = m.group(5).strip()
+        if quien.startswith("SPEAKER_"):
+            nombre = nombres.get(quien)        # nombrado, fusionado o None si «ignorar»
+        elif quien in meta["hablantes"]:
+            nombre = quien                     # conocido por las voces del expediente
+        else:
+            nombre = None                      # hablante menor descartado por el umbral
+        if nombre is not None:
+            segmentos.append((nombre, m.group(6).strip()))
     if not segmentos:
         raise ExpedienteError("La transcripción quedó vacía tras aplicar los ignorados: revisa hablantes.md.")
 
@@ -453,11 +457,13 @@ def accion_etiquetar(exp: Expediente, preguntar_guardar=None) -> str:
 
     guardadas = []
     if preguntar_guardar is not None:
+        ofrecidos = set(cargar_voces(exp))     # una pregunta por PERSONA (las fusiones comparten nombre)
         for ident, datos in meta["hablantes"].items():
             nombre = nombres.get(ident)
             clip = base / "hablantes" / (datos.get("clip") or "")
-            if datos.get("conocido") or not nombre or not clip.exists() or nombre in cargar_voces(exp):
+            if datos.get("conocido") or not nombre or not clip.exists() or nombre in ofrecidos:
                 continue
+            ofrecidos.add(nombre)
             if preguntar_guardar(nombre, clip):
                 guardar_voz(exp, nombre, clip, meta.get("origen", "?"), datos.get("segundos") or 0)
                 guardadas.append(nombre)

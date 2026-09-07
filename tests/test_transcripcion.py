@@ -1,0 +1,259 @@
+"""Transcripción con identificación de hablantes: parseo de segments (formato real de
+la Fase 0), umbral de relevancia, clips sin solape, etiquetado (fusión/ignorar),
+agrupación de intervenciones, voces por expediente (aislamiento) y ciclo de vida en
+archivar. Respuestas de la API mockeadas; ffmpeg con wavs sintéticos diminutos."""
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+import zipfile
+from pathlib import Path
+
+import pytest
+
+from audit_agent import transcripcion
+from audit_agent.expediente import Expediente, ExpedienteError
+from audit_agent.transcripcion import (_por_hablante, _segmento_para_clip, accion_etiquetar, accion_transcribir,
+                                       accion_voces, cargar_voces, dir_audio, guardar_voz, segmentos_globales,
+                                       voces_para_enviar)
+
+FFMPEG = shutil.which("ffmpeg")
+
+
+def S(spk, a, b, t):
+    return {"id": "seg", "speaker": spk, "start": a, "end": b, "text": t}
+
+
+def R(*segs, dur=None):
+    return {"model": "gpt-4o-transcribe-diarize", "provider": "openai",
+            "duration": dur if dur is not None else (segs[-1]["end"] if segs else 0.0),
+            "segments": list(segs), "text": " ".join(s["text"] for s in segs)}
+
+
+def _wav(ruta: Path, segundos: float = 30.0):
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"sine=frequency=440:duration={segundos}",
+                    "-ac", "1", "-ar", "16000", str(ruta)], capture_output=True, check=True)
+
+
+# ------------------------------------------------------------ unidades
+def test_segmentos_globales_aplica_offsets_y_ordena():
+    r1 = R(S("A", 0.0, 2.0, "hola"), S("B", 2.5, 4.0, "adiós"))
+    r2 = R(S("A", 1.0, 3.0, "sigo"))
+    segs = segmentos_globales([r1, None, r2], [0.0, 300.0, 600.0])   # una parte fallida en medio
+    assert [(s["speaker"], s["start"], s["end"]) for s in segs] == [("A", 0.0, 2.0), ("B", 2.5, 4.0), ("A", 601.0, 603.0)]
+
+
+def test_umbral_de_relevancia_y_clip_sin_solape():
+    segs = [S("A", 0, 8, "a1"), S("B", 8, 9, "b"), S("A", 10, 13, "a2 limpio"), S("C", 12.5, 20, "c solapa con a2"),
+            S("A", 30, 31.5, "a3"), S("C", 40, 55, "c2")]
+    grupos = _por_hablante(segs)
+    assert round(grupos["A"]["segundos"], 1) == 12.5 and round(grupos["B"]["segundos"], 1) == 1.0
+    ini, dur = _segmento_para_clip(grupos["A"]["segmentos"], segs)
+    assert dur == 3.0 and 0 <= ini and ini + dur <= 8   # centro del 0-8 (limpio); el de 10-13 solapa con C
+    # si todos solapan, cae al centro del más largo
+    todos = [S("A", 0, 10, "x"), S("B", 0, 10, "y")]
+    ini, dur = _segmento_para_clip([todos[0]], todos)
+    assert 0 <= ini and dur <= 3.0
+
+
+# ------------------------------------------------------------ transcribir
+@pytest.fixture
+def exp_audio(expediente_tmp, monkeypatch, tmp_path):
+    if not FFMPEG:
+        pytest.skip("sin ffmpeg")
+    audio = tmp_path / "reunion.wav"
+    _wav(audio, 30)
+    return expediente_tmp, audio
+
+
+RESPUESTA_DOS_VOCES = R(
+    S("A", 0.0, 6.0, "Buenos días, empezamos la revisión del borrador."),
+    S("B", 6.5, 12.0, "De acuerdo, subimos el riesgo a alto."),
+    S("A", 12.5, 18.0, "En el resumen añadid la viñeta de PackPro."),
+    S("C", 18.5, 20.0, "(tos)"),
+    S("B", 20.5, 27.0, "También dividimos la recomendación en dos."),
+)
+
+
+def test_transcribir_genera_cruda_hablantes_y_clips(exp_audio, monkeypatch):
+    exp, audio = exp_audio
+    visto = {}
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: (
+        [visto.__setitem__("hablantes", hablantes), RESPUESTA_DOS_VOCES][1]))
+    salida = accion_transcribir(exp, audio)
+    base = dir_audio(exp)
+    assert visto["hablantes"] == []                                     # sin voces guardadas no viaja nada
+    cruda = (base / "transcripcion_cruda.md").read_text(encoding="utf-8")
+    assert "SPEAKER_01: Buenos días" in cruda and "SPEAKER_02: De acuerdo" in cruda
+    assert "[00:12–00:18]" in cruda and "] C: (tos)" in cruda   # la cruda es fiel: el menor aparece con su letra
+    assert "Hablantes relevantes: 2 (+1 menores descartados" in cruda
+    md = (base / "hablantes.md").read_text(encoding="utf-8")
+    assert "| SPEAKER_01 | SPEAKER_01.wav |" in md and "| SPEAKER_02 |" in md and "SPEAKER_03" not in md
+    assert (base / "hablantes" / "SPEAKER_01.wav").exists() and (base / "hablantes" / "SPEAKER_02.wav").exists()
+    meta = json.loads((base / "hablantes" / "meta.json").read_text(encoding="utf-8"))
+    assert meta["hablantes"]["SPEAKER_01"]["etiqueta_api"] == "A" and meta["menores_descartados"] == 1
+    assert (base / meta["normalizado"]).exists()                        # copia normalizada mono 16 kHz
+    assert "Por nombrar: SPEAKER_01, SPEAKER_02" in salida
+    trazas = [p for p in (exp.ruta / "trazas").iterdir() if "_transcribir" in p.name]
+    assert len(trazas) == 1 and b'"segments"' in trazas[0].read_bytes()
+    assert trazas[0].stat().st_size < 20_000          # JSON de metadatos y texto: el audio no se copia a trazas
+    # una segunda transcripción sin etiquetar la anterior exige --forzar
+    with pytest.raises(ExpedienteError, match="sin etiquetar"):
+        accion_transcribir(exp, audio)
+
+
+def test_known_speakers_no_pasan_por_nombrado(exp_audio, monkeypatch, tmp_path):
+    exp, audio = exp_audio
+    clip = tmp_path / "marta.wav"
+    _wav(clip, 2)
+    guardar_voz(exp, "Marta", clip, "reunion0.wav", 120.0)
+    visto = {}
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: (
+        [visto.__setitem__("hablantes", hablantes), R(
+            S("Marta", 0.0, 15.0, "Hola, soy Marta y hablo un buen rato."),
+            S("A", 15.5, 30.0, "Y yo soy otra persona sin identificar."))][1]))
+    salida = accion_transcribir(exp, audio)
+    assert visto["hablantes"] == [("Marta", str(dir_audio(exp) / "voces" / "Marta.wav"))]
+    cruda = (dir_audio(exp) / "transcripcion_cruda.md").read_text(encoding="utf-8")
+    assert "] Marta: Hola" in cruda and "] SPEAKER_01: Y yo soy" in cruda
+    md = (dir_audio(exp) / "hablantes.md").read_text(encoding="utf-8")
+    assert "Marta" not in md and "| SPEAKER_01 |" in md                 # la conocida no se vuelve a nombrar
+    assert "Ya nombrados por las voces del expediente: Marta." in salida
+
+
+def test_aislamiento_entre_expedientes(exp_audio, monkeypatch, tmp_path):
+    exp, audio = exp_audio
+    otro = Expediente.crear(tmp_path / "OTRO-1", "Otro", "OTRO-1", "Mayo 2026", [])
+    clip = tmp_path / "v.wav"
+    _wav(clip, 2)
+    guardar_voz(otro, "Intruso", clip, "x.wav", 500.0)
+    visto = {}
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: (
+        [visto.__setitem__("hablantes", hablantes), RESPUESTA_DOS_VOCES][1]))
+    accion_transcribir(exp, audio)                                      # expediente SIN voces propias
+    assert visto["hablantes"] == []                                     # jamás lee las voces de otro expediente
+    assert voces_para_enviar(exp) == [] and len(voces_para_enviar(otro)) == 1
+
+
+# ------------------------------------------------------------ etiquetar
+def _rellenar_hablantes(exp, valores):
+    """valores: {SPEAKER_01: (nombre, accion)}"""
+    ruta = dir_audio(exp) / "hablantes.md"
+    lineas = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        m = transcripcion._RE_FILA.match(linea)
+        if m and m.group(1) in valores:
+            nombre, accion = valores[m.group(1)]
+            partes = linea.split("|")
+            partes[4], partes[5] = f" {nombre} ", f" {accion} "
+            linea = "|".join(partes)
+        lineas.append(linea)
+    ruta.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+
+
+def test_etiquetar_fusiona_ignora_agrupa_y_guarda_voces(exp_audio, monkeypatch):
+    exp, audio = exp_audio
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: R(
+        S("A", 0, 8, "Primera frase de Marta."), S("A", 8, 15, "Segunda frase seguida."),
+        S("B", 15, 27, "Interviene Javier con su punto."),
+        S("C", 27, 39, "El tercero es en realidad también Javier desde otro micro."),
+        S("D", 39, 51, "Ruido de la sala que ignoramos."),
+        S("E", 51, 53, "Comentario de un hablante menor.")))
+    accion_transcribir(exp, audio)
+    _rellenar_hablantes(exp, {"SPEAKER_01": ("Marta", ""), "SPEAKER_02": ("Javier", ""),
+                              "SPEAKER_03": ("", "fusionar con SPEAKER_02"), "SPEAKER_04": ("", "ignorar")})
+    preguntas = []
+    salida = accion_etiquetar(exp, preguntar_guardar=lambda nombre, clip: preguntas.append(nombre) or nombre == "Marta")
+    instrucciones = exp.archivo("instrucciones").read_text(encoding="utf-8")
+    assert "- Marta: Primera frase de Marta. Segunda frase seguida." in instrucciones      # consecutivas agrupadas
+    assert "- Javier: Interviene Javier con su punto. El tercero es en realidad" in instrucciones  # fusión + agrupación
+    assert "Ruido de la sala" not in instrucciones                                          # ignorado
+    assert "Comentario de un hablante menor" not in instrucciones                           # menor descartado
+    assert "Reunión transcrita «reunion.wav»" in instrucciones
+    assert (dir_audio(exp) / "transcripcion_cruda.md").read_text(encoding="utf-8").startswith("> Etiquetada")
+    assert sorted(preguntas) == ["Javier", "Marta"] and sorted(cargar_voces(exp)) == ["Marta"]  # pregunta POR hablante
+    assert "2 intervenciones de 2 hablante(s)" in salida   # Marta agrupada; Javier + su fusión consecutiva
+    # ya etiquetada: no se puede repetir
+    with pytest.raises(ExpedienteError, match="ya se etiquetó"):
+        accion_etiquetar(exp)
+
+
+def test_etiquetar_hablante_incompleto_da_error_claro(exp_audio, monkeypatch):
+    exp, audio = exp_audio
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: RESPUESTA_DOS_VOCES)
+    accion_transcribir(exp, audio)
+    _rellenar_hablantes(exp, {"SPEAKER_01": ("Marta", "")})             # SPEAKER_02 sin nombre ni acción
+    with pytest.raises(ExpedienteError, match="SPEAKER_02 no tiene Nombre ni Acción"):
+        accion_etiquetar(exp)
+    # y las fusiones circulares también son error claro
+    _rellenar_hablantes(exp, {"SPEAKER_01": ("", "fusionar con SPEAKER_02"), "SPEAKER_02": ("", "fusionar con SPEAKER_01")})
+    with pytest.raises(ExpedienteError, match="circulares"):
+        accion_etiquetar(exp)
+
+
+# ------------------------------------------------------------ voces y ciclo de vida
+def test_voces_listar_borrar_y_prioridad(expediente_tmp, tmp_path):
+    if not FFMPEG:
+        pytest.skip("sin ffmpeg")
+    exp = expediente_tmp
+    for nombre, seg in (("Ana", 50), ("Bea", 300), ("Carlos", 200), ("David", 100), ("Eva", 400)):
+        clip = tmp_path / f"{nombre}.wav"
+        _wav(clip, 1)
+        guardar_voz(exp, nombre, clip, "r.wav", seg)
+    assert [n for n, _ in voces_para_enviar(exp)] == ["Eva", "Bea", "Carlos", "David"]   # top 4 por habla acumulada
+    listado = accion_voces(exp)
+    assert "Eva" in listado and "se borran al archivar" in listado
+    accion_voces(exp, borrar=["Eva", "Ana"])
+    assert sorted(cargar_voces(exp)) == ["Bea", "Carlos", "David"]
+    with pytest.raises(ExpedienteError, match="No hay una voz"):
+        accion_voces(exp, borrar=["Zoe"])
+
+
+def test_archivar_destruye_voces_clips_y_audios_con_constancia(exp_audio, monkeypatch, tmp_path):
+    from audit_agent.acciones import accion_archivar
+    exp, audio = exp_audio
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: RESPUESTA_DOS_VOCES)
+    accion_transcribir(exp, audio)
+    clip = tmp_path / "m.wav"
+    _wav(clip, 1)
+    guardar_voz(exp, "Marta", clip, "reunion.wav", 30)
+    exp.archivo("informe").write_text("# Informe\n", encoding="utf-8")
+    salida = accion_archivar(exp)
+    zip_ruta = next(exp.ruta.glob("*_archivo_*.zip"))
+    with zipfile.ZipFile(zip_ruta) as z:
+        nombres = z.namelist()
+        manifiesto = json.loads(z.read("manifest.json"))
+    assert "entrada/audio/hablantes.md" in nombres and "entrada/audio/transcripcion_cruda.md" in nombres
+    assert not any("voces/" in n or "hablantes/" in n or n.endswith((".wav", ".mp3")) for n in nombres)
+    borrados = {b["ruta"] for b in manifiesto["borrados_tras_archivar"]}
+    assert "entrada/audio/voces/Marta.wav" in borrados and any("SPEAKER_01.wav" in b for b in borrados)
+    assert all(len(b["sha256"]) == 64 for b in manifiesto["borrados_tras_archivar"])
+    base = dir_audio(exp)
+    assert not (base / "voces").exists() and not (base / "hablantes").exists()
+    assert not any(p.suffix in (".mp3", ".wav") for p in base.iterdir())
+    assert (base / "hablantes.md").exists() and (base / "transcripcion_cruda.md").exists()
+    assert "Material de voz/audio destruido" in salida
+
+
+# ------------------------------------------------------------ integración real (opt-in)
+@pytest.mark.kaia_audio
+def test_integracion_real_dos_voces(expediente_tmp, tmp_path):
+    """pytest -m kaia_audio: contra la API real, con dos voces TTS locales."""
+    import os
+    if not (FFMPEG and shutil.which("espeak-ng") and os.environ.get("KAIA_CLIENT_ID")):
+        pytest.skip("requiere ffmpeg, espeak-ng y credenciales KAIA")
+    a, b = tmp_path / "a.wav", tmp_path / "b.wav"
+    subprocess.run(["espeak-ng", "-v", "es+f4", "-p", "70", "-w", str(a),
+                    "En la conclusión uno subid el riesgo a alto."], check=True, capture_output=True)
+    subprocess.run(["espeak-ng", "-v", "es+m3", "-p", "30", "-w", str(b),
+                    "De acuerdo, y dividid la recomendación en dos."], check=True, capture_output=True)
+    dialogo = tmp_path / "d.wav"
+    lista = tmp_path / "l.txt"
+    lista.write_text(f"file '{a}'\nfile '{b}'\n", encoding="utf-8")
+    subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lista), "-ac", "1", "-ar", "16000",
+                    str(dialogo)], check=True, capture_output=True)
+    salida = accion_transcribir(expediente_tmp, dialogo, umbral_s=1.0)
+    assert "Transcripción:" in salida
+    cruda = (dir_audio(expediente_tmp) / "transcripcion_cruda.md").read_text(encoding="utf-8")
+    assert "SPEAKER_01" in cruda

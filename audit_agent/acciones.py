@@ -1139,7 +1139,7 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False, instrucciones
 # ============================================================ 5b. reunión (transcripción de Teams o audio)
 from .kaia_client import dialogo_de  # noqa: E402
 from .transcripcion import EXTENSIONES_AV as EXTENSIONES_REUNION_AV  # noqa: E402
-from .transcripcion import EXTENSIONES_VIDEO, transcribir_en_partes  # noqa: E402
+from .transcripcion import EXTENSIONES_VIDEO, cargar_voces, transcribir_en_partes  # noqa: E402
 
 
 def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, str | None]]) -> str:
@@ -1344,13 +1344,22 @@ def ficheros_a_archivar(exp: Expediente) -> list[Path]:
     ficheros = [exp.archivo(k) for k in ("meta", "conclusiones", "informe", "instrucciones", "revision", "cambios")]
     for d in ("trazas", "historial", "salidas", "reuniones"):
         ficheros += sorted(p for p in (exp.ruta / d).rglob("*") if p.is_file())
+    audio = exp.ruta / "entrada" / "audio"
+    if audio.exists():   # evidencia textual de las reuniones; el audio y las voces NUNCA van al zip
+        ficheros += sorted(p for p in audio.glob("*.md"))
     return [f for f in ficheros if f.exists() and f.suffix.lower() != ".zip"]
 
 
 def accion_archivar(exp: Expediente) -> str:
+    """Genera el zip de evidencia. El material de voz/audio (voces/, clips de
+    hablantes/ y audios de entrada/audio/) NO entra en el zip y SE DESTRUYE tras
+    generarlo y verificarlo: cerrar el expediente es también el fin de las muestras
+    de voz. El manifiesto deja constancia de qué se borró (nombres y hashes)."""
+    from .transcripcion import audio_a_borrar_al_archivar, borrar_audio_del_expediente
     fecha = datetime.now()
     destino = exp.ruta / f"{exp.referencia}_archivo_{fecha:%Y%m%d-%H%M%S}.zip"
     ficheros = ficheros_a_archivar(exp)
+    borrables = audio_a_borrar_al_archivar(exp)
     manifiesto = {
         "referencia": exp.referencia,
         "nombre": exp.proyecto.get("nombre", ""),
@@ -1359,15 +1368,25 @@ def accion_archivar(exp: Expediente) -> str:
         "algoritmo_hash": "sha256",
         "ficheros": [{"ruta": f.relative_to(exp.ruta).as_posix(), "bytes": f.stat().st_size, "sha256": _sha256(f)}
                      for f in ficheros],
+        "borrados_tras_archivar": [{"ruta": f.relative_to(exp.ruta).as_posix(), "sha256": _sha256(f)}
+                                   for f in borrables],   # constancia del borrado, sin el contenido
     }
     with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
         for f in ficheros:
             z.write(f, f.relative_to(exp.ruta).as_posix())
         z.writestr("manifest.json", json.dumps(manifiesto, ensure_ascii=False, indent=2))
+    problemas = verificar_archivo(destino)
+    extra = ""
+    if problemas:
+        extra = f"\n  ⚠ El zip no verifica ({problemas[0]}): el material de voz/audio NO se ha borrado."
+    elif borrables:
+        borrar_audio_del_expediente(exp)
+        extra = (f"\n  Material de voz/audio destruido tras verificar el zip ({len(borrables)} fichero(s): voces, "
+                 "clips de hablantes y audios); el manifiesto registra nombres y hashes de lo borrado.")
     n_trazas = sum(1 for f in ficheros if f.parent.name == "trazas")
     n_hist = sum(1 for f in ficheros if f.parent.name == "historial")
     return (f"Archivo de evidencia: {destino}\n  {len(ficheros)} ficheros ({n_trazas} trazas LLM, {n_hist} versiones en "
-            f"historial) + manifest.json con sha256 de cada uno.\n"
+            f"historial) + manifest.json con sha256 de cada uno.{extra}\n"
             "  Adjúntalo al expediente al cerrarlo en Pentana; para verificar la integridad después, recalcula los "
             "sha256 y compáralos con manifest.json.")
 
@@ -1441,6 +1460,21 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
                         "versiones": len(exp.historial("informe")),
                         "contexto": bool(informe["introduccion"] and informe["resumen_ejecutivo"]),
                         "n_conclusiones": len(informe["conclusiones"]), "n_sugerencias": len(informe["sugerencias"])}
+    audio_dir = exp.ruta / "entrada" / "audio"
+    cruda = audio_dir / "transcripcion_cruda.md"
+    normalizado = ""
+    if (audio_dir / "hablantes" / "meta.json").exists():
+        try:
+            normalizado = json.loads((audio_dir / "hablantes" / "meta.json").read_text(encoding="utf-8")).get("normalizado", "")
+        except ValueError:
+            pass
+    e["audio"] = {
+        "sin_procesar": sorted(p.name for p in audio_dir.iterdir()
+                               if p.is_file() and p.suffix.lower() in EXTENSIONES_REUNION_AV and p.name != normalizado)
+        if audio_dir.exists() else [],
+        "cruda_sin_etiquetar": cruda.exists() and not cruda.read_text(encoding="utf-8")[:40].startswith("> Etiquetada"),
+        "voces": sorted(cargar_voces(exp).keys()),
+    }
     e["archivos"] = sorted(p.name for p in exp.ruta.glob("*_archivo_*.zip"))
     ppt = exp.ruta_ppt()
     if ppt.exists():
@@ -1507,6 +1541,13 @@ def accion_estado(exp: Expediente, checker: StyleChecker | None = None, llm_desc
         L.append(f"  Informe: introducción y resumen {'listos' if i['contexto'] else 'pendientes'}, "
                  f"{i['n_conclusiones']} conclusiones y {i['n_sugerencias']} sugerencias volcadas; modificado "
                  f"{i['modificado']:%Y-%m-%d %H:%M}, {i['versiones']} versiones, {i['errores']} errores / {i['avisos']} avisos de estilo")
+    a = e.get("audio") or {}
+    if a.get("voces"):
+        L.append("  Voces del expediente: " + ", ".join(a["voces"]) + " (material temporal: se borra al archivar)")
+    if a.get("sin_procesar"):
+        L.append("  Audio de reunión sin transcribir: " + ", ".join(a["sin_procesar"]) + " → `transcribir <fichero>`")
+    if a.get("cruda_sin_etiquetar"):
+        L.append("  Transcripción cruda sin etiquetar → rellena entrada/audio/hablantes.md y `etiquetar-transcript`; después `aplicar-cambios`")
     L.append(f"  Instrucciones pendientes: {'sí' if e['instrucciones_pendientes'] else 'no'}")
     if e["ppt"]:
         L.append(f"  PPT: {e['ppt']['ruta'].name}" + (" (anterior a la última edición del informe)" if e["ppt"]["desactualizado"] else ""))

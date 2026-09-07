@@ -199,6 +199,34 @@ def cmd_reunion(args):
     return accion_reunion(_contexto(args), args.transcripcion, aplicar=args.aplicar, hablantes=hablantes or None)
 
 
+def cmd_transcribir(args):
+    from .transcripcion import accion_transcribir
+    return accion_transcribir(_abrir(args), args.fichero, umbral_s=args.umbral, forzar=args.forzar)
+
+
+def cmd_etiquetar(args):
+    from .transcripcion import accion_etiquetar
+    if args.sin_voces:
+        preguntar = None
+    elif args.guardar_voz:
+        deseadas = {n.strip() for n in args.guardar_voz}
+        preguntar = lambda nombre, clip: nombre in deseadas  # noqa: E731
+    else:
+        def preguntar(nombre, clip):
+            try:
+                r = input(f"¿Guardar la voz de «{nombre}» para próximas reuniones de ESTE expediente? "
+                          "(se borra al archivar) [s/N] ").strip().lower()
+            except EOFError:
+                return False
+            return r in ("s", "si", "sí", "y")
+    return accion_etiquetar(_abrir(args), preguntar_guardar=preguntar)
+
+
+def cmd_voces(args):
+    from .transcripcion import accion_voces
+    return accion_voces(_abrir(args), borrar=args.borrar or None)
+
+
 def cmd_cambio(args):
     from .acciones import accion_aplicar_cambios
     mensaje = " ".join(args.mensaje).strip()
@@ -329,7 +357,10 @@ MENU = [
     ("corregir", "Reescribir con el modelo los párrafos con errores (LLM)", cmd_corregir, {"avisos": False}),
     ("condensar", "Acortar un poco el informe conservando hechos y cifras (LLM)", cmd_condensar, {"objetivo": 0.85}),
     ("aplicar-cambios", "Aplicar las instrucciones de 03_instrucciones.md al informe (LLM)", cmd_aplicar_cambios, {"solo_plan": False}),
-    ("reunion", "Analizar una transcripción de Teams: cambios de texto vs PPT (LLM)", cmd_reunion, {"transcripcion": None, "aplicar": False}),
+    ("reunion", "Analizar una transcripción de Teams: cambios de texto vs PPT (LLM)", cmd_reunion, {"transcripcion": None, "aplicar": False, "hablante": None}),
+    ("transcribir", "Transcribir audio/vídeo con identificación de hablantes (KAIA)", cmd_transcribir, {"fichero": None, "umbral": 10.0, "forzar": False}),
+    ("etiquetar-transcript", "Nombrar hablantes y volcar la transcripción a 03_instrucciones.md", cmd_etiquetar, {"guardar_voz": None, "sin_voces": False}),
+    ("voces", "Muestras de voz del expediente (se borran al archivar)", cmd_voces, {"borrar": None}),
     ("chat", "Cambios sencillos tipo chat, aplicados al momento (LLM)", cmd_chat, {}),
     ("diff", "Ver cambios del informe respecto a la última versión guardada", cmd_diff, {"fichero": "informe"}),
     ("deshacer", "Restaurar la versión anterior del informe", cmd_deshacer, {"fichero": "informe"}),
@@ -362,6 +393,10 @@ def cmd_menu(args):
         if nombre == "reunion":
             sub.transcripcion = input("Ruta de la transcripción (.txt/.docx/.vtt): ").strip()
             if not sub.transcripcion:
+                continue
+        if nombre == "transcribir":
+            sub.fichero = input("Ruta del audio/vídeo de la reunión: ").strip()
+            if not sub.fichero:
                 continue
         if nombre == "redactar-contexto" and _abrir(args).existe("informe"):
             sub.forzar = input("02_informe.md ya tiene introducción/resumen. ¿Regenerarlos? (se guarda snapshot) [s/N] ").strip().lower() == "s"
@@ -431,6 +466,18 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--aplicar", action="store_true", help="Aplicar directamente los cambios de texto detectados")
     s.add_argument("--hablante", action="append", metavar="NOMBRE[=MUESTRA.wav]",
                    help="Solo audio: hablante conocido (repetible, máx. 4). Con muestra de voz de 2-10 s para todos, el transcript sale con sus nombres")
+    s = sub.add_parser("transcribir", help="Transcribir audio/vídeo de reunión con identificación de hablantes (KAIA; deja hablantes.md y transcripcion_cruda.md en entrada/audio/)")
+    s.set_defaults(fn=cmd_transcribir)
+    s.add_argument("fichero", help="Audio (.mp3/.wav/.m4a/.ogg/.webm) o vídeo (.mp4/.mkv…): se normaliza y solo el audio viaja a KAIA")
+    s.add_argument("--umbral", type=float, default=10.0, help="Segundos mínimos de habla para considerar relevante a un hablante (defecto 10)")
+    s.add_argument("--forzar", action="store_true", help="Descartar una transcripción cruda sin etiquetar")
+    s = sub.add_parser("etiquetar-transcript", help="Aplicar hablantes.md (nombres/fusiones/ignorados) y volcar a 03_instrucciones.md, listo para aplicar-cambios")
+    s.set_defaults(fn=cmd_etiquetar)
+    s.add_argument("--guardar-voz", action="append", metavar="NOMBRE", help="Guardar sin preguntar la voz de NOMBRE para este expediente (repetible)")
+    s.add_argument("--sin-voces", action="store_true", help="No ofrecer guardar voces")
+    s = sub.add_parser("voces", help="Listar o borrar las muestras de voz del expediente (material temporal: se borra al archivar)")
+    s.set_defaults(fn=cmd_voces)
+    s.add_argument("--borrar", action="append", metavar="NOMBRE", help="Borrar la voz de NOMBRE (repetible)")
     s = sub.add_parser("cambio", help="Aplicar un cambio sencillo escrito como mensaje (LLM)"); s.set_defaults(fn=cmd_cambio)
     s.add_argument("mensaje", nargs="*", help="Texto del cambio; `-` o vacío para leerlo de stdin")
     s.add_argument("--solo-plan", action="store_true")
