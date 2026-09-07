@@ -98,7 +98,7 @@ def test_cambio_directo_no_toca_el_buzon(con_informe):
 def test_reunion_desde_audio_transcribe_y_analiza(con_informe, monkeypatch):
     """Un .mp3 se transcribe con KAIA (aquí sustituido), se guarda la transcripción en
     reuniones/, se traza sin el audio y el análisis recibe el diálogo con hablantes."""
-    from audit_agent import acciones
+    from audit_agent import acciones, transcripcion
     exp = con_informe.exp
     audio = exp.ruta / "reuniones" / "revision_borrador.mp3"
     audio.parent.mkdir(exist_ok=True)
@@ -113,7 +113,7 @@ def test_reunion_desde_audio_transcribe_y_analiza(con_informe, monkeypatch):
                     {"speaker": "Marta", "text": "Y quitamos la viñeta de PackPro."},
                     {"speaker": "Javier", "text": "De acuerdo con ambas."}]}
 
-    monkeypatch.setattr(acciones, "transcribir_audio", falso_transcribir)
+    monkeypatch.setattr(transcripcion, "transcribir_audio", falso_transcribir)
     con_informe.llm.respuestas["reunion"] = ANALISIS
     salida = accion_reunion(con_informe, audio, hablantes=[("Marta", None), ("Javier", None)])
     assert visto["ruta"] == audio and visto["hablantes"] == [("Marta", None), ("Javier", None)]
@@ -133,11 +133,11 @@ def test_reunion_desde_audio_transcribe_y_analiza(con_informe, monkeypatch):
 
 
 def test_reunion_audio_limita_hablantes_y_muestras(con_informe, monkeypatch):
-    from audit_agent import acciones
+    from audit_agent import acciones, transcripcion
     audio = con_informe.exp.ruta / "reuniones" / "a.mp3"
     audio.parent.mkdir(exist_ok=True)
     audio.write_bytes(b"\x00")
-    monkeypatch.setattr(acciones, "transcribir_audio", lambda *a, **k: {"segments": []})
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda *a, **k: {"segments": []})
     with pytest.raises(ExpedienteError, match="Máximo 4 hablantes"):
         accion_reunion(con_informe, audio, hablantes=[(f"H{i}", None) for i in range(5)])
     with pytest.raises(ExpedienteError, match="muestra de voz"):
@@ -152,10 +152,10 @@ def test_reunion_video_extrae_el_audio(con_informe, monkeypatch, tmp_path):
     ffmpeg), nunca el vídeo; sin ffmpeg, los contenedores no admitidos dan error claro."""
     import shutil as sh
     import subprocess
-    from audit_agent import acciones
+    from audit_agent import acciones, transcripcion
     exp = con_informe.exp
     visto = {}
-    monkeypatch.setattr(acciones, "transcribir_audio", lambda ruta, hablantes=None: (
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: (
         visto.__setitem__("audio", Path(ruta)) or {"model": "m", "duration": 2.0, "segments": [
             {"speaker": "A", "text": "Contenido suficiente para el análisis de la reunión de revisión."}]}))
     con_informe.llm.respuestas["reunion"] = ANALISIS
@@ -177,7 +177,7 @@ def test_reunion_video_extrae_el_audio(con_informe, monkeypatch, tmp_path):
         larga = exp.ruta / "reuniones" / "larga.wav"
         sh.copy(tmp_path / "larga.wav", larga)
         vistos = []
-        monkeypatch.setattr(acciones, "transcribir_audio", lambda ruta, hablantes=None: (
+        monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: (
             vistos.append(Path(ruta).name) or {"model": "m", "duration": 2.0, "segments": [
                 {"speaker": "A", "text": f"Parte {len(vistos)} de la reunión con contenido suficiente."}]}))
         monkeypatch.setenv("KAIA_TRANSCRIBE_MAX_S", "2")
@@ -214,12 +214,12 @@ def test_claves_con_mayusculas_de_kaia_se_normalizan():
 
 
 def test_si_falla_el_analisis_tras_transcribir_se_indica_la_transcripcion(con_informe, monkeypatch):
-    from audit_agent import acciones
+    from audit_agent import acciones, transcripcion
     from audit_agent.llm import LLMNoDisponible
     audio = con_informe.exp.ruta / "reuniones" / "r.mp3"
     audio.parent.mkdir(exist_ok=True)
     audio.write_bytes(b"\x00")
-    monkeypatch.setattr(acciones, "transcribir_audio", lambda *a, **k: {"model": "m", "duration": 3.0, "segments": [
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda *a, **k: {"model": "m", "duration": 3.0, "segments": [
         {"speaker": "A", "text": "Texto suficiente para pasar el umbral de longitud de la transcripción."}]})
     def revienta(*a, **k):
         raise LLMNoDisponible("La respuesta de KAIA no cumple el esquema AnalisisReunion (tras un reintento): …")
@@ -231,7 +231,7 @@ def test_si_falla_el_analisis_tras_transcribir_se_indica_la_transcripcion(con_in
 def test_una_parte_fallida_no_tira_la_reunion(con_informe, monkeypatch, tmp_path):
     import shutil as sh
     import subprocess
-    from audit_agent import acciones
+    from audit_agent import acciones, transcripcion
     if not sh.which("ffmpeg"):
         pytest.skip("sin ffmpeg")
     exp = con_informe.exp
@@ -247,8 +247,7 @@ def test_una_parte_fallida_no_tira_la_reunion(con_informe, monkeypatch, tmp_path
             raise RuntimeError("stream timeout")
         return {"model": "m", "duration": 2.0, "segments": [{"speaker": "A", "text": "Contenido válido de la parte con texto suficiente."}]}
 
-    monkeypatch.setattr(acciones, "transcribir_audio", falso)
-    monkeypatch.setattr(acciones, "time", __import__("time"), raising=False)
+    monkeypatch.setattr(transcripcion, "transcribir_audio", falso)
     con_informe.llm.respuestas["reunion"] = ANALISIS
     salida = accion_reunion(con_informe, audio)
     assert "1 parte(s) del audio no se pudieron transcribir (2)" in salida
@@ -259,7 +258,7 @@ def test_una_parte_fallida_no_tira_la_reunion(con_informe, monkeypatch, tmp_path
     datos = _json.loads(traza.read_text(encoding="utf-8"))
     assert datos["partes_fallidas"] == [2] and "stream timeout" in datos["errores_partes"]["2"]
     # si fallan TODAS, sí es error
-    monkeypatch.setattr(acciones, "transcribir_audio", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("caído")))
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("caído")))
     with pytest.raises(ExpedienteError, match="No se ha podido transcribir"):
         accion_reunion(con_informe, audio)
 
@@ -269,7 +268,7 @@ def test_parte_que_siempre_da_504_se_transcribe_en_mitades(con_informe, monkeypa
     en dos mitades sí entra y no se pierde nada."""
     import shutil as sh
     import subprocess
-    from audit_agent import acciones
+    from audit_agent import acciones, transcripcion
     if not sh.which("ffmpeg"):
         pytest.skip("sin ffmpeg")
     exp = con_informe.exp
@@ -287,8 +286,8 @@ def test_parte_que_siempre_da_504_se_transcribe_en_mitades(con_informe, monkeypa
             return {"model": "m", "duration": 65.0, "segments": [{"speaker": "A", "text": f"Contenido de la {mitad} mitad del tramo denso."}]}
         raise RuntimeError("KAIA /transcribe devolvió 504: stream timeout")
 
-    monkeypatch.setattr(acciones, "transcribir_audio", falso)
-    monkeypatch.setattr(acciones.time, "sleep", lambda _s: None) if hasattr(acciones, "time") else None
+    monkeypatch.setattr(transcripcion, "transcribir_audio", falso)
+    monkeypatch.setattr(transcripcion.time, "sleep", lambda _s: None)
     con_informe.llm.respuestas["reunion"] = ANALISIS
     salida = accion_reunion(con_informe, audio)
     txt = max((exp.ruta / "reuniones").glob("*densa_transcripcion.txt")).read_text(encoding="utf-8")

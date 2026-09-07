@@ -1137,90 +1137,15 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False, instrucciones
 
 
 # ============================================================ 5b. reunión (transcripción de Teams o audio)
-from .kaia_client import EXTENSIONES_AUDIO, EXTENSIONES_VIDEO, dialogo_de, transcribir_audio  # noqa: E402  (mockeable en tests)
-
-EXTENSIONES_REUNION_AV = tuple(dict.fromkeys(EXTENSIONES_AUDIO + EXTENSIONES_VIDEO))
-
-
-def _duracion_audio(ruta: Path) -> float | None:
-    """Duración en segundos vía ffprobe; None si no se puede medir."""
-    import shutil as _shutil
-    import subprocess
-    if not _shutil.which("ffprobe"):
-        return None
-    try:
-        p = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(ruta)],
-                           capture_output=True, text=True, timeout=120)
-        return float(p.stdout.strip()) if p.returncode == 0 and p.stdout.strip() else None
-    except (ValueError, subprocess.SubprocessError):
-        return None
-
-
-def _en_mitades(parte: Path, destino_dir: Path, hablantes) -> dict:
-    """Último recurso para una parte que agota sus intentos: partirla en dos mitades y
-    transcribirlas por separado, devolviendo una respuesta combinada."""
-    import shutil as _shutil
-    import subprocess
-    dur = _duracion_audio(parte)
-    if not _shutil.which("ffmpeg") or not dur or dur < 60:
-        raise ExpedienteError("no se puede partir en mitades (sin ffmpeg o parte demasiado corta)")
-    mitades = []
-    for k, (ini, fin) in enumerate(((0, dur / 2), (dur / 2, None)), 1):
-        salida = destino_dir / f"{parte.stem}_{'ab'[k - 1]}.mp3"
-        orden = ["ffmpeg", "-y", "-ss", str(ini)] + ([] if fin is None else ["-t", str(fin - ini)]) +                 ["-i", str(parte), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(salida)]
-        proc = subprocess.run(orden, capture_output=True, text=True, timeout=600)
-        if proc.returncode != 0 or not salida.exists() or salida.stat().st_size == 0:
-            raise ExpedienteError("ffmpeg no pudo partir la parte")
-        mitades.append(salida)
-    r1, r2 = (transcribir_audio(m, hablantes) for m in mitades)
-    return {"model": r1.get("model") or r2.get("model"), "provider": r1.get("provider"),
-            "duration": (r1.get("duration") or 0) + (r2.get("duration") or 0),
-            "segments": (r1.get("segments") or []) + (r2.get("segments") or []),
-            "text": ((r1.get("text") or "") + "\n" + (r2.get("text") or "")).strip()}
-
-
-def _preparar_audio(ruta: Path, destino_dir: Path) -> list[Path]:
-    """Deja el audio listo para /transcribe: de un vídeo se extrae la pista de audio y,
-    si dura más que KAIA_TRANSCRIBE_MAX_S (300 s por defecto: el modelo admite 1.400 s
-    por llamada, pero el gateway de KAIA corta en ~240 s y una parte de 5 min se
-    transcribe en ~90 s), se trocea en partes mp3 (mono, 16 kHz, 48 kbps). Temporales."""
-    import math
-    import os as _os
-    import shutil as _shutil
-    import subprocess
-    maximo = int(_os.environ.get("KAIA_TRANSCRIBE_MAX_S") or 300)
-    margen = min(5, maximo)   # una cola de segundos no justifica otra parte (y una parte de centésimas da 400)
-    es_video = ruta.suffix.lower() in EXTENSIONES_VIDEO
-    duracion = _duracion_audio(ruta)
-    trocear = duracion is not None and duracion > maximo + margen
-    if not es_video and not trocear:
-        return [ruta]
-    if not _shutil.which("ffmpeg"):
-        if es_video and ruta.suffix.lower() in EXTENSIONES_AUDIO and not trocear:
-            return [ruta]      # .mp4/.webm cortos: el servicio acepta el contenedor
-        raise ExpedienteError(f"{ruta.name}: hace falta ffmpeg para " +
-                              ("trocear un audio de más de %d s (el modelo admite 1.400 s por llamada)." % maximo
-                               if trocear else f"transcribir vídeo {ruta.suffix} (instálalo o sube el audio)."))
-    partes = max(1, math.ceil((duracion or 1) / maximo)) if trocear else 1
-    if partes > 1 and (duracion - (partes - 1) * maximo) < margen:
-        partes -= 1            # la última parte absorbe la cola (queda en maximo+margen como mucho)
-    salidas = []
-    for i in range(partes):
-        salida = destino_dir / f"{ruta.stem[:40]}_audio_{i + 1:02d}.mp3"
-        orden = ["ffmpeg", "-y", "-ss", str(i * maximo)] + ([] if i == partes - 1 else ["-t", str(maximo)]) + \
-                ["-i", str(ruta), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(salida)]
-        proc = subprocess.run(orden, capture_output=True, text=True, timeout=1800)
-        if proc.returncode != 0 or not salida.exists() or salida.stat().st_size == 0:
-            detalle = (proc.stderr or "").strip().splitlines()[-1:] or ["ffmpeg falló"]
-            raise ExpedienteError(f"No se ha podido extraer el audio de {ruta.name}: {detalle[0][:200]}")
-        salidas.append(salida)
-    return salidas
+from .kaia_client import dialogo_de  # noqa: E402
+from .transcripcion import EXTENSIONES_AV as EXTENSIONES_REUNION_AV  # noqa: E402
+from .transcripcion import EXTENSIONES_VIDEO, transcribir_en_partes  # noqa: E402
 
 
 def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, str | None]]) -> str:
-    """Audio de reunión -> texto con KAIA (/api/v2/transcribe/upload, diarización).
-    Guarda la transcripción en reuniones/ (el auditor puede revisarla) y deja traza
-    con metadatos (nunca el audio). Máximo 4 hablantes conocidos."""
+    """Audio/vídeo de reunión -> texto con KAIA (diarización), delegando el troceo,
+    el paralelismo y las mitades en `transcripcion.transcribir_en_partes`. Guarda la
+    transcripción en reuniones/ y deja traza con metadatos (nunca el audio)."""
     exp = ctx.exp
     hablantes = [(n.strip(), m) for n, m in hablantes if (n or "").strip()]
     if len(hablantes) > 4:
@@ -1231,67 +1156,10 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
     inicio = datetime.now()
     import tempfile
     temporal = Path(tempfile.mkdtemp(prefix="audio_reunion_"))
+    es_video = ruta.suffix.lower() in EXTENSIONES_VIDEO
+    ctx.informar("Extrayendo el audio del vídeo…" if es_video else "Preparando el audio…", 5)
     try:
-        es_video = ruta.suffix.lower() in EXTENSIONES_VIDEO
-        ctx.informar("Extrayendo el audio del vídeo…" if es_video else "Preparando el audio…", 5)
-        partes = _preparar_audio(ruta, temporal)
-        if len(partes) > 1:
-            dur = _duracion_audio(ruta)
-            ctx.informar(f"Audio de {round((dur or 0) / 60)} min: dividido en {len(partes)} partes", 15)
-        # 2 partes a la vez (el gateway aguanta) y un reintento por parte ante cortes puntuales.
-        # El estado por parte (pendiente/en_curso/hecha/error) se publica para la barra del front.
-        import time
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
-        estados = ["pendiente"] * len(partes)
-        errores: dict[int, str] = {}
-
-        def _publicar():
-            hechas = sum(e == "hecha" for e in estados)
-            ctx.informar(f"Transcritas {hechas} de {len(partes)} partes…" if len(partes) > 1 else "Transcribiendo el audio…",
-                         15 + round(65 * hechas / len(partes)), partes=list(estados))
-
-        def _una(i: int):
-            """Una parte fallida NO tira la reunión entera. Tras el reintento normal se
-            prueba en dos mitades (caso real: un tramo denso tarda más de los ~240 s que
-            aguanta el gateway de KAIA y devuelve 504 siempre; la mitad sí entra). Si aun
-            así falla, se marca el hueco y se sigue."""
-            estados[i] = "en_curso"
-            _publicar()
-            ultimo = ""
-            for intento in (1, 2):
-                try:
-                    r = transcribir_audio(partes[i], hablantes)
-                    estados[i] = "hecha"
-                    _publicar()
-                    return r
-                except Exception as exc:  # noqa: BLE001 — el motivo se conserva por parte
-                    ultimo = str(exc)
-                    if intento == 1:
-                        time.sleep(5)
-            try:
-                r = _en_mitades(partes[i], temporal, hablantes)
-                estados[i] = "hecha"
-                _publicar()
-                return r
-            except Exception as exc:  # noqa: BLE001
-                errores[i] = f"{ultimo} | en mitades: {exc}"
-                estados[i] = "error"
-                _publicar()
-                return None
-
-        respuestas: list = [None] * len(partes)
-        _publicar()
-        with ThreadPoolExecutor(max_workers=min(2, len(partes))) as pool:
-            futuros = {pool.submit(_una, i): i for i in range(len(partes))}
-            for futuro in as_completed(futuros):
-                respuestas[futuros[futuro]] = futuro.result()
-        if len(errores) == len(partes):
-            raise ExpedienteError(f"No se ha podido transcribir {ruta.name}: {errores[min(errores)][:300]}")
-    except ExpedienteError:
-        raise
-    except Exception as exc:  # noqa: BLE001 — el fallo del servicio se reporta con contexto
-        raise ExpedienteError(f"No se ha podido transcribir {ruta.name}: {exc}") from exc
+        respuestas, _offsets, errores = transcribir_en_partes(ruta, hablantes, temporal, ctx.informar)
     finally:
         import shutil as _shutil
         _shutil.rmtree(temporal, ignore_errors=True)   # el audio extraído/troceado es temporal
@@ -1313,7 +1181,8 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
         "duracion_audio_s": round(sum(r.get("duration") or 0 for r in respuestas if r), 1) or None,
         "segundos": round((datetime.now() - inicio).total_seconds(), 1),
         "partes": len(respuestas), "partes_fallidas": sorted(i + 1 for i in errores),
-        "errores_partes": {str(i + 1): e[:200] for i, e in errores.items()}, "audio_convertido": partes[0] != ruta,
+        "errores_partes": {str(i + 1): e[:200] for i, e in errores.items()},
+        "audio_convertido": True,
         "hablantes": nombres, "con_muestras_de_voz": bool(hablantes) and all(m for _, m in hablantes),
         "caracteres": len(texto), "transcripcion": destino.name})
     ULTIMO_RESULTADO["transcripcion"] = destino.relative_to(exp.ruta).as_posix()

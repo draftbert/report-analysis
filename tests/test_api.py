@@ -167,7 +167,8 @@ def test_reunion_api_con_audio_y_hablantes(cliente, monkeypatch):
         return {"model": "gpt-4o-transcribe-diarize", "duration": 5.0,
                 "segments": [{"speaker": "Marta", "text": "Cambiamos el riesgo a Alto y revisamos la redacción entera."}]}
 
-    monkeypatch.setattr(acciones, "transcribir_audio", falso_transcribir)
+    from audit_agent import transcripcion
+    monkeypatch.setattr(transcripcion, "transcribir_audio", falso_transcribir)
     falso.respuestas["reunion"] = ANALISIS
     j = _esperar(c, c.post("/api/expedientes/T-A/acciones/reunion",
                            files={"transcripcion": ("revision.mp3", b"\x00" * 32, "audio/mpeg"),
