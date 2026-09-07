@@ -148,6 +148,18 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 #   instrucciones en 03_instrucciones.md para que las revises; (b) en el PPT → solo informativo
 #   (la presentación es beta y se retoca a mano); más pendientes de dato y acuerdos. Acta en reuniones/.
 ./revisor aplicar-cambios [--solo-plan]   # aplica 03_instrucciones.md: cambios concretos, registrados
+./revisor transcribir grabacion.mp4       # reunión grabada → transcripción con identificación de hablantes (KAIA):
+#   normaliza el audio (del vídeo solo viaja la pista de audio), deja en entrada/audio/ la transcripcion_cruda.md
+#   (timestamps y hablante), hablantes.md (tabla para nombrar/fusionar/ignorar escuchando los clips de
+#   entrada/audio/hablantes/) y descarta hablantes de <10 s de habla (--umbral). Si el expediente tiene voces
+#   guardadas, esos hablantes llegan ya nombrados (known_speakers, máx. 4 por habla acumulada).
+./revisor etiquetar-transcript            # aplica hablantes.md EN LOCAL (sin segunda llamada), agrupa intervenciones
+#   consecutivas y vuelca a 03_instrucciones.md, listo para `aplicar-cambios`; al final ofrece guardar la voz de
+#   cada hablante recién nombrado PARA ESTE EXPEDIENTE (pregunta una a una).
+./revisor voces [--borrar "Nombre"]       # muestras de voz del expediente: material TEMPORAL por auditoría, sin
+#   biblioteca global ni uso entre expedientes; `archivar` las destruye (con constancia en el manifiesto).
+#   Recomendación operativa: avisa en la reunión de que la grabación se transcribe con identificación de voces
+#   y de que las muestras se borran al cerrar el expediente.
 ./revisor cambio "pon el riesgo de la conclusión 1 en Alto"   # un cambio suelto, aplicado al momento
 ./revisor chat                            # varios cambios sueltos, uno por mensaje, con diff tras cada uno
 #   Ejemplos: ejemplos/transcript_reunion_teams.txt, ejemplos/transcript_reunion_tarifarios.vtt (Teams .vtt sobre el
@@ -166,7 +178,9 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 #   escala de Evaluación Global, una tabla por recomendación —banda RIESGO, «NN Título», prosa, caja
 #   gris de detalles, consecuencias, Recomendación N.k, Ref., Área/Responsable/Plazo; «(continuación)»
 #   si no cabe—, sugerencias de mejora y anexo de planes de acción). Sin modelo: es determinista.
-./revisor archivar                   # zip de evidencia con manifest sha256
+./revisor archivar                   # zip de evidencia con manifest sha256. El material de voz/audio (voces/,
+#   clips de hablantes/ y audios de entrada/audio/) NO entra en el zip y SE DESTRUYE tras verificarlo, con
+#   constancia (nombres y hashes) en el manifiesto; hablantes.md y transcripcion_cruda.md sí son evidencia.
 
 # Texto suelto (p. ej. un párrafo copiado de Pentana), sin informe:
 ./revisor revisar-texto --fichero borrador.txt [--sin-llm]

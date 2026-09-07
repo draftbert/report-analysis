@@ -16,6 +16,8 @@ expedientes/*/*_archivo_*.zip
 salidas/
 **/calibracion_estilo_trazas/
 /expedientes/
+# audio de reuniones y muestras de voz: material temporal del expediente, jamás en git
+expedientes/*/entrada/audio/
 # informes reales de referencia (nombres de personas): no se versionan
 docs/referencia/informes_aprobados/
 

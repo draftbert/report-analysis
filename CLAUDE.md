@@ -37,6 +37,10 @@ de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-p
   (fuente de las conclusiones). `entrada/` antiguo se lee como papeles_trabajo.
 - Flujo: redactar-contexto (intro+resumen) → extraer (conclusiones) → aprobar → recomendar →
   redactar-conclusiones → aplicar-cambios/reunion/cambio/chat/revisar/corregir → ppt → archivar.
+- Audio: `transcribir` (KAIA /transcribe/upload, diarización; genéricos = «lo que no está entre los nombres
+  enviados», ver Fase 0 en `transcripcion.py`) → hablantes.md → `etiquetar-transcript` → 03_instrucciones.md →
+  `aplicar-cambios`. Las voces son material TEMPORAL de cada expediente (entrada/audio/voces/): sin biblioteca
+  global, sin uso entre expedientes, y `archivar` destruye voces/clips/audios (constancia en el manifiesto).
 - `reunion`: la transcripción NO se aplica directamente; el modelo la separa en texto (→ 03_instrucciones.md,
   el auditor revisa) / PPT (informativo) / pendientes / acuerdos, y `aplicar-cambios` hace el resto.
 - Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;
