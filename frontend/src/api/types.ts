@@ -82,6 +82,8 @@ export interface Job<T = unknown> { estado: "en_curso" | "ok" | "error"; accion:
 export interface Version { fichero: string; nombre: string; fecha: string; motivo: string }
 export interface Traza { nombre: string; fecha: string; accion: string; modelo: string; error?: string | null; tokens: { prompt: number | null; completion: number | null } }
 export interface Reunion { nombre: string; tipo: "acta" | "transcripcion"; fecha: string; markdown: string }
+export interface HablanteTranscripcion { id: string; clip: string; muestra: string; segundos: number; conocido: boolean }
+export interface Transcripcion { hay_transcripcion: boolean; etiquetada: boolean; origen: string; fecha: string; duracion_s: number; hablantes: HablanteTranscripcion[]; voces: { nombre: string; segundos: number; origen: string; fecha: string }[] }
 export interface Descarga { nombre: string; url: string }
 
 export interface Api {
@@ -123,6 +125,10 @@ export interface Api {
   cambios(ref: string): Promise<{ markdown: string }>;
   reuniones(ref: string): Promise<Reunion[]>;
   borrarReunion(ref: string, nombre: string): Promise<Reunion[]>;
+  transcribir(ref: string, fichero: File, onProgreso?: (pct: number) => void): Promise<{ job_id: string }>;
+  transcripcion(ref: string): Promise<Transcripcion>;
+  etiquetar(ref: string, asignaciones: Record<string, { nombre: string; accion: string }>, guardarVoces: string[]): Promise<{ mensaje: string } & Transcripcion>;
+  borrarVoz(ref: string, nombre: string): Promise<Transcripcion>;
   ppt(ref: string): Promise<Descarga>;
   archivar(ref: string): Promise<Descarga>;
   trazas(ref: string): Promise<Traza[]>;

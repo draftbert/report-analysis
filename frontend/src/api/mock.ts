@@ -107,6 +107,17 @@ function apartadoMd(c: Conclusion, i: number, sug: boolean) {
     recs.map((r, k) => `**${sug ? "Sugerencia de mejora" : "Recomendación"} ${i}.${k + 1}.** ${r}`).join("\n\n");
 }
 
+let etiquetadaMock = false;
+let vocesMock: { nombre: string; segundos: number; origen: string; fecha: string }[] = [];
+const transcripcionMock = () => ({
+  hay_transcripcion: true, etiquetada: etiquetadaMock, origen: "reunion.mp4", fecha: "2026-09-07T10:00:00", duracion_s: 38,
+  hablantes: [
+    { id: "SPEAKER_01", clip: "SPEAKER_01.wav", muestra: "Buenos días, empezamos la revisión del borrador.", segundos: 17.1, conocido: false },
+    { id: "SPEAKER_02", clip: "SPEAKER_02.wav", muestra: "De acuerdo, me parece bien subir el riesgo.", segundos: 12.4, conocido: false },
+  ],
+  voces: vocesMock,
+});
+
 let reunionesMock: Reunion[] = [
   { nombre: "2026-08-27_1030_transcript_reunion_teams.md", tipo: "acta", fecha: "2026-08-27 10:30", markdown: "# Acta de cambios — reunión «transcript_reunion_teams»\n\nSe revisó el borrador y se acordaron cambios." },
   { nombre: "2026-08-27_1029_reunion_transcripcion.txt", tipo: "transcripcion", fecha: "2026-08-27 10:29", markdown: "Asistentes: Marta, Javier\n\nMarta: Repasamos el borrador…\nJavier: De acuerdo." },
@@ -239,6 +250,10 @@ export const clienteMock: Api = {
   deshacer: async () => ({ mensaje: "02_informe.md restaurado desde historial/2026-08-27T10-12-00_02_informe_aplicar-cambios.md." }),
   diff: async () => ({ diff: resultadoCambios("").diff, contra: historial[0].nombre }),
   cambios: async () => ({ markdown: "## Cambios aplicados — 2026-08-27 10:12 (03_instrucciones.md)\n\n1. **[aplicado]** ### 1. … — Elevar el nivel de riesgo a Alto\n   - Antes: - Nivel de riesgo: Medio\n   - Después: - Nivel de riesgo: Alto" }),
+  transcribir: (_ref, _f, onProgreso) => { onProgreso?.(100); return job("transcribir", () => ({ mensaje: "Transcripción: entrada/audio/transcripcion_cruda.md (10 segmentos, 00:38)", resultado: transcripcionMock() })); },
+  transcripcion: async () => transcripcionMock(),
+  etiquetar: async (_ref, asignaciones, guardarVoces) => { etiquetadaMock = true; vocesMock = guardarVoces.map((n) => ({ nombre: n, segundos: 15, origen: "reunion.mp4", fecha: "2026-09-07" })); return { mensaje: "7 intervenciones de 2 hablante(s) volcadas a 03_instrucciones.md.", ...transcripcionMock() }; },
+  borrarVoz: async (_ref, nombre) => { vocesMock = vocesMock.filter((v) => v.nombre !== nombre); return transcripcionMock(); },
   reuniones: async () => reunionesMock,
   borrarReunion: async (_ref, nombre) => { reunionesMock = reunionesMock.filter((r) => r.nombre !== nombre); return reunionesMock; },
   ppt: async () => { await espera(800); return { nombre: "ResumenEjecutivo_TEC-2026.pptx", url: "#" }; },

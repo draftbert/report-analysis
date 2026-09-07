@@ -201,3 +201,35 @@ def test_listado_y_borrado_de_reuniones(cliente):
     assert c.delete("/api/expedientes/T-R/reuniones/..%2Fexpediente.yaml").status_code in (404, 405)
     assert (api_mod.DIR_EXPEDIENTES / "T-R" / "expediente.yaml").exists()
     assert c.delete("/api/expedientes/T-R/reuniones/no_existe.txt").status_code == 404
+
+
+def test_flujo_web_de_identificacion_de_hablantes(cliente, monkeypatch, tmp_path):
+    import shutil as sh
+    import subprocess
+    from audit_agent import transcripcion
+    if not sh.which("ffmpeg"):
+        import pytest
+        pytest.skip("sin ffmpeg")
+    c, _ = cliente
+    c.post("/api/expedientes", json={"referencia": "T-V", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
+    wav = tmp_path / "reunion.wav"
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=30", "-ac", "1", "-ar", "16000",
+                    str(wav)], capture_output=True, check=True)
+    respuesta = {"model": "m", "provider": "openai", "duration": 30.0, "text": "", "segments": [
+        {"id": "0", "speaker": "A", "start": 0.0, "end": 12.0, "text": "Subid el riesgo a alto."},
+        {"id": "1", "speaker": "B", "start": 12.5, "end": 26.0, "text": "De acuerdo con el cambio."}]}
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda *a, **k: respuesta)
+    j = _esperar(c, c.post("/api/expedientes/T-V/acciones/transcribir",
+                           files={"fichero": ("reunion.wav", wav.read_bytes(), "audio/wav")}).json()["job_id"])
+    assert j["estado"] == "ok", j["mensaje"]
+    t = c.get("/api/expedientes/T-V/transcripcion").json()
+    assert t["hay_transcripcion"] and not t["etiquetada"] and [h["id"] for h in t["hablantes"]] == ["SPEAKER_01", "SPEAKER_02"]
+    assert c.get(f"/api/expedientes/T-V/audio/hablantes/{t['hablantes'][0]['clip']}").status_code == 200
+    r = c.post("/api/expedientes/T-V/acciones/etiquetar", json={
+        "asignaciones": {"SPEAKER_01": {"nombre": "Marta", "accion": ""}, "SPEAKER_02": {"nombre": "Javier", "accion": ""}},
+        "guardar_voces": ["Marta"]}).json()
+    assert "volcadas a 03_instrucciones.md" in r["mensaje"] and r["etiquetada"]
+    assert [v["nombre"] for v in r["voces"]] == ["Marta"]
+    instrucciones = (api_mod.DIR_EXPEDIENTES / "T-V" / "03_instrucciones.md").read_text(encoding="utf-8")
+    assert "- Marta: Subid el riesgo a alto." in instrucciones and "- Javier: De acuerdo" in instrucciones
+    assert c.delete("/api/expedientes/T-V/voces/Marta").json()["voces"] == []

@@ -394,6 +394,70 @@ async def reunion(ref: str, transcripcion: UploadFile = File(...), aplicar: bool
     return _job(ref, "reunion", tarea, ctx=ctx)
 
 
+@app.post("/api/expedientes/{ref}/acciones/transcribir")
+async def transcribir(ref: str, fichero: UploadFile = File(...), umbral: float = Form(10.0), forzar: bool = Form(False)):
+    """Flujo con identificación de hablantes: transcribe con diarización y deja clips +
+    hablantes por nombrar (GET /transcripcion). NO genera acta ni toca instrucciones."""
+    from . import transcripcion as tr
+    exp = _exp(ref); ctx = _ctx(exp)
+    nombre = Path(fichero.filename or "reunion").name
+    if Path(nombre).suffix.lower() not in tr.EXTENSIONES_AV:
+        raise HTTPException(400, {"error": f"{nombre}: no es audio/vídeo admitido."})
+    tmp = Path(tempfile.mkdtemp(prefix="transcribir_web_")) / nombre
+    with open(tmp, "wb") as f:
+        shutil.copyfileobj(fichero.file, f)
+
+    def tarea():
+        try:
+            mensaje = tr.accion_transcribir(exp, tmp, umbral_s=umbral, forzar=forzar, informar=ctx.informar)
+            acciones.ULTIMO_RESULTADO.update(tr.estado_transcripcion(exp))
+            return mensaje
+        finally:
+            shutil.rmtree(tmp.parent, ignore_errors=True)   # el fichero subido no se conserva (queda el normalizado)
+
+    return _job(ref, "transcribir", tarea, ctx=ctx)
+
+
+@app.get("/api/expedientes/{ref}/transcripcion")
+def transcripcion_estado(ref: str):
+    from . import transcripcion as tr
+    return tr.estado_transcripcion(_exp(ref))
+
+
+class Etiquetado(BaseModel):
+    asignaciones: dict[str, dict] = {}
+    guardar_voces: list[str] = []
+
+
+@app.post("/api/expedientes/{ref}/acciones/etiquetar")
+def etiquetar(ref: str, o: Etiquetado):
+    """Aplica nombres/fusiones/ignorados en local y vuelca a 03_instrucciones.md."""
+    from . import transcripcion as tr
+    exp = _exp(ref)
+    tr.aplicar_asignaciones(exp, o.asignaciones)
+    deseadas = set(o.guardar_voces)
+    mensaje = tr.accion_etiquetar(exp, preguntar_guardar=lambda nombre, clip: nombre in deseadas)
+    return {"mensaje": mensaje, **tr.estado_transcripcion(exp)}
+
+
+@app.get("/api/expedientes/{ref}/audio/hablantes/{fichero}")
+def clip_hablante(ref: str, fichero: str):
+    from . import transcripcion as tr
+    exp = _exp(ref)
+    ruta = tr.dir_audio(exp) / "hablantes" / Path(fichero).name
+    if not ruta.is_file() or ruta.suffix.lower() != ".wav":
+        raise HTTPException(404, {"error": "No existe ese clip."})
+    return FileResponse(ruta, media_type="audio/wav")
+
+
+@app.delete("/api/expedientes/{ref}/voces/{nombre}")
+def borrar_voz(ref: str, nombre: str):
+    from . import transcripcion as tr
+    exp = _exp(ref)
+    tr.accion_voces(exp, borrar=[nombre])
+    return tr.estado_transcripcion(exp)
+
+
 # ---------------------------------------------------------------- acciones síncronas
 @app.post("/api/expedientes/{ref}/acciones/aprobar")
 def aprobar(ref: str, o: Opciones):

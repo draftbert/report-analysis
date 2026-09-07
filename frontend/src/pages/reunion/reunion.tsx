@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { api, esperarJob } from "@/api";
-import type { Acta, Job, Reunion as ReunionT } from "@/api";
+import type { Acta, Job, Reunion as ReunionT, Transcripcion } from "@/api";
 import { Trash2 } from "lucide-react";
 
 import { Dropzone, JobButton, JobResult, Markdown, useNotificar } from "@/components/ui";
@@ -24,9 +24,27 @@ export const Reunion = () => {
   const [sel, setSel] = useState<boolean[]>([]);
   const [resultado, setResultado] = useState<JobResultado | null>(null);
   const [anteriores, setAnteriores] = useState<ReunionT[]>([]);
+  const [trans, setTrans] = useState<Transcripcion | null>(null);
+  const [asig, setAsig] = useState<Record<string, { nombre: string; accion: string }>>({});
+  const [guardar, setGuardar] = useState<Record<string, boolean>>({});
+  const [etiquetando, setEtiquetando] = useState(false);
+  const cargarTrans = () => api.transcripcion(ref).then(setTrans).catch(() => setTrans(null));
   const [abierta, setAbierta] = useState<string | null>(null);
   const [aplicando, setAplicando] = useState(false);
   useEffect(() => { api.reuniones(ref).then(setAnteriores).catch(() => setAnteriores([])); }, [ref, acta]);
+  useEffect(() => { cargarTrans(); }, [ref]);
+
+  const etiquetar = async () => {
+    if (!trans) return;
+    setEtiquetando(true);
+    try {
+      const voces = Object.entries(guardar).filter(([, v]) => v).map(([id]) => asig[id]?.nombre?.trim()).filter(Boolean) as string[];
+      const r = await api.etiquetar(ref, asig, voces);
+      notificar({ texto: r.mensaje.split("\n")[0] });
+      setTrans(r); setAsig({}); setGuardar({}); recargar();
+    } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
+    finally { setEtiquetando(false); }
+  };
 
   const aplicarSeleccion = async () => {
     if (!acta) return;
@@ -127,6 +145,59 @@ export const Reunion = () => {
           {acta.acuerdos_sin_cambio.length === 0 ? <span className="detail">Ninguno.</span> : acta.acuerdos_sin_cambio.map((p, i) => <div key={i} className="detail">• {p}</div>)}
         </div>
       )}
+      <div className="panel stack">
+        <span className="section-title">Identificación de hablantes (transcribir ahora, nombrar después)</span>
+        <span className="detail">Alternativa al análisis directo: transcribe el audio con hablantes anónimos y, al terminar, escucha el clip de cada uno, ponles nombre aquí y vuelca la conversación a Instrucciones (Informe → Instrucciones → Aplicar cambios). Las voces que guardes se usan en la siguiente reunión de ESTE informe y se destruyen al archivar.</span>
+        <div className="row">
+          <JobButton etiqueta="Solo transcribir (nombrar hablantes)" disabled={!fichero || !esAudio(fichero)}
+            lanzar={() => { setSubida(0); return api.transcribir(ref, fichero!, (pct) => setSubida(pct < 100 ? pct : null)); }}
+            onTick={setAvance}
+            onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok") cargarTrans(); }} />
+          {trans?.hay_transcripcion && <span className="detail">Transcripción actual: «{trans.origen}» {trans.etiquetada ? "(ya etiquetada)" : "(pendiente de etiquetar)"}</span>}
+        </div>
+        {trans?.hay_transcripcion && !trans.etiquetada && (
+          <div className="stack">
+            {trans.hablantes.filter((h) => !h.conocido).map((h) => (
+              <div key={h.id} className="panel" style={{ gap: 8 }}>
+                <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <span className="label label--dark">{h.id}</span>
+                  <audio controls preload="none" style={{ height: 30 }} src={`/api/expedientes/${encodeURIComponent(ref)}/audio/hablantes/${h.clip}`} />
+                  <span className="detail">{Math.round(h.segundos)} s de habla</span>
+                </div>
+                <span className="detail">«{h.muestra}»</span>
+                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                  <input className="input" style={{ maxWidth: 240 }} placeholder="Nombre" value={asig[h.id]?.nombre ?? ""}
+                    onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: e.target.value, accion: asig[h.id]?.accion ?? "" } })} />
+                  <select className="input" style={{ maxWidth: 260 }} value={asig[h.id]?.accion ?? ""}
+                    onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: asig[h.id]?.nombre ?? "", accion: e.target.value } })}>
+                    <option value="">usar con este nombre</option>
+                    {trans.hablantes.filter((o) => o.id !== h.id && !o.conocido).map((o) => (
+                      <option key={o.id} value={`fusionar con ${o.id}`}>es la misma persona que {o.id}</option>))}
+                    <option value="ignorar">ignorar (ruido, hablante irrelevante)</option>
+                  </select>
+                  <label className="row detail" style={{ gap: 6 }}>
+                    <input type="checkbox" checked={!!guardar[h.id]} onChange={(e) => setGuardar({ ...guardar, [h.id]: e.target.checked })} />
+                    guardar su voz para próximas reuniones</label>
+                </div>
+              </div>
+            ))}
+            {trans.hablantes.some((h) => h.conocido) && (
+              <span className="detail">Ya nombrados por sus voces guardadas: {trans.hablantes.filter((h) => h.conocido).map((h) => h.id).join(", ")}.</span>)}
+            <div><button className="btn btn--primary" onClick={etiquetar} disabled={etiquetando}>
+              {etiquetando ? <><span className="spinner" />Etiquetando…</> : "Etiquetar y volcar a Instrucciones"}</button></div>
+          </div>
+        )}
+        {trans && trans.voces.length > 0 && (
+          <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+            <span className="detail">Voces del informe:</span>
+            {trans.voces.map((v) => (
+              <span key={v.nombre} className="label">{v.nombre} · {Math.round(v.segundos)} s
+                <button className="btn btn--ghost btn--small" style={{ marginLeft: 6 }}
+                  onClick={async () => setTrans(await api.borrarVoz(ref, v.nombre))}>×</button></span>))}
+            <span className="detail">(se destruyen al archivar)</span>
+          </div>
+        )}
+      </div>
       {anteriores.length > 0 && (
         <div className="stack">
           <span className="section-title">Actas y transcripciones</span>

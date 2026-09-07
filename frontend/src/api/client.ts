@@ -114,6 +114,15 @@ export const clienteReal: Api = {
   cambios: (ref) => req(`${e(ref)}/cambios`),
   reuniones: (ref) => req(`${e(ref)}/reuniones`),
   borrarReunion: (ref, nombre) => req(`${e(ref)}/reuniones/${encodeURIComponent(nombre)}`, { method: "DELETE" }),
+  transcribir: (ref, fichero, onProgreso) => {
+    const fd = new FormData();
+    fd.append("fichero", fichero);
+    fd.append("forzar", "true");
+    return postConProgreso(`${BASE}${e(ref)}/acciones/transcribir`, fd, onProgreso);
+  },
+  transcripcion: (ref) => req(`${e(ref)}/transcripcion`),
+  etiquetar: (ref, asignaciones, guardarVoces) => req(`${e(ref)}/acciones/etiquetar`, json({ asignaciones, guardar_voces: guardarVoces })),
+  borrarVoz: (ref, nombre) => req(`${e(ref)}/voces/${encodeURIComponent(nombre)}`, { method: "DELETE" }),
   ppt: (ref) => req(`${e(ref)}/acciones/ppt`, { method: "POST" }),
   archivar: (ref) => req(`${e(ref)}/acciones/archivar`, { method: "POST" }),
   trazas: (ref) => req(`${e(ref)}/trazas`),

@@ -320,15 +320,16 @@ def accion_transcribir(exp: Expediente, ruta_fichero: str | Path, umbral_s: floa
     filas = []
     for etiqueta, g in relevantes.items():
         ident = ids[etiqueta]
-        info = {"etiqueta_api": etiqueta, "segundos": round(g["segundos"], 1), "clip": "", "conocido": etiqueta in nombres_conocidos}
+        info = {"etiqueta_api": etiqueta, "segundos": round(g["segundos"], 1), "clip": "",
+                "conocido": etiqueta in nombres_conocidos,
+                "muestra": " ".join(s["text"] for s in g["segmentos"][:2])[:160]}
         if not info["conocido"]:
             ini, dur = _segmento_para_clip(g["segmentos"], segmentos)
             clip = base / "hablantes" / f"{ident}.wav"
             _ffmpeg(["-ss", str(ini), "-t", str(dur), "-i", str(normalizado), "-ac", "1", "-ar", "16000"],
                     clip, f"No se ha podido cortar el clip de {ident}")
             info["clip"] = clip.name
-            muestra = " ".join(s["text"] for s in g["segmentos"][:2])[:160]
-            filas.append(f"| {ident} | {clip.name} | {muestra} |  |  |")
+            filas.append(f"| {ident} | {clip.name} | {info['muestra']} |  |  |")
         meta["hablantes"][ident] = info
     (base / "hablantes" / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -395,6 +396,46 @@ def _resolver(ident: str, mapa: dict[str, tuple[str, str]], profundidad: int = 0
         return nombre
     raise ExpedienteError(f"{ident} no tiene Nombre ni Acción en entrada/audio/hablantes.md: "
                           "pon un nombre, «fusionar con SPEAKER_XX» o «ignorar».")
+
+
+def aplicar_asignaciones(exp: Expediente, asignaciones: dict) -> None:
+    """Escribe en hablantes.md las asignaciones {SPEAKER_XX: {nombre, accion}} que llegan
+    de la interfaz web (misma fuente de verdad que el flujo manual)."""
+    ruta = dir_audio(exp) / "hablantes.md"
+    if not ruta.exists():
+        return
+    lineas = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        m = _RE_FILA.match(linea)
+        if m and m.group(1) in asignaciones:
+            a = asignaciones[m.group(1)] or {}
+            partes = linea.split("|")
+            partes[4] = f" {(a.get('nombre') or '').strip()} "
+            partes[5] = f" {(a.get('accion') or '').strip()} "
+            linea = "|".join(partes)
+        lineas.append(linea)
+    ruta.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+
+
+def estado_transcripcion(exp: Expediente) -> dict:
+    """Para la web: hablantes de la transcripción actual (con clip y muestra), si está
+    etiquetada, y las voces guardadas del expediente."""
+    base = dir_audio(exp)
+    meta_ruta = base / "hablantes" / "meta.json"
+    cruda = base / "transcripcion_cruda.md"
+    salida = {"hay_transcripcion": cruda.exists(), "etiquetada": False, "origen": "", "fecha": "",
+              "duracion_s": 0, "hablantes": [], "voces": []}
+    if cruda.exists():
+        salida["etiquetada"] = cruda.read_text(encoding="utf-8")[:40].startswith("> Etiquetada")
+    if meta_ruta.exists():
+        meta = json.loads(meta_ruta.read_text(encoding="utf-8"))
+        salida.update(origen=meta.get("origen", ""), fecha=meta.get("fecha", ""), duracion_s=meta.get("duracion_s", 0))
+        salida["hablantes"] = [{"id": ident, "clip": d.get("clip", ""), "muestra": d.get("muestra", ""),
+                                "segundos": d.get("segundos", 0), "conocido": bool(d.get("conocido"))}
+                               for ident, d in meta.get("hablantes", {}).items()]
+    salida["voces"] = [{"nombre": n, "segundos": d.get("segundos", 0), "origen": d.get("origen", ""), "fecha": d.get("fecha", "")}
+                       for n, d in sorted(cargar_voces(exp).items(), key=lambda kv: -(kv[1].get("segundos") or 0))]
+    return salida
 
 
 def accion_etiquetar(exp: Expediente, preguntar_guardar=None) -> str:
