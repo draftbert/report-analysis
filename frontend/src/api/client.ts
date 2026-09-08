@@ -96,7 +96,7 @@ export const clienteReal: Api = {
   cambio: (ref, mensaje, soloPlan = false) => req(`${e(ref)}/acciones/cambio`, json({ mensaje, solo_plan: soloPlan })),
   instrucciones: (ref) => req(`${e(ref)}/instrucciones`),
   guardarInstrucciones: (ref, texto) => req(`${e(ref)}/instrucciones`, json({ texto }, "PUT")),
-  aplicarCambios: (ref, soloPlan = false) => req(`${e(ref)}/acciones/aplicar-cambios`, json({ solo_plan: soloPlan })),
+  aplicarCambios: (ref, soloPlan = false, texto) => req(`${e(ref)}/acciones/aplicar-cambios`, json({ solo_plan: soloPlan, texto: texto ?? null })),
   reunion: (ref, fichero, aplicar, hablantes = [], onProgreso, repetir = false) => {
     const fd = new FormData();
     fd.append("transcripcion", fichero);

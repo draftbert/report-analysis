@@ -158,10 +158,10 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 #   guardadas, esos hablantes llegan ya nombrados (known_speakers, máx. 4 por habla acumulada).
 ./revisor etiquetar-transcript            # aplica hablantes.md EN LOCAL (sin segunda llamada de transcripción), agrupa
 #   intervenciones consecutivas, guarda la conversación etiquetada en reuniones/*_transcripcion.txt y la analiza
-#   como una reunión (mismo modelo que `reunion`): acta en reuniones/ con quién pide cada cosa e instrucciones
-#   detectadas en 03_instrucciones.md, listo para `aplicar-cambios`. Sin modelo (o sin 02_informe.md) vuelca la
-#   conversación en bruto al buzón y el acta puede generarse después con `reunion <txt>`. Al final ofrece guardar
-#   la voz de cada hablante recién nombrado PARA ESTE EXPEDIENTE (pregunta una a una).
+#   como una reunión (mismo modelo que `reunion`): acta en reuniones/ con quién pide cada cosa. Los cambios se
+#   aplican DESDE el acta (web o `reunion --aplicar`); el buzón 03_instrucciones.md es del auditor y este flujo
+#   no lo toca. Sin modelo (o sin 02_informe.md) queda la transcripción y el acta se genera después con
+#   `reunion <txt>`. Al final ofrece guardar la voz de cada hablante recién nombrado PARA ESTE EXPEDIENTE.
 ./revisor voces [--borrar "Nombre"]       # muestras de voz del expediente: material TEMPORAL por auditoría, sin
 #   biblioteca global ni uso entre expedientes; `archivar` las destruye (con constancia en el manifiesto).
 #   Recomendación operativa: avisa en la reunión de que la grabación se transcribe con identificación de voces

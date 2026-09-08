@@ -1333,10 +1333,10 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
         artefactos.append(ruta.name)
     registrar_huella(exp, huella, ruta.name, "reunion", resultado=ULTIMO_RESULTADO["acta"], artefactos=artefactos)
 
-    if res.cambios_texto:
-        bloque = [f"\nReunión «{ruta.stem}» ({marca:%d/%m/%Y}) — instrucciones detectadas por el sistema; borra o edita las que no procedan:"]
-        bloque += [f"- {c.instruccion.strip()}" + (f" [{c.solicitado_por}]" if c.solicitado_por else "") for c in res.cambios_texto]
-        exp.anexar_registro("instrucciones", "\n".join(bloque) + "\n")
+    # las instrucciones del acta NO van al buzón 03_instrucciones.md (eso es del auditor):
+    # se aplican desde el propio acta (web) o con --aplicar, pasándolas directas al motor
+    instrucciones_acta = "\n".join(f"- {c.instruccion.strip()}" + (f" [{c.solicitado_por}]" if c.solicitado_por else "")
+                                   for c in res.cambios_texto)
 
     out = [f"Acta: {acta.relative_to(exp.ruta)}"]
     if ULTIMO_RESULTADO.get("transcripcion"):
@@ -1358,12 +1358,12 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
         out.append("\nAcuerdos que no cambian el informe:")
         out += [f"  • {x}" for x in res.acuerdos_sin_cambio]
     if res.cambios_texto:
-        out.append("\nLas instrucciones de texto se han añadido a 03_instrucciones.md.")
         if aplicar:
-            out += ["", "=== aplicar-cambios ===", accion_aplicar_cambios(ctx)]
+            out += ["", "=== aplicar-cambios ===",
+                    accion_aplicar_cambios(ctx, instrucciones=instrucciones_acta, origen=f"acta {acta.name}")]
         else:
-            out.append("Revísalas (borra o edita las que no procedan) y ejecuta `aplicar-cambios`, o usa `reunion --aplicar` "
-                       "para aplicarlas directamente.")
+            out.append("\nAplica los cambios desde el propio acta (web: Reunión → abre la reunión → «Aplicar los "
+                       "seleccionados») o repite con `reunion --aplicar`. El buzón de Instrucciones no se toca.")
     return "\n".join(out)
 
 

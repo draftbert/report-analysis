@@ -169,12 +169,12 @@ def test_etiquetar_fusiona_ignora_agrupa_y_guarda_voces(exp_audio, monkeypatch):
                               "SPEAKER_03": ("", "fusionar con SPEAKER_02"), "SPEAKER_04": ("", "ignorar")})
     preguntas = []
     salida = accion_etiquetar(exp, preguntar_guardar=lambda nombre, clip: preguntas.append(nombre) or nombre == "Marta")
-    instrucciones = exp.archivo("instrucciones").read_text(encoding="utf-8")
-    assert "- Marta: Primera frase de Marta. Segunda frase seguida." in instrucciones      # consecutivas agrupadas
-    assert "- Javier: Interviene Javier con su punto. El tercero es en realidad" in instrucciones  # fusión + agrupación
-    assert "Ruido de la sala" not in instrucciones                                          # ignorado
-    assert "Comentario de un hablante menor" not in instrucciones                           # menor descartado
-    assert "Reunión transcrita «reunion.wav»" in instrucciones
+    txt = max((exp.ruta / "reuniones").glob("*_transcripcion.txt")).read_text(encoding="utf-8")
+    assert "Marta: Primera frase de Marta. Segunda frase seguida." in txt                  # consecutivas agrupadas
+    assert "Javier: Interviene Javier con su punto. El tercero es en realidad" in txt      # fusión + agrupación
+    assert "Ruido de la sala" not in txt                                                   # ignorado
+    assert "Comentario de un hablante menor" not in txt                                    # menor descartado
+    assert not exp.archivo("instrucciones").read_text(encoding="utf-8").strip().split("---")[-1].strip()  # el buzón no se toca
     assert (dir_audio(exp) / "transcripcion_cruda.md").read_text(encoding="utf-8").startswith("> Etiquetada")
     assert sorted(preguntas) == ["Javier", "Marta"] and sorted(cargar_voces(exp)) == ["Marta"]  # pregunta POR hablante
     assert "2 intervenciones de 2 hablante(s)" in salida   # Marta agrupada; Javier + su fusión consecutiva
@@ -334,25 +334,25 @@ def test_etiquetar_genera_acta_con_el_analisis_de_reunion(exp_audio, contexto, m
     actas = list((exp.ruta / "reuniones").glob("*.md"))
     assert len(txts) == 1 and "Marta: Buenos días" in txts[0].read_text(encoding="utf-8")
     assert len(actas) == 1 and "pide: Marta" in actas[0].read_text(encoding="utf-8")
-    instrucciones = exp.archivo("instrucciones").read_text(encoding="utf-8")
-    assert "- En la conclusión 1, subir el nivel de riesgo a Alto. [Marta]" in instrucciones
-    assert "Reunión transcrita «reunion.wav»" not in instrucciones      # con acta no hay volcado en bruto
+    assert not exp.archivo("instrucciones").read_text(encoding="utf-8").strip().split("---")[-1].strip()  # el buzón no se toca
+    assert "Aplica los cambios desde el propio acta" in salida
     assert "Acta: reuniones/" in salida and "Transcripción etiquetada: reuniones/" in salida
     assert (dir_audio(exp) / "transcripcion_cruda.md").read_text(encoding="utf-8").startswith("> Etiquetada")
 
 
-def test_etiquetar_sin_modelo_cae_al_volcado_en_bruto(exp_audio, contexto, monkeypatch):
-    """Si el análisis no está disponible (p. ej. sin 02_informe.md), la conversación se
-    vuelca en bruto al buzón y el mensaje explica cómo generar el acta más tarde."""
+def test_etiquetar_sin_modelo_guarda_transcripcion_sin_acta(exp_audio, contexto, monkeypatch):
+    """Si el análisis no está disponible (p. ej. sin 02_informe.md), queda la transcripción
+    etiquetada en reuniones/ y el mensaje explica cómo generar el acta más tarde; el buzón
+    de Instrucciones no se toca nunca desde el flujo de reuniones."""
     exp, audio = exp_audio
     monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: RESPUESTA_DOS_VOCES)
     accion_transcribir(exp, audio)
     _rellenar_hablantes(exp, {"SPEAKER_01": ("Marta", ""), "SPEAKER_02": ("Javier", "")})
     salida = accion_etiquetar(exp, ctx=contexto)                        # sin 02_informe.md
-    instrucciones = exp.archivo("instrucciones").read_text(encoding="utf-8")
-    assert "- Marta: Buenos días" in instrucciones and "Reunión transcrita «reunion.wav»" in instrucciones
-    assert "Sin acta" in salida and "02_informe.md" in salida
-    assert list((exp.ruta / "reuniones").glob("*_transcripcion.txt"))   # la transcripción queda igualmente
+    assert not exp.archivo("instrucciones").read_text(encoding="utf-8").strip().split("---")[-1].strip()
+    assert "Sin acta" in salida and "02_informe.md" in salida and "reunion" in salida
+    txts = list((exp.ruta / "reuniones").glob("*_transcripcion.txt"))
+    assert len(txts) == 1 and "Marta: Buenos días" in txts[0].read_text(encoding="utf-8")
 
 
 def test_transcribir_misma_grabacion_avisa_y_repetir_desbloquea(exp_audio, monkeypatch):

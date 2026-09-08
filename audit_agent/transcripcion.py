@@ -634,13 +634,8 @@ def accion_etiquetar(exp: Expediente, preguntar_guardar=None, ctx=None) -> str:
             analisis = acciones.accion_reunion(ctx, destino_txt, aplicar=False)
         except (ExpedienteError, LLMNoDisponible) as exc:
             motivo = str(exc)
-    if analisis is None:
-        bloque = [f"\nReunión transcrita «{meta.get('origen', '?')}» ({marca:%d/%m/%Y %H:%M}) — transcripción etiquetada; "
-                  "borra lo que no aplique antes de `aplicar-cambios`:"]
-        bloque += [f"- {nombre}: {frase}" for nombre, frase in intervenciones]
-        exp.anexar_registro("instrucciones", "\n".join(bloque) + "\n")
-    cruda.write_text(f"> Etiquetada el {marca:%Y-%m-%d %H:%M} → "
-                     f"{'acta en reuniones/ y ' if analisis else ''}03_instrucciones.md\n\n" + texto_cruda, encoding="utf-8")
+    cruda.write_text(f"> Etiquetada el {marca:%Y-%m-%d %H:%M} → {destino_txt.relative_to(exp.ruta)}"
+                     f"{' (con acta)' if analisis else ''}\n\n" + texto_cruda, encoding="utf-8")
 
     guardadas = []
     if preguntar_guardar is not None:
@@ -661,9 +656,9 @@ def accion_etiquetar(exp: Expediente, preguntar_guardar=None, ctx=None) -> str:
     if analisis is not None:
         out += ["", analisis]
     else:
-        out += ["Conversación volcada a 03_instrucciones.md: revisa el buzón (borra lo que no aplique) y ejecuta `aplicar-cambios`."]
-        if motivo:
-            out.append(f"(Sin acta: {motivo} Puedes generar el acta más tarde con `reunion {destino_txt.relative_to(exp.ruta)}`.)")
+        out.append(f"Sin acta: {motivo or 'no hay modelo disponible.'} "
+                   f"Genérala cuando quieras con `reunion {destino_txt.relative_to(exp.ruta)}` "
+                   "(o subiendo ese fichero en la web con «Analizar reunión»).")
     if guardadas:
         out.append("Voces guardadas para las próximas reuniones de ESTE expediente: " + ", ".join(guardadas) +
                    " (se borran al archivar).")

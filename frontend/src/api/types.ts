@@ -120,7 +120,8 @@ export interface Api {
   cambio(ref: string, mensaje: string, soloPlan?: boolean): Promise<{ job_id: string }>;
   instrucciones(ref: string): Promise<{ texto: string }>;
   guardarInstrucciones(ref: string, texto: string): Promise<{ texto: string }>;
-  aplicarCambios(ref: string, soloPlan?: boolean): Promise<{ job_id: string }>;
+  /** Sin `texto`, aplica el buzón 03_instrucciones.md; con `texto` (cambios de un acta), directo y sin tocar el buzón. */
+  aplicarCambios(ref: string, soloPlan?: boolean, texto?: string): Promise<{ job_id: string }>;
   /** Transcripción (.txt/.docx/.vtt) o audio (.mp3/.wav/.m4a/.webm…). Con audio, hasta 4 hablantes
    *  con muestra de voz opcional (solo se usan las muestras si todos los hablantes tienen una). */
   reunion(ref: string, fichero: File, aplicar: boolean, hablantes?: { nombre: string; muestra: File | null }[], onProgreso?: (pct: number) => void, repetir?: boolean): Promise<{ job_id: string }>;

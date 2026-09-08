@@ -39,11 +39,13 @@ de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-p
   redactar-conclusiones → aplicar-cambios/reunion/cambio/chat/revisar/corregir → ppt → archivar.
 - Audio: `transcribir` (KAIA /transcribe/upload, diarización; genéricos = «lo que no está entre los nombres
   enviados», ver Fase 0 en `transcripcion.py`) → hablantes.md → `etiquetar-transcript` (guarda la transcripción
-  etiquetada en reuniones/ y la pasa por el MISMO análisis de `reunion`: acta + instrucciones; sin modelo o sin
-  02_informe.md cae al volcado en bruto al buzón) → `aplicar-cambios`. Las voces son material TEMPORAL de cada expediente (entrada/audio/voces/): sin biblioteca
+  etiquetada en reuniones/ y la pasa por el MISMO análisis de `reunion` → acta; sin modelo o sin 02_informe.md
+  queda solo la transcripción y el acta se genera después con `reunion <txt>`). Las voces son material TEMPORAL de cada expediente (entrada/audio/voces/): sin biblioteca
   global, sin uso entre expedientes, y `archivar` destruye voces/clips/audios (constancia en el manifiesto).
-- `reunion`: la transcripción NO se aplica directamente; el modelo la separa en texto (→ 03_instrucciones.md,
-  el auditor revisa) / PPT (informativo) / pendientes / acuerdos, y `aplicar-cambios` hace el resto.
+- `reunion`: la transcripción NO se aplica directamente; el modelo la separa en texto / PPT (informativo) /
+  pendientes / acuerdos dentro del ACTA. Los cambios de texto se aplican DESDE el acta (selección en la web o
+  `reunion --aplicar`), que los pasa directos a `aplicar-cambios` (param `instrucciones=`); el buzón
+  03_instrucciones.md es del auditor y el flujo de reuniones NUNCA lo escribe.
   Duplicados: huella SHA-256 por contenido en `reuniones/.huellas.json` (`reunion` y `transcribir`); repetir
   el mismo fichero avisa y bloquea salvo `--repetir` o borrando los ficheros del ítem (la web limpia la huella).
 - Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;

@@ -252,11 +252,12 @@ def test_flujo_web_de_identificacion_de_hablantes(cliente, monkeypatch, tmp_path
         "guardar_voces": ["Marta"]}).json()["job_id"])
     assert j["estado"] == "ok", j["mensaje"]
     r = j["resultado"]
-    assert "volcada a 03_instrucciones.md" in j["mensaje"] and "Sin acta" in j["mensaje"] and r["etiquetada"]
+    assert "Sin acta" in j["mensaje"] and r["etiquetada"]
     assert [v["nombre"] for v in r["voces"]] == ["Marta"]
-    assert list((api_mod.DIR_EXPEDIENTES / "T-V" / "reuniones").glob("*_transcripcion.txt"))
+    txts = list((api_mod.DIR_EXPEDIENTES / "T-V" / "reuniones").glob("*_transcripcion.txt"))
+    assert len(txts) == 1 and "Marta: Subid el riesgo a alto." in txts[0].read_text(encoding="utf-8")
     instrucciones = (api_mod.DIR_EXPEDIENTES / "T-V" / "03_instrucciones.md").read_text(encoding="utf-8")
-    assert "- Marta: Subid el riesgo a alto." in instrucciones and "- Javier: De acuerdo" in instrucciones
+    assert "Marta" not in instrucciones                                # el buzón del auditor no se toca
     assert c.delete("/api/expedientes/T-V/voces/Marta").json()["voces"] == []
 
 

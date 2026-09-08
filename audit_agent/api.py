@@ -305,6 +305,7 @@ class Opciones(BaseModel):
     avisos: bool = False
     mensaje: str | None = None
     solo_plan: bool = False
+    texto: str | None = None   # aplicar-cambios: instrucciones directas (acta) sin tocar el buzón
     estado: str = "aprobada"
     fichero: str = "informe"
     objetivo: float = 0.85
@@ -373,8 +374,12 @@ def cambio(ref: str, o: Opciones):
 
 @app.post("/api/expedientes/{ref}/acciones/aplicar-cambios")
 def aplicar_cambios(ref: str, o: Opciones):
+    """Sin `texto`, aplica el buzón 03_instrucciones.md (y lo vacía). Con `texto` (los
+    cambios seleccionados de un acta), se aplican directos SIN tocar el buzón."""
     exp = _exp(ref); ctx = _ctx(exp)
-    return _job(ref, "aplicar-cambios", lambda: acciones.accion_aplicar_cambios(ctx, solo_plan=o.solo_plan))
+    return _job(ref, "aplicar-cambios", lambda: acciones.accion_aplicar_cambios(
+        ctx, solo_plan=o.solo_plan, instrucciones=o.texto or None,
+        origen="acta de reunión (web)" if o.texto else "03_instrucciones.md"))
 
 
 @app.post("/api/expedientes/{ref}/acciones/reunion")

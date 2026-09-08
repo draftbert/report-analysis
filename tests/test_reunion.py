@@ -38,7 +38,7 @@ ANALISIS = AnalisisReunion(
     acuerdos_sin_cambio=["Conformidad del área en diez días hábiles."])
 
 
-def test_reunion_genera_acta_y_rellena_instrucciones(con_informe):
+def test_reunion_genera_acta_sin_tocar_el_buzon(con_informe):
     ctx = con_informe
     ctx.llm.respuestas["reunion"] = ANALISIS
     salida = accion_reunion(ctx, RAIZ / "ejemplos" / "transcript_reunion_teams.txt")
@@ -51,10 +51,8 @@ def test_reunion_genera_acta_y_rellena_instrucciones(con_informe):
     acta = actas[0].read_text(encoding="utf-8")
     assert "## Cambios en el texto del informe (2)" in acta and "## Cambios en la presentación (PPT) — informativo" in acta
     assert "Cita: «yo lo pondría en Alto»" in acta and "## Pendientes de dato o confirmación (1)" in acta
-    pendientes = ctx.exp.instrucciones_pendientes()
-    assert "- En la conclusión 1, cambiar el nivel de riesgo de Medio a Alto. [Carmen Soto]" in pendientes
-    assert "borra o edita las que no procedan" in pendientes
-    assert "gráfico de barras" not in pendientes  # lo de PPT no va al buzón
+    assert not ctx.exp.instrucciones_pendientes().strip()   # el buzón del auditor NO se toca
+    assert "Aplica los cambios desde el propio acta" in salida
     assert ctx.exp.leer("informe").count("Nivel de riesgo: Medio") == 1  # sin --aplicar no se toca el informe
 
 
