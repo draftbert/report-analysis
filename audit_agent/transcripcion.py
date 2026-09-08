@@ -135,7 +135,7 @@ def en_mitades(parte: Path, destino_dir: Path, hablantes) -> tuple[dict, float]:
 
 
 def _referencias_de_parte(respuesta: dict, fichero_parte: Path, destino_dir: Path,
-                          conocidos: set[str], maximo: int) -> list[tuple[str, str]]:
+                          conocidos: set[str], maximo: int, numero_inicial: int = 1) -> list[tuple[str, str]]:
     """Con audio troceado, las letras de hablante NO son estables entre llamadas (el «A»
     de una parte puede ser otra persona en la siguiente). De la primera parte se corta
     una muestra de cada voz genérica detectada (≥2 s de tramo limpio) y se devuelven
@@ -153,7 +153,7 @@ def _referencias_de_parte(respuesta: dict, fichero_parte: Path, destino_dir: Pat
         ini, dur = _segmento_para_clip(g["segmentos"], segs)
         if dur < 2.0:
             continue                       # sin 2 s limpios no hay referencia fiable
-        nombre = f"HABLANTE_{len(refs) + 1}"
+        nombre = f"HABLANTE_{numero_inicial + len(refs)}"
         clip = destino_dir / f"ref_{nombre}.wav"
         _ffmpeg(["-ss", str(ini), "-t", str(dur), "-i", str(fichero_parte), "-ac", "1", "-ar", "16000"],
                 clip, f"No se ha podido cortar la referencia de {etiqueta}")
@@ -229,19 +229,24 @@ def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=Non
     refs = list(hablantes)
     arranque = 0
     if len(partes) > 1:
-        # las letras de hablante no son estables entre llamadas: la primera parte se
-        # transcribe sola y sus voces sirven de referencia («HABLANTE_N») para el resto
-        informar("Transcribiendo la primera parte e identificando sus voces…", 12)
-        respuestas[0] = _una(0, refs)
-        arranque = 1
-        if respuestas[0] is not None and len(refs) < MAX_VOCES_ENVIADAS:
-            try:
-                nuevas = _referencias_de_parte(respuestas[0], partes[0], destino_dir,
-                                               conocidos, MAX_VOCES_ENVIADAS - len(refs))
-            except ExpedienteError:
-                nuevas = []
-            refs = refs + nuevas
-            conocidos |= {n for n, _ in nuevas}
+        # Las letras de hablante no son estables entre llamadas. Mientras queden plazas
+        # de referencia (máx. 4), las partes van EN SECUENCIA y cada voz nueva con ≥2 s
+        # de tramo limpio se enrola como «HABLANTE_N» para las partes siguientes (una
+        # persona que entra a mitad de reunión también se identifica); con las plazas
+        # cubiertas, el resto va en paralelo.
+        informar("Transcribiendo por partes e identificando las voces según aparecen…", 12)
+        while arranque < len(partes) and len(refs) < MAX_VOCES_ENVIADAS:
+            respuestas[arranque] = _una(arranque, list(refs))
+            if respuestas[arranque] is not None:
+                try:
+                    pseudos = sum(1 for n in conocidos if n.startswith("HABLANTE_"))
+                    nuevas = _referencias_de_parte(respuestas[arranque], partes[arranque], destino_dir,
+                                                   conocidos, MAX_VOCES_ENVIADAS - len(refs), numero_inicial=pseudos + 1)
+                except ExpedienteError:
+                    nuevas = []
+                refs = refs + nuevas
+                conocidos |= {n for n, _ in nuevas}
+            arranque += 1
     if arranque < len(partes):
         with ThreadPoolExecutor(max_workers=min(2, len(partes) - arranque)) as pool:
             futuros = {pool.submit(_una, i, refs): i for i in range(arranque, len(partes))}
