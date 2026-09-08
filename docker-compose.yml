@@ -29,6 +29,8 @@ services:
     image: revisor-informes/frontend:${VERSION:-latest}
     container_name: revisor-frontend
     restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Madrid}                 # logs de nginx en hora local
     depends_on:
       backend:
         condition: service_healthy
