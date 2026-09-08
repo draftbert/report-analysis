@@ -5,7 +5,7 @@ import { api, esperarJob } from "@/api";
 import type { Acta, Job, Reunion as ReunionT, Transcripcion } from "@/api";
 import { ArrowLeft, ChevronDown, ChevronUp, Info, Sparkles, Trash2 } from "lucide-react";
 
-import { Dropzone, JobResult, Markdown, useNotificar } from "@/components/ui";
+import { Dropzone, JobResult, Markdown, Modal, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
@@ -143,6 +143,7 @@ export const Reunion = () => {
   };
 
   const [procesando, setProcesando] = useState<"analizar" | "transcribir" | null>(null);
+  const [dupe, setDupe] = useState<{ modo: "analizar" | "transcribir"; aviso: string } | null>(null);
   const procesar = async (modo: "analizar" | "transcribir", repetir = false): Promise<void> => {
     if (!fichero) return;
     setProcesando(modo); setSubida(0); setAvance(null);
@@ -159,12 +160,7 @@ export const Reunion = () => {
         if (modo === "transcribir") { setAbierta(null); cargarTrans(); }
         setFichero(null); recargar(); cargarReuniones();
       } else if (j.mensaje.includes("Reunión repetida") && !repetir) {
-        const aviso = j.mensaje.split(/ (?:Si quieres|Transcribirla de nuevo)/)[0];
-        if (window.confirm(`${aviso}\n\n¿Quieres volver a procesarla igualmente?`
-            + (modo === "transcribir" ? "\n(Transcribirla de nuevo cuesta lo mismo que la primera vez.)" : ""))) {
-          setProcesando(null);
-          return procesar(modo, true);
-        }
+        setDupe({ modo, aviso: j.mensaje.split(/ (?:Si quieres|Transcribirla de nuevo)/)[0].replace(/^⚠\s*/, "") });
       } else notificar({ texto: j.mensaje, error: true });
     } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
     finally { setProcesando(null); setSubida(null); }
@@ -382,6 +378,17 @@ export const Reunion = () => {
           </div>
           <div className="visor"><Markdown texto={trans.markdown} /></div>
         </div>
+      )}
+      {dupe && (
+        <Modal titulo="Reunión ya procesada" onClose={() => setDupe(null)} acciones={
+          <>
+            <button className="btn" onClick={() => setDupe(null)}>Cancelar</button>
+            <button className="btn btn--primary" onClick={() => { const m = dupe.modo; setDupe(null); procesar(m, true); }}>Volver a procesarla</button>
+          </>}>
+          <span className="body">{dupe.aviso}</span>
+          {dupe.modo === "transcribir" && <span className="detail">Transcribirla de nuevo cuesta lo mismo que la primera vez.</span>}
+          <span className="detail">Su resultado anterior sigue abajo, en «Reuniones de este informe»; si no era tu intención, cancela.</span>
+        </Modal>
       )}
       {item && (
         <div className="stack">
