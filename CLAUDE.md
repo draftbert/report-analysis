@@ -44,6 +44,8 @@ de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-p
   global, sin uso entre expedientes, y `archivar` destruye voces/clips/audios (constancia en el manifiesto).
 - `reunion`: la transcripción NO se aplica directamente; el modelo la separa en texto (→ 03_instrucciones.md,
   el auditor revisa) / PPT (informativo) / pendientes / acuerdos, y `aplicar-cambios` hace el resto.
+  Duplicados: huella SHA-256 por contenido en `reuniones/.huellas.json` (`reunion` y `transcribir`); repetir
+  el mismo fichero avisa y bloquea salvo `--repetir` o borrando los ficheros del ítem (la web limpia la huella).
 - Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;
   la quita `aprobar`; `redactar-conclusiones` no admite conclusiones que la conserven.
 - `aplicar-cambios`: sustituciones acotadas por sección, sin aproximaciones (solo tildes/espacios),

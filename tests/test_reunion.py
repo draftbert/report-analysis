@@ -257,10 +257,13 @@ def test_una_parte_fallida_no_tira_la_reunion(con_informe, monkeypatch, tmp_path
     traza = max((exp.ruta / "trazas").glob("*reunion-transcripcion.json"))
     datos = _json.loads(traza.read_text(encoding="utf-8"))
     assert datos["partes_fallidas"] == [2] and "stream timeout" in datos["errores_partes"]["2"]
-    # si fallan TODAS, sí es error
+    # repetir la MISMA grabación avisa (huella idéntica); con repetir=True pasa el aviso…
+    with pytest.raises(ExpedienteError, match="Reunión repetida"):
+        accion_reunion(con_informe, audio)
+    # …y si entonces fallan TODAS las partes, sí es error de transcripción
     monkeypatch.setattr(transcripcion, "transcribir_audio", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("caído")))
     with pytest.raises(ExpedienteError, match="No se ha podido transcribir"):
-        accion_reunion(con_informe, audio)
+        accion_reunion(con_informe, audio, repetir=True)
 
 
 def test_parte_que_siempre_da_504_se_transcribe_en_mitades(con_informe, monkeypatch, tmp_path):

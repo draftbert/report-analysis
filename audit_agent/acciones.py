@@ -1191,8 +1191,50 @@ def _transcribir_reunion(ctx: Contexto, ruta: Path, hablantes: list[tuple[str, s
     return texto
 
 
+def huella_reunion(exp: Expediente, ruta: str | Path) -> tuple[str, dict | None]:
+    """SHA-256 del fichero y, si ese mismo contenido ya se procesó en este expediente,
+    su registro previo ({nombre, fecha, accion, resultado, artefactos}). El registro
+    vive en reuniones/.huellas.json (no sale en el listado)."""
+    huella = hashlib.sha256(Path(ruta).read_bytes()).hexdigest()
+    return huella, _huellas(exp).get(huella)
+
+
+def _huellas(exp: Expediente) -> dict:
+    reg = exp.ruta / "reuniones" / ".huellas.json"
+    try:
+        return json.loads(reg.read_text(encoding="utf-8")) if reg.exists() else {}
+    except ValueError:
+        return {}
+
+
+def registrar_huella(exp: Expediente, huella: str, nombre: str, accion: str,
+                     resultado: str = "", artefactos: list[str] | None = None) -> None:
+    visto = _huellas(exp)
+    visto[huella] = {"nombre": nombre, "fecha": datetime.now().isoformat(timespec="seconds"),
+                     "accion": accion, "resultado": resultado, "artefactos": artefactos or []}
+    reg = exp.ruta / "reuniones" / ".huellas.json"
+    reg.parent.mkdir(exist_ok=True)
+    reg.write_text(json.dumps(visto, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def olvidar_huellas_de(exp: Expediente, nombre_fichero: str) -> None:
+    """Al borrar un fichero de reuniones/, sus huellas dejan de bloquear una re-subida."""
+    visto = _huellas(exp)
+    quedan = {h: d for h, d in visto.items() if nombre_fichero not in (d.get("artefactos") or [])}
+    if quedan != visto:
+        (exp.ruta / "reuniones" / ".huellas.json").write_text(
+            json.dumps(quedan, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _aviso_repetida(previa: dict, como_repetir: str) -> str:
+    cuando = previa.get("fecha", "?")[:16].replace("T", " ")
+    extra = f" (resultado: {previa['resultado']})" if previa.get("resultado") else ""
+    return (f"⚠ Reunión repetida: este mismo contenido ya se procesó el {cuando} "
+            f"como «{previa.get('nombre', '?')}»{extra}. {como_repetir}")
+
+
 def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = False,
-                   hablantes: list[tuple[str, str | None]] | None = None) -> str:
+                   hablantes: list[tuple[str, str | None]] | None = None, repetir: bool = False) -> str:
     """Lee una transcripción de reunión (Teams: .txt/.docx/.vtt…) y separa lo
     que afecta al TEXTO del informe (se deja como instrucciones en
     03_instrucciones.md para que el auditor las revise y aplique) de lo que
@@ -1202,6 +1244,10 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
     ruta = Path(ruta_transcript)
     if not ruta.exists():
         raise ExpedienteError(f"No existe la transcripción {ruta}.")
+    huella, previa = huella_reunion(exp, ruta)
+    if previa and not repetir:
+        raise ExpedienteError(_aviso_repetida(
+            previa, "Si quieres analizarla otra vez, elimina esa reunión del listado (web) o ejecuta `reunion --repetir`."))
     texto_informe = exp.leer("informe")
     if not texto_informe:
         raise ExpedienteError("No hay 02_informe.md: la reunión se contrasta contra el informe.")
@@ -1280,6 +1326,12 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
     acta.with_suffix(".json").write_text(json.dumps(
         {**res.model_dump(), "transcripcion": ULTIMO_RESULTADO.get("transcripcion")},
         ensure_ascii=False, indent=2), encoding="utf-8")
+    artefactos = [acta.name]
+    if ULTIMO_RESULTADO.get("transcripcion"):
+        artefactos.append(Path(ULTIMO_RESULTADO["transcripcion"]).name)
+    if ruta.parent == exp.ruta / "reuniones":      # p. ej. el txt etiquetado: borrarlo también desbloquea
+        artefactos.append(ruta.name)
+    registrar_huella(exp, huella, ruta.name, "reunion", resultado=ULTIMO_RESULTADO["acta"], artefactos=artefactos)
 
     if res.cambios_texto:
         bloque = [f"\nReunión «{ruta.stem}» ({marca:%d/%m/%Y}) — instrucciones detectadas por el sistema; borra o edita las que no procedan:"]

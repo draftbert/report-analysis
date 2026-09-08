@@ -196,12 +196,12 @@ def cmd_reunion(args):
     for h in (args.hablante or []):
         nombre, _, muestra = h.partition("=")
         hablantes.append((nombre.strip(), muestra.strip() or None))
-    return accion_reunion(_contexto(args), args.transcripcion, aplicar=args.aplicar, hablantes=hablantes or None)
+    return accion_reunion(_contexto(args), args.transcripcion, aplicar=args.aplicar, hablantes=hablantes or None, repetir=args.repetir)
 
 
 def cmd_transcribir(args):
     from .transcripcion import accion_transcribir
-    return accion_transcribir(_abrir(args), args.fichero, umbral_s=args.umbral, forzar=args.forzar)
+    return accion_transcribir(_abrir(args), args.fichero, umbral_s=args.umbral, forzar=args.forzar, repetir=args.repetir)
 
 
 def cmd_etiquetar(args):
@@ -358,8 +358,8 @@ MENU = [
     ("corregir", "Reescribir con el modelo los párrafos con errores (LLM)", cmd_corregir, {"avisos": False}),
     ("condensar", "Acortar un poco el informe conservando hechos y cifras (LLM)", cmd_condensar, {"objetivo": 0.85}),
     ("aplicar-cambios", "Aplicar las instrucciones de 03_instrucciones.md al informe (LLM)", cmd_aplicar_cambios, {"solo_plan": False}),
-    ("reunion", "Analizar una transcripción de Teams: cambios de texto vs PPT (LLM)", cmd_reunion, {"transcripcion": None, "aplicar": False, "hablante": None}),
-    ("transcribir", "Transcribir audio/vídeo con identificación de hablantes (KAIA)", cmd_transcribir, {"fichero": None, "umbral": 10.0, "forzar": False}),
+    ("reunion", "Analizar una transcripción de Teams: cambios de texto vs PPT (LLM)", cmd_reunion, {"transcripcion": None, "aplicar": False, "hablante": None, "repetir": False}),
+    ("transcribir", "Transcribir audio/vídeo con identificación de hablantes (KAIA)", cmd_transcribir, {"fichero": None, "umbral": 10.0, "forzar": False, "repetir": False}),
     ("etiquetar-transcript", "Nombrar hablantes y volcar la transcripción a 03_instrucciones.md", cmd_etiquetar, {"guardar_voz": None, "sin_voces": False}),
     ("voces", "Muestras de voz del expediente (se borran al archivar)", cmd_voces, {"borrar": None}),
     ("chat", "Cambios sencillos tipo chat, aplicados al momento (LLM)", cmd_chat, {}),
@@ -465,6 +465,7 @@ def construir_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_reunion)
     s.add_argument("transcripcion", help="Transcripción (.txt, .docx, .vtt…), AUDIO o VÍDEO de la reunión (.mp3, .wav, .m4a, .mp4, .mov…): se transcribe con KAIA (diarización); del vídeo se extrae antes el audio con ffmpeg")
     s.add_argument("--aplicar", action="store_true", help="Aplicar directamente los cambios de texto detectados")
+    s.add_argument("--repetir", action="store_true", help="Analizar aunque este mismo fichero (huella idéntica) ya se haya procesado en el expediente")
     s.add_argument("--hablante", action="append", metavar="NOMBRE[=MUESTRA.wav]",
                    help="Solo audio: hablante conocido (repetible, máx. 4). Con muestra de voz de 2-10 s para todos, el transcript sale con sus nombres")
     s = sub.add_parser("transcribir", help="Transcribir audio/vídeo de reunión con identificación de hablantes (KAIA; deja hablantes.md y transcripcion_cruda.md en entrada/audio/)")
@@ -472,6 +473,7 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("fichero", help="Audio (.mp3/.wav/.m4a/.ogg/.webm) o vídeo (.mp4/.mkv…): se normaliza y solo el audio viaja a KAIA")
     s.add_argument("--umbral", type=float, default=10.0, help="Segundos mínimos de habla para considerar relevante a un hablante (defecto 10)")
     s.add_argument("--forzar", action="store_true", help="Descartar una transcripción cruda sin etiquetar")
+    s.add_argument("--repetir", action="store_true", help="Transcribir aunque esta misma grabación (huella idéntica) ya se haya procesado en el expediente")
     s = sub.add_parser("etiquetar-transcript", help="Aplicar hablantes.md (nombres/fusiones/ignorados) y volcar a 03_instrucciones.md, listo para aplicar-cambios")
     s.set_defaults(fn=cmd_etiquetar)
     s.add_argument("--guardar-voz", action="append", metavar="NOMBRE", help="Guardar sin preguntar la voz de NOMBRE para este expediente (repetible)")

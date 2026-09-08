@@ -358,7 +358,7 @@ def _segmento_para_clip(segmentos_hablante: list[dict], todos: list[dict]) -> tu
 
 
 def accion_transcribir(exp: Expediente, ruta_fichero: str | Path, umbral_s: float = UMBRAL_HABLANTE_S,
-                       forzar: bool = False, informar=None) -> str:
+                       forzar: bool = False, informar=None, repetir: bool = False) -> str:
     """Transcribe un audio/vídeo de reunión con diarización. Deja en entrada/audio/:
     la copia normalizada del audio, transcripcion_cruda.md (timestamps y hablante),
     hablantes.md (tabla a rellenar) y hablantes/SPEAKER_XX.wav (clips para nombrar).
@@ -375,6 +375,12 @@ def accion_transcribir(exp: Expediente, ruta_fichero: str | Path, umbral_s: floa
     if cruda.exists() and "> Etiquetada" not in cruda.read_text(encoding="utf-8")[:200] and not forzar:
         raise ExpedienteError("Hay una transcripcion_cruda.md sin etiquetar. Ejecuta `etiquetar-transcript` "
                               "(o repite con --forzar para descartarla).")
+    from . import acciones                          # import diferido: acciones también importa este módulo
+    huella, previa = acciones.huella_reunion(exp, ruta)
+    if previa and not repetir:
+        raise ExpedienteError(acciones._aviso_repetida(
+            previa, "Transcribirla de nuevo cuesta lo mismo que la primera vez; si de verdad quieres repetirla, "
+                    "ejecuta `transcribir --repetir` (o elimina antes sus ficheros del listado de reuniones)."))
     base.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(base / "hablantes", ignore_errors=True)   # clips y meta de la transcripción anterior
     (base / "hablantes").mkdir(exist_ok=True)
@@ -449,6 +455,8 @@ def accion_transcribir(exp: Expediente, ruta_fichero: str | Path, umbral_s: floa
                                "known_speakers": sorted(nombres_conocidos),
                                "hablantes": {i: {"segundos": d["segundos"]} for i, d in meta["hablantes"].items()},
                                "respuesta": {"segments": segmentos}})   # JSON crudo; el audio NO se copia a trazas
+    acciones.registrar_huella(exp, huella, ruta.name, "transcribir",
+                              resultado="entrada/audio/transcripcion_cruda.md")
 
     sin_nombrar = [i for i, d in meta["hablantes"].items() if not d["conocido"]]
     out = [f"Transcripción: {cruda.relative_to(exp.ruta)} ({len(segmentos)} segmentos, {_mmss(meta['duracion_s'])})",

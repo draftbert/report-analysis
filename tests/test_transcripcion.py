@@ -353,3 +353,14 @@ def test_etiquetar_sin_modelo_cae_al_volcado_en_bruto(exp_audio, contexto, monke
     assert "- Marta: Buenos días" in instrucciones and "Reunión transcrita «reunion.wav»" in instrucciones
     assert "Sin acta" in salida and "02_informe.md" in salida
     assert list((exp.ruta / "reuniones").glob("*_transcripcion.txt"))   # la transcripción queda igualmente
+
+
+def test_transcribir_misma_grabacion_avisa_y_repetir_desbloquea(exp_audio, monkeypatch):
+    """La huella SHA-256 de la grabación queda registrada: volver a subir el mismo
+    contenido avisa en vez de gastar otra transcripción; --repetir lo permite."""
+    exp, audio = exp_audio
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: RESPUESTA_DOS_VOCES)
+    accion_transcribir(exp, audio)
+    with pytest.raises(ExpedienteError, match="Reunión repetida"):
+        accion_transcribir(exp, audio, forzar=True)
+    assert "Transcripción:" in accion_transcribir(exp, audio, forzar=True, repetir=True)

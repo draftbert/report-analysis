@@ -135,8 +135,11 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor redactar-contexto --secciones resumen   # opcional: resumen ejecutivo con las conclusiones validadas
 
 # 3. Cambios durante la revisión (Gerente, Directora, reunión con el área)
-./revisor reunion transcripcion_teams.txt [--aplicar]
+./revisor reunion transcripcion_teams.txt [--aplicar] [--repetir]
 ./revisor reunion grabacion.m4a --hablante "Marta" --hablante "Javier=muestra_javier.wav"
+#   Cada reunión procesada deja su huella SHA-256 en reuniones/.huellas.json: subir el MISMO contenido
+#   otra vez (a `reunion` o a `transcribir`) avisa y no se procesa, salvo --repetir o borrando antes
+#   sus ficheros del listado de reuniones (la web muestra el mismo aviso).
 #   Lee la transcripción de la reunión (Teams: .txt/.docx/.vtt) — o un AUDIO o VÍDEO (.mp3/.wav/.m4a/
 #   .mp4/.mov/.mkv…; del vídeo se extrae la pista de audio con ffmpeg, el vídeo nunca sale de la máquina y el
 #   fichero subido por la web se borra al terminar —con éxito o con error— para no llenar el disco: quedan

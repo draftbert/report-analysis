@@ -356,6 +356,7 @@ def aplicar_cambios(ref: str, o: Opciones):
 
 @app.post("/api/expedientes/{ref}/acciones/reunion")
 async def reunion(ref: str, transcripcion: UploadFile = File(...), aplicar: bool = Form(False),
+                  repetir: bool = Form(False),
                   hablantes: list[str] = Form(default=[]), muestras: list[UploadFile] = File(default=[])):
     """Transcripción (.txt/.docx/.vtt) o audio (.mp3/.wav/.m4a/.webm…). Con audio,
     `hablantes` (máx. 4) y sus `muestras` de voz (opcionales, emparejadas por orden;
@@ -383,7 +384,13 @@ async def reunion(ref: str, transcripcion: UploadFile = File(...), aplicar: bool
 
     def tarea():
         try:
-            return acciones.accion_reunion(ctx, destino, aplicar=aplicar, hablantes=pares or None)
+            return acciones.accion_reunion(ctx, destino, aplicar=aplicar, hablantes=pares or None, repetir=repetir)
+        except ExpedienteError:
+            if destino.suffix.lower() not in acciones.EXTENSIONES_REUNION_AV:
+                usados = {a for d in acciones._huellas(exp).values() for a in (d.get("artefactos") or [])}
+                if destino.name not in usados:           # p. ej. transcripción repetida: no dejar copia huérfana
+                    destino.unlink(missing_ok=True)      # (pero sin tocar la de una reunión ya registrada)
+            raise
         finally:
             if tmp is not None:
                 shutil.rmtree(tmp, ignore_errors=True)   # las muestras de voz no se conservan
@@ -395,7 +402,8 @@ async def reunion(ref: str, transcripcion: UploadFile = File(...), aplicar: bool
 
 
 @app.post("/api/expedientes/{ref}/acciones/transcribir")
-async def transcribir(ref: str, fichero: UploadFile = File(...), umbral: float = Form(10.0), forzar: bool = Form(False)):
+async def transcribir(ref: str, fichero: UploadFile = File(...), umbral: float = Form(10.0), forzar: bool = Form(False),
+                      repetir: bool = Form(False)):
     """Flujo con identificación de hablantes: transcribe con diarización y deja clips +
     hablantes por nombrar (GET /transcripcion). NO genera acta ni toca instrucciones."""
     from . import transcripcion as tr
@@ -409,7 +417,7 @@ async def transcribir(ref: str, fichero: UploadFile = File(...), umbral: float =
 
     def tarea():
         try:
-            mensaje = tr.accion_transcribir(exp, tmp, umbral_s=umbral, forzar=forzar, informar=ctx.informar)
+            mensaje = tr.accion_transcribir(exp, tmp, umbral_s=umbral, forzar=forzar, informar=ctx.informar, repetir=repetir)
             acciones.ULTIMO_RESULTADO.update(tr.estado_transcripcion(exp))
             return mensaje
         finally:
@@ -735,6 +743,7 @@ def borrar_reunion(ref: str, nombre: str):
     ruta.unlink()
     if ruta.suffix.lower() == ".md":
         ruta.with_suffix(".json").unlink(missing_ok=True)   # la estructura del acta va con su .md
+    acciones.olvidar_huellas_de(exp, ruta.name)             # y su huella deja de bloquear una re-subida
     return _listar_reuniones(exp)
 
 

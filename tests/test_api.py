@@ -258,3 +258,22 @@ def test_flujo_web_de_identificacion_de_hablantes(cliente, monkeypatch, tmp_path
     instrucciones = (api_mod.DIR_EXPEDIENTES / "T-V" / "03_instrucciones.md").read_text(encoding="utf-8")
     assert "- Marta: Subid el riesgo a alto." in instrucciones and "- Javier: De acuerdo" in instrucciones
     assert c.delete("/api/expedientes/T-V/voces/Marta").json()["voces"] == []
+
+
+def test_reunion_repetida_avisa_y_borrar_desbloquea(cliente):
+    from audit_agent.esquemas import AnalisisReunion
+    c, falso = cliente
+    falso.respuestas["reunion"] = AnalisisReunion(resumen="Se revisó el borrador con el área.")
+    c.post("/api/expedientes", json={"referencia": "T-H", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
+    (api_mod.DIR_EXPEDIENTES / "T-H" / "02_informe.md").write_text("# Informe\n\nTexto actual del informe.", encoding="utf-8")
+    contenido = b"Marta: subid el riesgo a alto, por favor, y acortad tambien el resumen ejecutivo."
+    subir = lambda: _esperar(c, c.post("/api/expedientes/T-H/acciones/reunion",
+                                       files={"transcripcion": ("notas.txt", contenido, "text/plain")}).json()["job_id"])
+    assert subir()["estado"] == "ok"
+    j = subir()                                                        # mismo contenido otra vez
+    assert j["estado"] == "error" and "Reunión repetida" in j["mensaje"] and "elimina esa reunión" in j["mensaje"]
+    listado = c.get("/api/expedientes/T-H/reuniones").json()
+    assert len(listado) == 1 and len(listado[0]["transcripciones"]) == 1   # el intento repetido no deja copia huérfana
+    # borrar el acta olvida la huella y desbloquea la re-subida
+    c.delete(f"/api/expedientes/T-H/reuniones/{listado[0]['actas'][0]['nombre']}")
+    assert subir()["estado"] == "ok"
