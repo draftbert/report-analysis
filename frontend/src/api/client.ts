@@ -97,10 +97,11 @@ export const clienteReal: Api = {
   instrucciones: (ref) => req(`${e(ref)}/instrucciones`),
   guardarInstrucciones: (ref, texto) => req(`${e(ref)}/instrucciones`, json({ texto }, "PUT")),
   aplicarCambios: (ref, soloPlan = false) => req(`${e(ref)}/acciones/aplicar-cambios`, json({ solo_plan: soloPlan })),
-  reunion: (ref, fichero, aplicar, hablantes = [], onProgreso) => {
+  reunion: (ref, fichero, aplicar, hablantes = [], onProgreso, repetir = false) => {
     const fd = new FormData();
     fd.append("transcripcion", fichero);
     fd.append("aplicar", String(aplicar));
+    if (repetir) fd.append("repetir", "true");
     const hs = hablantes.filter((h) => h.nombre.trim());
     const conMuestras = hs.length > 0 && hs.every((h) => h.muestra);   // el backend solo las usa si están todas
     for (const h of hs) {
@@ -115,10 +116,11 @@ export const clienteReal: Api = {
   cambios: (ref) => req(`${e(ref)}/cambios`),
   reuniones: (ref) => req(`${e(ref)}/reuniones`),
   borrarReunion: (ref, nombre) => req(`${e(ref)}/reuniones/${encodeURIComponent(nombre)}`, { method: "DELETE" }),
-  transcribir: (ref, fichero, onProgreso) => {
+  transcribir: (ref, fichero, onProgreso, repetir = false) => {
     const fd = new FormData();
     fd.append("fichero", fichero);
     fd.append("forzar", "true");
+    if (repetir) fd.append("repetir", "true");
     return postConProgreso(`${BASE}${e(ref)}/acciones/transcribir`, fd, onProgreso);
   },
   transcripcion: (ref) => req(`${e(ref)}/transcripcion`),

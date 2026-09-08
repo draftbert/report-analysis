@@ -123,14 +123,14 @@ export interface Api {
   aplicarCambios(ref: string, soloPlan?: boolean): Promise<{ job_id: string }>;
   /** Transcripción (.txt/.docx/.vtt) o audio (.mp3/.wav/.m4a/.webm…). Con audio, hasta 4 hablantes
    *  con muestra de voz opcional (solo se usan las muestras si todos los hablantes tienen una). */
-  reunion(ref: string, fichero: File, aplicar: boolean, hablantes?: { nombre: string; muestra: File | null }[], onProgreso?: (pct: number) => void): Promise<{ job_id: string }>;
+  reunion(ref: string, fichero: File, aplicar: boolean, hablantes?: { nombre: string; muestra: File | null }[], onProgreso?: (pct: number) => void, repetir?: boolean): Promise<{ job_id: string }>;
   historial(ref: string): Promise<Version[]>;
   deshacer(ref: string, fichero: string): Promise<{ mensaje: string }>;
   diff(ref: string, fichero: string): Promise<{ diff: string; contra: string | null }>;
   cambios(ref: string): Promise<{ markdown: string }>;
   reuniones(ref: string): Promise<Reunion[]>;
   borrarReunion(ref: string, nombre: string): Promise<Reunion[]>;
-  transcribir(ref: string, fichero: File, onProgreso?: (pct: number) => void): Promise<{ job_id: string }>;
+  transcribir(ref: string, fichero: File, onProgreso?: (pct: number) => void, repetir?: boolean): Promise<{ job_id: string }>;
   transcripcion(ref: string): Promise<Transcripcion>;
   /** Autoguarda el borrador del etiquetado (sobrevive al refresco). `guardarIds` = ids de hablante con «guardar voz». */
   borradorTranscripcion(ref: string, asignaciones: Record<string, { nombre: string; accion: string }>, guardarIds: string[]): Promise<Transcripcion>;

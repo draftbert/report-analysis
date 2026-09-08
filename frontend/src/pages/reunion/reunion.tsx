@@ -3,9 +3,9 @@ import { useParams } from "react-router-dom";
 
 import { api, esperarJob } from "@/api";
 import type { Acta, Job, Reunion as ReunionT, Transcripcion } from "@/api";
-import { ArrowLeft, ChevronDown, ChevronUp, Info, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Info, Sparkles, Trash2 } from "lucide-react";
 
-import { Dropzone, JobButton, JobResult, Markdown, useNotificar } from "@/components/ui";
+import { Dropzone, JobResult, Markdown, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
@@ -142,6 +142,34 @@ export const Reunion = () => {
     finally { setEtiquetando(false); }
   };
 
+  const [procesando, setProcesando] = useState<"analizar" | "transcribir" | null>(null);
+  const procesar = async (modo: "analizar" | "transcribir", repetir = false): Promise<void> => {
+    if (!fichero) return;
+    setProcesando(modo); setSubida(0); setAvance(null);
+    try {
+      const { job_id } = modo === "analizar"
+        ? await api.reunion(ref, fichero, aplicar, [], (pct) => setSubida(pct < 100 ? pct : null), repetir)
+        : await api.transcribir(ref, fichero, (pct) => setSubida(pct < 100 ? pct : null), repetir);
+      setJobId(job_id);
+      const j = await esperarJob<Acta>(job_id, (t) => setAvance(t));
+      setAvance(null); setJobId(null);
+      if (j.estado === "ok") {
+        notificar({ texto: j.mensaje.split("\n")[0] });
+        if (modo === "analizar" && j.resultado) setActa(j.resultado);
+        if (modo === "transcribir") { setAbierta(null); cargarTrans(); }
+        setFichero(null); recargar(); cargarReuniones();
+      } else if (j.mensaje.includes("Reunión repetida") && !repetir) {
+        const aviso = j.mensaje.split(/ (?:Si quieres|Transcribirla de nuevo)/)[0];
+        if (window.confirm(`${aviso}\n\n¿Quieres volver a procesarla igualmente?`
+            + (modo === "transcribir" ? "\n(Transcribirla de nuevo cuesta lo mismo que la primera vez.)" : ""))) {
+          setProcesando(null);
+          return procesar(modo, true);
+        }
+      } else notificar({ texto: j.mensaje, error: true });
+    } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
+    finally { setProcesando(null); setSubida(null); }
+  };
+
   const detener = async () => {
     if (!jobId || !window.confirm("¿Detener el procesamiento? Lo hecho en esta ejecución se descarta (se corta al acabar la parte en curso).")) return;
     try { notificar({ texto: (await api.detenerJob(jobId)).mensaje }); }
@@ -174,16 +202,15 @@ export const Reunion = () => {
         <div className="page__actions">
           <label className="row detail"><input type="checkbox" checked={aplicar} onChange={(e) => setAplicar(e.target.checked)} /> Aplicar directamente los cambios de texto</label>
           <span className="accion-hint" title={AYUDA_ANALIZAR}>
-            <JobButton<Acta> primario etiqueta="Analizar reunión" disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, [], (pct) => setSubida(pct < 100 ? pct : null)).then((r) => { setJobId(r.job_id); return r; }); }}
-              onTick={setAvance}
-              onFin={(r) => { setAvance(null); setJobId(null); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setFichero(null); setSubida(null); recargar(); } }} />
+            <button className="btn btn--model btn--primary" disabled={!fichero || !!procesando} onClick={() => procesar("analizar")} aria-label="Analizar reunión">
+              {procesando === "analizar" ? <><span className="spinner" />Trabajando con el modelo…</> : <><Sparkles size={14} strokeWidth={1.5} />Analizar reunión</>}
+            </button>
             <Info size={14} strokeWidth={1.5} aria-label={AYUDA_ANALIZAR} />
           </span>
           <span className="accion-hint" title={AYUDA_TRANSCRIBIR}>
-            <JobButton etiqueta="Transcribir y nombrar" disabled={!fichero || !esAudio(fichero)}
-              lanzar={() => { setSubida(0); return api.transcribir(ref, fichero!, (pct) => setSubida(pct < 100 ? pct : null)).then((r) => { setJobId(r.job_id); return r; }); }}
-              onTick={setAvance}
-              onFin={(r) => { setAvance(null); setJobId(null); if (r.estado === "ok") { setFichero(null); setSubida(null); setAbierta(null); cargarTrans(); } }} />
+            <button className="btn btn--model" disabled={!fichero || !esAudio(fichero) || !!procesando} onClick={() => procesar("transcribir")} aria-label="Transcribir y nombrar">
+              {procesando === "transcribir" ? <><span className="spinner" />Transcribiendo…</> : <><Sparkles size={14} strokeWidth={1.5} />Transcribir y nombrar</>}
+            </button>
             <Info size={14} strokeWidth={1.5} aria-label={AYUDA_TRANSCRIBIR} />
           </span>
         </div>
