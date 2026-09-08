@@ -70,7 +70,11 @@ def _ffmpeg(argumentos: list[str], salida: Path, contexto: str) -> Path:
 
 def normalizar_audio(origen: Path, destino: Path) -> Path:
     """Audio o vídeo -> mp3 mono 16 kHz 48 kbps (~20 MB/hora): lo que se sube a KAIA
-    y de donde se cortan los clips (los timestamps de la API cuadran con él)."""
+    y de donde se cortan los clips (los timestamps de la API cuadran con él).
+    Si origen y destino son el mismo fichero (retranscribir la copia normalizada del
+    expediente), no se toca: ffmpeg escribiría sobre su propia fuente y la corrompería."""
+    if origen.resolve() == destino.resolve():
+        return destino
     if not shutil.which("ffmpeg"):
         raise ExpedienteError("Hace falta ffmpeg para preparar el audio (extraer pista de vídeo / normalizar).")
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -367,6 +371,7 @@ def accion_transcribir(exp: Expediente, ruta_fichero: str | Path, umbral_s: floa
         raise ExpedienteError("Hay una transcripcion_cruda.md sin etiquetar. Ejecuta `etiquetar-transcript` "
                               "(o repite con --forzar para descartarla).")
     base.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(base / "hablantes", ignore_errors=True)   # clips y meta de la transcripción anterior
     (base / "hablantes").mkdir(exist_ok=True)
 
     inicio = datetime.now()

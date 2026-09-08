@@ -295,3 +295,20 @@ def test_partes_multiples_identidad_estable_por_referencias(expediente_tmp, monk
     principal = next(i for i, d in meta["hablantes"].items() if d["etiqueta_api"] == "HABLANTE_1")
     assert meta["hablantes"][principal]["segundos"] == pytest.approx(3.0 + 3.5, abs=0.2)
     assert cruda.count("Voz principal") == 1 and "voz nueva" in cruda
+
+
+def test_retranscribir_la_copia_normalizada_no_la_corrompe(exp_audio, monkeypatch):
+    """Caso real: pasar como entrada el mp3 normalizado del propio expediente hacía que
+    ffmpeg escribiera sobre su fuente y lo dejara en ruinas. Además, cada transcripción
+    limpia los clips de la anterior."""
+    exp, audio = exp_audio
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: RESPUESTA_DOS_VOCES)
+    accion_transcribir(exp, audio)
+    normalizado = dir_audio(exp) / json.loads((dir_audio(exp) / "hablantes" / "meta.json").read_text(encoding="utf-8"))["normalizado"]
+    tam = normalizado.stat().st_size
+    viejo = dir_audio(exp) / "hablantes" / "SPEAKER_99.wav"
+    viejo.write_bytes(b"resto de otra ejecucion")
+    accion_transcribir(exp, normalizado, forzar=True)      # retranscribir la copia del expediente
+    assert normalizado.stat().st_size == tam               # la fuente no se toca
+    assert not viejo.exists()                              # los clips viejos no sobreviven
+    assert (dir_audio(exp) / "hablantes" / "SPEAKER_01.wav").exists()
