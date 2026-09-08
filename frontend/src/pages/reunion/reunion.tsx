@@ -10,6 +10,15 @@ import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
 const esAudio = (f: File | null) => /\.(mp3|wav|m4a|webm|ogg|oga|flac|mp4|mpga|mov|mkv|avi|m4v|wmv|mpe?g)$/i.test(f?.name ?? "");
+const FORMATOS = ".txt, .docx, .vtt, .md, .mp3, .wav, .m4a, .flac, .ogg, .oga, .webm, .mp4, .mov, .mkv, .avi, .m4v, .wmv, .mpg, .mpeg";
+const tipoFichero = (f: File): "video" | "audio" | "transcripcion" | "desconocido" => {
+  const n = f.name.toLowerCase();
+  if (/\.(mp4|webm|mov|mkv|avi|m4v|wmv|mpe?g)$/.test(n)) return "video";
+  if (/\.(mp3|wav|m4a|ogg|oga|flac|mpga)$/.test(n)) return "audio";
+  if (/\.(txt|docx|vtt|md)$/.test(n)) return "transcripcion";
+  return "desconocido";
+};
+const ETIQUETA_TIPO = { video: "Vídeo · se extraerá solo el audio", audio: "Audio", transcripcion: "Transcripción", desconocido: "Formato no reconocido" };
 const ACTUAL = "__transcripcion_actual__";   // ítem del listado que representa la transcripción con voces
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -181,10 +190,53 @@ export const Reunion = () => {
         </div>
       )}
 
-      {/* 2 ─ zona de subida */}
+      {/* 2 ─ zona de subida + tarjeta del fichero seleccionado */}
       <Dropzone titulo="Transcripción o audio de la reunión"
-        descripcion={fichero ? `Seleccionado: ${fichero.name}` : "Transcripción de Teams o grabación de audio/vídeo (del vídeo se extrae solo el audio)."}
-        formatos=".txt, .docx, .vtt, .md, .mp3, .wav, .m4a, .webm, .ogg, .mp4, .mov, .mkv" multiple={false} onFicheros={(f) => setFichero(f[0] ?? null)} />
+        descripcion="Transcripción de Teams o grabación de audio/vídeo (del vídeo se extrae solo el audio)."
+        formatos={FORMATOS} multiple={false} onFicheros={(f) => setFichero(f[0] ?? null)} />
+      {fichero && (
+        <div className="panel stack" aria-live="polite">
+          <div className="row row--between">
+            <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+              <span className={`label ${tipoFichero(fichero) === "desconocido" ? "" : "label--dark"}`}>{ETIQUETA_TIPO[tipoFichero(fichero)]}</span>
+              <span className="body">{fichero.name}</span>
+              <span className="detail">{(fichero.size / 1048576).toFixed(1)} MB · pendiente de procesar</span>
+            </div>
+            <button className="btn btn--ghost btn--small" onClick={() => { setFichero(null); setSubida(null); }} disabled={subida !== null}>Quitar</button>
+          </div>
+          {tipoFichero(fichero) === "desconocido" && (
+            <span className="detail" style={{ color: "var(--ids-color-alt-red-high)" }}>
+              Este formato no se reconoce, así que los botones de arriba quedan desactivados. Admitidos: {FORMATOS}.</span>
+          )}
+          {tipoFichero(fichero) === "transcripcion" && (
+            <span className="detail">Las transcripciones ya escritas solo pasan por «Analizar reunión»; «Transcribir y nombrar» es para audio o vídeo.</span>
+          )}
+          {subida !== null && (
+            <div className="upload__item">
+              <span className="upload__name">Subiendo {fichero.name}</span><span className="upload__pct">{subida} %</span>
+              <div className="progress" role="progressbar" aria-valuenow={subida} aria-valuemin={0} aria-valuemax={100}><div className="progress__bar" style={{ width: `${subida}%` }} /></div>
+            </div>
+          )}
+          {avance?.progreso && (
+            <div className="stack">
+              <div className="row row--between"><span className="label">{avance.progreso}</span>
+                {avance.progreso_pct != null && <span className="detail">{avance.progreso_pct} %</span>}</div>
+              {avance.progreso_partes && avance.progreso_partes.length > 1 && (
+                <>
+                  <div className="tramos" role="progressbar" aria-valuenow={avance.progreso_partes.filter((p) => p === "hecha").length} aria-valuemin={0} aria-valuemax={avance.progreso_partes.length}>
+                    {avance.progreso_partes.map((p, i) => <span key={i} className={`tramos__parte tramos__parte--${p}`} title={`Parte ${i + 1}: ${p.replace("_", " ")}`} />)}
+                  </div>
+                  <span className="detail">{avance.progreso_partes.filter((p) => p === "hecha").length} de {avance.progreso_partes.length} partes transcritas
+                    {avance.progreso_partes.includes("en_curso") ? ` · en curso: ${avance.progreso_partes.map((p, i) => (p === "en_curso" ? i + 1 : null)).filter(Boolean).join(" y ")}` : ""}</span>
+                </>
+              )}
+              {!avance.progreso_partes?.length && avance.progreso_pct != null && (
+                <div className="progress"><div className="progress__bar" style={{ width: `${avance.progreso_pct}%` }} /></div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {esAudio(fichero) && (
         <div className="panel stack">
           <span className="section-title">Quién habla (opcional, máximo 4)</span>
@@ -202,28 +254,10 @@ export const Reunion = () => {
           {hablantes.length < 4 && <div><button className="btn btn--small" onClick={() => setHablantes([...hablantes, { nombre: "", muestra: null }])}>+ Añadir hablante</button></div>}
         </div>
       )}
-      {subida !== null && (
-        <div className="upload__item" aria-live="polite">
-          <span className="upload__name">Subiendo {fichero?.name}</span><span className="upload__pct">{subida} %</span>
-          <div className="progress" role="progressbar" aria-valuenow={subida} aria-valuemin={0} aria-valuemax={100}><div className="progress__bar" style={{ width: `${subida}%` }} /></div>
-        </div>
-      )}
-      {avance?.progreso && (
+      {!fichero && avance?.progreso && (
         <div className="panel stack" aria-live="polite">
           <div className="row row--between"><span className="label">{avance.progreso}</span>
             {avance.progreso_pct != null && <span className="detail">{avance.progreso_pct} %</span>}</div>
-          {avance.progreso_partes && avance.progreso_partes.length > 1 && (
-            <>
-              <div className="tramos" role="progressbar" aria-valuenow={avance.progreso_partes.filter((p) => p === "hecha").length} aria-valuemin={0} aria-valuemax={avance.progreso_partes.length}>
-                {avance.progreso_partes.map((p, i) => <span key={i} className={`tramos__parte tramos__parte--${p}`} title={`Parte ${i + 1}: ${p.replace("_", " ")}`} />)}
-              </div>
-              <span className="detail">{avance.progreso_partes.filter((p) => p === "hecha").length} de {avance.progreso_partes.length} partes transcritas
-                {avance.progreso_partes.includes("en_curso") ? ` · en curso: ${avance.progreso_partes.map((p, i) => (p === "en_curso" ? i + 1 : null)).filter(Boolean).join(" y ")}` : ""}</span>
-            </>
-          )}
-          {!avance.progreso_partes?.length && avance.progreso_pct != null && (
-            <div className="progress"><div className="progress__bar" style={{ width: `${avance.progreso_pct}%` }} /></div>
-          )}
         </div>
       )}
       <JobResult r={resultado} onClose={() => setResultado(null)} />
