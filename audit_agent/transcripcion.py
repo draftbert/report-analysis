@@ -199,9 +199,9 @@ def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=Non
     estados = ["pendiente"] * len(partes)
     errores: dict[int, str] = {}
 
-    def _publicar():
+    def _publicar(texto: str | None = None):
         hechas = sum(e == "hecha" for e in estados)
-        informar(f"Transcritas {hechas} de {len(partes)} partes…" if len(partes) > 1 else "Transcribiendo el audio…",
+        informar(texto or (f"Transcritas {hechas} de {len(partes)} partes…" if len(partes) > 1 else "Transcribiendo el audio…"),
                  15 + round(65 * hechas / len(partes)), partes=list(estados))
 
     def _una(i: int, refs):
@@ -219,8 +219,10 @@ def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=Non
             except Exception as exc:  # noqa: BLE001 — el motivo se conserva por parte
                 ultimo = str(exc)
                 if intento == 1:
+                    _publicar(f"La parte {i + 1} se ha cortado en el servicio; reintentándola…")
                     time.sleep(5)
         try:
+            _publicar(f"La parte {i + 1} ha vuelto a cortarse; se envía en dos mitades…")
             r, _ = en_mitades(partes[i], destino_dir, refs)
             estados[i] = "hecha"
             _publicar()
