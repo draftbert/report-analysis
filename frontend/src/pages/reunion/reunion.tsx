@@ -197,13 +197,13 @@ export const Reunion = () => {
         </div>
         <div className="page__actions">
           <label className="row detail"><input type="checkbox" checked={aplicar} onChange={(e) => setAplicar(e.target.checked)} /> Aplicar directamente los cambios de texto</label>
-          <span className="accion-hint" title={AYUDA_ANALIZAR}>
+          <span className="accion-hint" data-tip={AYUDA_ANALIZAR}>
             <button className="btn btn--model btn--primary" disabled={!fichero || !!procesando} onClick={() => procesar("analizar")} aria-label="Analizar reunión">
               {procesando === "analizar" ? <><span className="spinner" />Trabajando con el modelo…</> : <><Sparkles size={14} strokeWidth={1.5} />Analizar reunión</>}
             </button>
             <Info size={14} strokeWidth={1.5} aria-label={AYUDA_ANALIZAR} />
           </span>
-          <span className="accion-hint" title={AYUDA_TRANSCRIBIR}>
+          <span className="accion-hint" data-tip={AYUDA_TRANSCRIBIR}>
             <button className="btn btn--model" disabled={!fichero || !esAudio(fichero) || !!procesando} onClick={() => procesar("transcribir")} aria-label="Transcribir y nombrar">
               {procesando === "transcribir" ? <><span className="spinner" />Transcribiendo…</> : <><Sparkles size={14} strokeWidth={1.5} />Transcribir y nombrar</>}
             </button>
