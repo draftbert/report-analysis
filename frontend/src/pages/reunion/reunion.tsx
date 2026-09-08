@@ -91,7 +91,6 @@ export const Reunion = () => {
   const [avance, setAvance] = useState<Job<Acta> | null>(null);
   const [aplicar, setAplicar] = useState(false);
   const [acta, setActa] = useState<Acta | null>(null);
-  const [resultado, setResultado] = useState<JobResultado | null>(null);
   const [anteriores, setAnteriores] = useState<ReunionT[]>([]);
   const [trans, setTrans] = useState<Transcripcion | null>(null);
   const [asig, setAsig] = useState<Record<string, { nombre: string; accion: string }>>({});
@@ -134,8 +133,8 @@ export const Reunion = () => {
       setJobId(job_id);
       const j = await esperarJob<Acta & Transcripcion>(job_id, (t) => setAvance(t as Job<Acta>));
       setAvance(null); setJobId(null);
-      setResultado({ estado: j.estado === "ok" ? "ok" : "error", mensaje: j.mensaje, resultado: j.resultado });
       if (j.estado === "ok") {
+        notificar({ texto: j.mensaje.split("\n")[0] });
         if (j.resultado?.cambios_texto) setActa(j.resultado);
         cargarTrans(); recargar(); cargarReuniones();
       } else notificar({ texto: j.mensaje, error: true });
@@ -177,14 +176,14 @@ export const Reunion = () => {
           <span className="accion-hint" title={AYUDA_ANALIZAR}>
             <JobButton<Acta> primario etiqueta="Analizar reunión" disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, [], (pct) => setSubida(pct < 100 ? pct : null)).then((r) => { setJobId(r.job_id); return r; }); }}
               onTick={setAvance}
-              onFin={(r) => { setAvance(null); setJobId(null); setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); recargar(); } }} />
+              onFin={(r) => { setAvance(null); setJobId(null); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setFichero(null); setSubida(null); recargar(); } }} />
             <Info size={14} strokeWidth={1.5} aria-label={AYUDA_ANALIZAR} />
           </span>
           <span className="accion-hint" title={AYUDA_TRANSCRIBIR}>
             <JobButton etiqueta="Transcribir y nombrar" disabled={!fichero || !esAudio(fichero)}
               lanzar={() => { setSubida(0); return api.transcribir(ref, fichero!, (pct) => setSubida(pct < 100 ? pct : null)).then((r) => { setJobId(r.job_id); return r; }); }}
               onTick={setAvance}
-              onFin={(r) => { setAvance(null); setJobId(null); setResultado(r); if (r.estado === "ok") { setAbierta(null); cargarTrans(); } }} />
+              onFin={(r) => { setAvance(null); setJobId(null); if (r.estado === "ok") { setFichero(null); setSubida(null); setAbierta(null); cargarTrans(); } }} />
             <Info size={14} strokeWidth={1.5} aria-label={AYUDA_TRANSCRIBIR} />
           </span>
         </div>
@@ -256,7 +255,6 @@ export const Reunion = () => {
             </span></div>
         </div>
       )}
-      <JobResult r={resultado} onClose={() => setResultado(null)} />
       {acta && (
         <div className="stack">
           <div className="row row--between"><span className="section-title">Resultado del análisis</span>
