@@ -50,11 +50,15 @@ def test_umbral_de_relevancia_y_clip_sin_solape():
     grupos = _por_hablante(segs)
     assert round(grupos["A"]["segundos"], 1) == 12.5 and round(grupos["B"]["segundos"], 1) == 1.0
     ini, dur = _segmento_para_clip(grupos["A"]["segmentos"], segs)
-    assert dur == 3.0 and 0 <= ini and ini + dur <= 8   # centro del 0-8 (limpio); el de 10-13 solapa con C
-    # si todos solapan, cae al centro del más largo
+    assert (ini, dur) == (0, 8.0)     # el tramo ininterrumpido más largo y limpio (0-8), entero por ser < 10 s
+    # tramo ininterrumpido de varios segmentos consecutivos -> se une y se recorta a ~10 s
+    seguidos = [S("A", 0, 6, "x"), S("A", 6.2, 14, "y"), S("B", 15, 16, "z")]
+    ini, dur = _segmento_para_clip([seguidos[0], seguidos[1]], seguidos)
+    assert (ini, dur) == (0, 9.9)
+    # si todos solapan, cae al tramo más largo igualmente
     todos = [S("A", 0, 10, "x"), S("B", 0, 10, "y")]
     ini, dur = _segmento_para_clip([todos[0]], todos)
-    assert 0 <= ini and dur <= 3.0
+    assert ini == 0 and dur == 9.9
 
 
 # ------------------------------------------------------------ transcribir
@@ -257,3 +261,37 @@ def test_integracion_real_dos_voces(expediente_tmp, tmp_path):
     assert "Transcripción:" in salida
     cruda = (dir_audio(expediente_tmp) / "transcripcion_cruda.md").read_text(encoding="utf-8")
     assert "SPEAKER_01" in cruda
+
+
+def test_partes_multiples_identidad_estable_por_referencias(expediente_tmp, monkeypatch, tmp_path):
+    """Con audio troceado, las voces de la primera parte se pasan como referencias
+    («HABLANTE_N») al resto: la identidad es estable y las letras huérfanas de partes
+    posteriores quedan aisladas («A·pN») en vez de fusionarse con quien no toca."""
+    if not FFMPEG:
+        pytest.skip("sin ffmpeg")
+    audio = tmp_path / "larga.wav"
+    _wav(audio, 9)
+    monkeypatch.setenv("KAIA_TRANSCRIBE_MAX_S", "4")     # -> 2 partes (0-4 y 4-9)
+    llamadas = []
+
+    def falso(ruta, hablantes=None):
+        llamadas.append((Path(ruta).name, list(hablantes or [])))
+        if len(llamadas) == 1:
+            return R(S("A", 0.0, 3.0, "Voz principal de la primera parte hablando un rato largo."),
+                     S("B", 3.2, 3.6, "Apunte brevísimo."))
+        return R(S("HABLANTE_1", 0.0, 3.5, "Sigo siendo la misma voz en la segunda parte."),
+                 S("A", 3.6, 4.9, "Y yo soy una voz nueva que no salía antes."))
+
+    monkeypatch.setattr(transcripcion, "transcribir_audio", falso)
+    accion_transcribir(expediente_tmp, audio, umbral_s=1.0)
+    # la 2ª llamada llevó la referencia cortada de la voz principal de la parte 1
+    assert llamadas[0][1] == [] and [n for n, _ in llamadas[1][1]] == ["HABLANTE_1"]
+    assert llamadas[1][1][0][1].endswith("ref_HABLANTE_1.wav")
+    cruda = (dir_audio(expediente_tmp) / "transcripcion_cruda.md").read_text(encoding="utf-8")
+    meta = json.loads((dir_audio(expediente_tmp) / "hablantes" / "meta.json").read_text(encoding="utf-8"))
+    etiquetas = {d["etiqueta_api"] for d in meta["hablantes"].values()}
+    assert "HABLANTE_1" in etiquetas and "A·p2" in etiquetas and "A" not in etiquetas
+    # la voz principal es UN solo hablante aunque cruce partes; la nueva es otro distinto
+    principal = next(i for i, d in meta["hablantes"].items() if d["etiqueta_api"] == "HABLANTE_1")
+    assert meta["hablantes"][principal]["segundos"] == pytest.approx(3.0 + 3.5, abs=0.2)
+    assert cruda.count("Voz principal") == 1 and "voz nueva" in cruda

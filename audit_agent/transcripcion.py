@@ -44,6 +44,7 @@ from .kaia_client import EXTENSIONES_AUDIO, EXTENSIONES_VIDEO, transcribir_audio
 EXTENSIONES_AV = tuple(dict.fromkeys(EXTENSIONES_AUDIO + EXTENSIONES_VIDEO))
 UMBRAL_HABLANTE_S = 10.0     # habla total mínima para considerar relevante a un hablante
 MAX_VOCES_ENVIADAS = 4       # límite de known_speakers de la API
+CLIP_MAX_S = 9.9             # las referencias de known_speakers admiten 2-10 s: apurar sin pasarse
 
 
 # ============================================================ ffmpeg
@@ -129,9 +130,55 @@ def en_mitades(parte: Path, destino_dir: Path, hablantes) -> tuple[dict, float]:
              "text": ((r1.get("text") or "") + "\n" + (r2.get("text") or "")).strip()}, dur / 2)
 
 
+def _referencias_de_parte(respuesta: dict, fichero_parte: Path, destino_dir: Path,
+                          conocidos: set[str], maximo: int) -> list[tuple[str, str]]:
+    """Con audio troceado, las letras de hablante NO son estables entre llamadas (el «A»
+    de una parte puede ser otra persona en la siguiente). De la primera parte se corta
+    una muestra de cada voz genérica detectada (≥2 s de tramo limpio) y se devuelven
+    como known_speakers sintéticos «HABLANTE_N» para el resto de partes; los segments
+    de esta respuesta se renombran a esos mismos nombres."""
+    segs = [{"speaker": (s.get("speaker") or "").strip(), "start": s.get("start") or 0,
+             "end": s.get("end") or 0, "text": (s.get("text") or "").strip()}
+            for s in respuesta.get("segments") or []]
+    genericos = _por_hablante([s for s in segs if s["speaker"] and s["speaker"] not in conocidos])
+    refs: list[tuple[str, str]] = []
+    renombres: dict[str, str] = {}
+    for etiqueta, g in sorted(genericos.items(), key=lambda kv: -kv[1]["segundos"]):
+        if len(refs) >= maximo:
+            break
+        ini, dur = _segmento_para_clip(g["segmentos"], segs)
+        if dur < 2.0:
+            continue                       # sin 2 s limpios no hay referencia fiable
+        nombre = f"HABLANTE_{len(refs) + 1}"
+        clip = destino_dir / f"ref_{nombre}.wav"
+        _ffmpeg(["-ss", str(ini), "-t", str(dur), "-i", str(fichero_parte), "-ac", "1", "-ar", "16000"],
+                clip, f"No se ha podido cortar la referencia de {etiqueta}")
+        refs.append((nombre, str(clip)))
+        renombres[etiqueta] = nombre
+    for s in respuesta.get("segments") or []:
+        quien = (s.get("speaker") or "").strip()
+        if quien in renombres:
+            s["speaker"] = renombres[quien]
+    return refs
+
+
+def _aislar_letras_sueltas(respuestas: list, conocidos: set[str], desde: int) -> None:
+    """Etiquetas genéricas que quedaron sin referencia en partes posteriores: se les
+    añade el número de parte («A·p3») porque no son comparables entre llamadas."""
+    for i, r in enumerate(respuestas):
+        if i < desde or not r:
+            continue
+        for s in r.get("segments") or []:
+            quien = (s.get("speaker") or "").strip()
+            if quien and quien not in conocidos:
+                s["speaker"] = f"{quien}·p{i + 1}"
+
+
 def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=None):
     """Transcribe un audio/vídeo por partes (2 en paralelo, un reintento por parte y
-    mitades como último recurso). Devuelve (respuestas, offsets, errores):
+    mitades como último recurso). Con varias partes, la primera se transcribe sola y
+    sus voces se pasan como referencias al resto para que la identidad de cada
+    hablante sea estable en toda la reunión. Devuelve (respuestas, offsets, errores):
     - respuestas[i]: dict de la API o None si la parte falló del todo;
     - offsets[i]: segundos que hay que sumar a los tiempos de esa parte;
     - errores: {índice: motivo}. Lanza ExpedienteError solo si fallan TODAS."""
@@ -147,13 +194,13 @@ def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=Non
         informar(f"Transcritas {hechas} de {len(partes)} partes…" if len(partes) > 1 else "Transcribiendo el audio…",
                  15 + round(65 * hechas / len(partes)), partes=list(estados))
 
-    def _una(i: int):
+    def _una(i: int, refs):
         estados[i] = "en_curso"
         _publicar()
         ultimo = ""
         for intento in (1, 2):
             try:
-                r = transcribir_audio(partes[i], hablantes)
+                r = transcribir_audio(partes[i], refs)
                 estados[i] = "hecha"
                 _publicar()
                 return r
@@ -162,7 +209,7 @@ def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=Non
                 if intento == 1:
                     time.sleep(5)
         try:
-            r, _ = en_mitades(partes[i], destino_dir, hablantes)
+            r, _ = en_mitades(partes[i], destino_dir, refs)
             estados[i] = "hecha"
             _publicar()
             return r
@@ -174,10 +221,30 @@ def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=Non
 
     respuestas: list = [None] * len(partes)
     _publicar()
-    with ThreadPoolExecutor(max_workers=min(2, len(partes))) as pool:
-        futuros = {pool.submit(_una, i): i for i in range(len(partes))}
-        for futuro in as_completed(futuros):
-            respuestas[futuros[futuro]] = futuro.result()
+    conocidos = {n for n, _ in hablantes}
+    refs = list(hablantes)
+    arranque = 0
+    if len(partes) > 1:
+        # las letras de hablante no son estables entre llamadas: la primera parte se
+        # transcribe sola y sus voces sirven de referencia («HABLANTE_N») para el resto
+        informar("Transcribiendo la primera parte e identificando sus voces…", 12)
+        respuestas[0] = _una(0, refs)
+        arranque = 1
+        if respuestas[0] is not None and len(refs) < MAX_VOCES_ENVIADAS:
+            try:
+                nuevas = _referencias_de_parte(respuestas[0], partes[0], destino_dir,
+                                               conocidos, MAX_VOCES_ENVIADAS - len(refs))
+            except ExpedienteError:
+                nuevas = []
+            refs = refs + nuevas
+            conocidos |= {n for n, _ in nuevas}
+    if arranque < len(partes):
+        with ThreadPoolExecutor(max_workers=min(2, len(partes) - arranque)) as pool:
+            futuros = {pool.submit(_una, i, refs): i for i in range(arranque, len(partes))}
+            for futuro in as_completed(futuros):
+                respuestas[futuros[futuro]] = futuro.result()
+    if len(partes) > 1:      # con una sola llamada las letras ya son consistentes
+        _aislar_letras_sueltas(respuestas, conocidos, desde=0)
     if len(errores) == len(partes):
         raise ExpedienteError(f"No se ha podido transcribir {ruta.name}: {errores[min(errores)][:300]}")
     return respuestas, offsets, errores
@@ -253,21 +320,32 @@ def _por_hablante(segmentos: list[dict]) -> dict[str, dict]:
 
 
 def _segmento_para_clip(segmentos_hablante: list[dict], todos: list[dict]) -> tuple[float, float]:
-    """(inicio, duración) del clip de 2-3 s: un segmento de ese hablante sin solape con
-    otros y de duración adecuada; si no lo hay, el centro del segmento más largo."""
-    def solapa(s):
-        return any(o is not s and o["speaker"] != s["speaker"] and o["start"] < s["end"] and o["end"] > s["start"]
-                   for o in todos)
+    """(inicio, duración) del clip: el tramo más largo en que la persona habla
+    ININTERRUMPIDAMENTE (segmentos suyos consecutivos, sin otro hablante en medio),
+    recortado a CLIP_MAX_S (~10 s). Se prefieren tramos sin solape con otros; si el
+    tramo es más corto, se usa entero."""
+    quien = segmentos_hablante[0]["speaker"]
+    orden = sorted(todos, key=lambda s: s["start"])
+    tramos: list[tuple[float, float]] = []
+    ini = fin = None
+    for s in orden:
+        if s["speaker"] == quien:
+            if ini is None:
+                ini, fin = s["start"], s["end"]
+            else:
+                fin = s["end"]
+        elif ini is not None:
+            tramos.append((ini, fin))
+            ini = None
+    if ini is not None:
+        tramos.append((ini, fin))
 
-    limpios = [s for s in segmentos_hablante if not solapa(s)]
-    ideales = [s for s in limpios if 2.0 <= (s["end"] - s["start"]) <= 6.0]
-    if ideales:
-        s = min(ideales, key=lambda x: abs((x["end"] - x["start"]) - 3.0))
-        return s["start"], min(3.0, s["end"] - s["start"])
-    base = max(limpios or segmentos_hablante, key=lambda x: x["end"] - x["start"])
-    dur = min(3.0, max(1.0, base["end"] - base["start"]))
-    centro = (base["start"] + base["end"]) / 2
-    return max(base["start"], centro - dur / 2), dur
+    def solapa(tramo):
+        return any(o["speaker"] != quien and o["start"] < tramo[1] and o["end"] > tramo[0] for o in orden)
+
+    limpios = [t for t in tramos if not solapa(t)] or tramos
+    ini, fin = max(limpios, key=lambda t: t[1] - t[0])
+    return ini, min(CLIP_MAX_S, max(1.0, fin - ini))
 
 
 def accion_transcribir(exp: Expediente, ruta_fichero: str | Path, umbral_s: float = UMBRAL_HABLANTE_S,
