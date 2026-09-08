@@ -5,7 +5,7 @@ import { api, esperarJob } from "@/api";
 import type { Apartado, Hallazgo, Informe as InformeT, ResultadoCambios, Version } from "@/api";
 import { Pencil, RotateCcw, Send } from "lucide-react";
 
-import { DiffView, JobButton, JobResult, Markdown, MarkdownEditor, Modal, SlideCard, useNotificar } from "@/components/ui";
+import { DiffView, JobButton, JobResult, Markdown, MarkdownEditor, Modal, SlideCard, useConfirmar, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
@@ -16,6 +16,7 @@ export const Informe = () => {
   const { ref = "" } = useParams();
   const { estado, recargar } = useEstado();
   const notificar = useNotificar();
+  const confirmar = useConfirmar();
   const [inf, setInf] = useState<InformeT | null>(null);
   const [tab, setTab] = useState<Tab>("revision");
   const [hallazgos, setHallazgos] = useState<Hallazgo[] | null>(null);
@@ -45,7 +46,7 @@ export const Informe = () => {
     } catch (e) { setChat((c) => [...c, { mensaje: (e as Error).message, error: true }]); }
     finally { setEnviando(false); }
   };
-  const deshacer = async () => { if (!window.confirm("¿Restaurar la versión anterior del informe?")) return; const r = await api.deshacer(ref, "informe"); notificar({ texto: r.mensaje }); refrescar(); };
+  const deshacer = async () => { if (!(await confirmar({ titulo: "Restaurar versión anterior", cuerpo: "El informe volverá al último snapshot del historial.", accion: "Restaurar" }))) return; const r = await api.deshacer(ref, "informe"); notificar({ texto: r.mensaje }); refrescar(); };
   const verDiff = async () => { const r = await api.diff(ref, "informe"); setDiff(r.diff || "(sin diferencias)"); };
   const guardarCrudo = async () => { await api.guardarInforme(ref, { markdown: md }); setEditor(null); notificar({ texto: "Informe guardado." }); refrescar(); };
 

@@ -5,7 +5,7 @@ import { api } from "@/api";
 import type { Documentos } from "@/api";
 import { FileText, Trash2 } from "lucide-react";
 
-import { Dropzone, useNotificar } from "@/components/ui";
+import { Dropzone, useConfirmar, useNotificar } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
 const FORMATOS = ".md, .txt, .docx, .xlsx, .pdf, .pptx";
@@ -15,6 +15,7 @@ export const Entrada = () => {
   const { ref = "" } = useParams();
   const { recargar } = useEstado();
   const notificar = useNotificar();
+  const confirmar = useConfirmar();
   const [docs, setDocs] = useState<Documentos>({ contexto: [], papeles_trabajo: [] });
   const cargar = () => api.documentos(ref).then(setDocs).catch((e) => notificar({ texto: e.message, error: true }));
   useEffect(() => { cargar(); }, [ref]);
@@ -48,7 +49,7 @@ export const Entrada = () => {
     );
   };
   const borrar = async (carpeta: string, nombre: string) => {
-    if (!window.confirm(`¿Eliminar «${nombre}»?`)) return;
+    if (!(await confirmar({ titulo: "Eliminar documento", cuerpo: `Se eliminará «${nombre}».`, accion: "Eliminar", peligro: true }))) return;
     setDocs(await api.borrarDocumento(ref, carpeta, nombre)); recargar();
   };
   const Lista = ({ carpeta }: { carpeta: "contexto" | "papeles_trabajo" }) => (

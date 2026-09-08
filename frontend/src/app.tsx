@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
-import { NotificacionesProvider } from "@/components/ui";
+import { ConfirmProvider, NotificacionesProvider } from "@/components/ui";
 import { Layout } from "@/layout/layout";
 import { Conclusiones } from "@/pages/conclusiones/conclusiones";
 import { Contexto } from "@/pages/contexto/contexto";
@@ -13,6 +13,7 @@ import { Trazas } from "@/pages/trazas/trazas";
 
 const Application = () => (
   <NotificacionesProvider>
+    <ConfirmProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Expedientes />} />
@@ -29,6 +30,7 @@ const Application = () => (
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </ConfirmProvider>
   </NotificacionesProvider>
 );
 

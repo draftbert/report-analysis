@@ -49,6 +49,35 @@ export const NotificacionesProvider = ({ children }: { children: React.ReactNode
   );
 };
 
+// ---------------------------------------------------------------- confirmaciones (modal propio, nada de window.confirm)
+type Confirmacion = { titulo: string; cuerpo?: React.ReactNode; accion?: string; peligro?: boolean };
+const ConfirmCtx = React.createContext<(c: Confirmacion) => Promise<boolean>>(() => Promise.resolve(false));
+/** `const confirmar = useConfirmar(); if (await confirmar({ titulo, cuerpo, accion, peligro })) …` */
+export const useConfirmar = () => React.useContext(ConfirmCtx);
+
+export const ConfirmProvider = ({ children }: { children: React.ReactNode }) => {
+  const [conf, setConf] = useState<(Confirmacion & { resolver: (v: boolean) => void }) | null>(null);
+  const confirmar = (c: Confirmacion) => new Promise<boolean>((resolver) => setConf({ ...c, resolver }));
+  const cerrar = (v: boolean) => { conf?.resolver(v); setConf(null); };
+  return (
+    <ConfirmCtx.Provider value={confirmar}>
+      {children}
+      {conf && (
+        <Modal titulo={conf.titulo} onClose={() => cerrar(false)} acciones={
+          <>
+            <button className="btn" onClick={() => cerrar(false)}>Cancelar</button>
+            <button className={`btn ${conf.peligro ? "btn--danger" : "btn--primary"}`} onClick={() => cerrar(true)} autoFocus>
+              {conf.accion ?? "Continuar"}</button>
+          </>}>
+          {typeof conf.cuerpo === "string"
+            ? <span className="body" style={{ whiteSpace: "pre-wrap" }}>{conf.cuerpo}</span>
+            : conf.cuerpo}
+        </Modal>
+      )}
+    </ConfirmCtx.Provider>
+  );
+};
+
 // ---------------------------------------------------------------- badges
 const claseRiesgo = (r: Riesgo) => ({ "Crítico": "critico", Alto: "alto", Medio: "medio", Bajo: "bajo", "": "" }[r] ?? "");
 export const RiskBadge = ({ nivel, propuesto }: { nivel: Riesgo; propuesto?: boolean }) => (
@@ -77,8 +106,9 @@ export const JobButton = <T,>({ etiqueta, lanzar, onFin, onTick, primario, peque
   const [fase, setFase] = useState<"idle" | "curso" | "hecho">("idle");
   const [progreso, setProgreso] = useState<{ texto: string; pct: number | null } | null>(null);
   const notificar = useNotificar();
+  const confirmarDlg = useConfirmar();
   const click = async () => {
-    if (confirmar && !window.confirm(confirmar)) return;
+    if (confirmar && !(await confirmarDlg({ titulo: "Antes de continuar", cuerpo: confirmar, accion: "Continuar" }))) return;
     setFase("curso");
     setProgreso(null);
     try {

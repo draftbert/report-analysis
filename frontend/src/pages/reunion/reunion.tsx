@@ -5,7 +5,7 @@ import { api, esperarJob } from "@/api";
 import type { Acta, Job, Reunion as ReunionT, Transcripcion } from "@/api";
 import { ArrowLeft, ChevronDown, ChevronUp, Info, Sparkles, Trash2 } from "lucide-react";
 
-import { Dropzone, JobResult, Markdown, Modal, useNotificar } from "@/components/ui";
+import { Dropzone, JobResult, Markdown, Modal, useConfirmar, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
@@ -85,6 +85,7 @@ export const Reunion = () => {
   const { ref = "" } = useParams();
   const { recargar } = useEstado();
   const notificar = useNotificar();
+  const confirmar = useConfirmar();
   const [fichero, setFichero] = useState<File | null>(null);
   const [subida, setSubida] = useState<number | null>(null);
   const [avance, setAvance] = useState<Job<Acta> | null>(null);
@@ -166,13 +167,15 @@ export const Reunion = () => {
   };
 
   const detener = async () => {
-    if (!jobId || !window.confirm("¿Detener el procesamiento? Lo hecho en esta ejecución se descarta (se corta al acabar la parte en curso).")) return;
+    if (!jobId || !(await confirmar({ titulo: "Detener el procesamiento", peligro: true, accion: "Detener",
+      cuerpo: "Lo hecho en esta ejecución se descarta (se corta al acabar la parte en curso)." }))) return;
     try { notificar({ texto: (await api.detenerJob(jobId)).mensaje }); }
     catch (e) { notificar({ texto: (e as Error).message, error: true }); }
   };
 
   const eliminarFicheros = async (nombres: string[], etiquetaConfirm: string) => {
-    if (!window.confirm(`¿Eliminar ${etiquetaConfirm}? No se puede deshacer.\n\n${nombres.join("\n")}`)) return;
+    if (!(await confirmar({ titulo: "Eliminar", peligro: true, accion: "Eliminar",
+      cuerpo: `Se eliminará ${etiquetaConfirm}. No se puede deshacer.\n\n${nombres.join("\n")}` }))) return;
     try {
       let lista = anteriores;
       for (const n of nombres) lista = await api.borrarReunion(ref, n);
