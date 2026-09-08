@@ -219,6 +219,18 @@ button, input, textarea, select { font-family: inherit; }
 .btn--model { position: relative; overflow: hidden; }
 .btn__progress { position: absolute; left: 0; bottom: 0; height: 2px; background: currentColor; opacity: 0.9; transition: width 0.4s ease; }
 
+/* Reunión: barra de acciones con pista, tarjeta de tarea activa y visor de transcript */
+.accion-hint { display: inline-flex; align-items: center; gap: var(--ids-size-25); color: var(--ids-color-content-low); cursor: help; }
+.tarea { border-left: 2px solid var(--ids-color-content-default); background: var(--ids-color-bg-low); }
+.tarea__pie { border-top: 1px solid var(--ids-color-border-low); padding-top: var(--ids-size-50); }
+.visor { border: 1px solid var(--ids-color-border-low); padding: var(--ids-size-100); max-height: 65vh; overflow: auto; }
+.visor .md { font-family: var(--ids-typo-font-family-mono); font-size: 12.5px; line-height: 19px; }
+@media (max-width: 720px) {
+  .page__header { flex-direction: column; }
+  .page__actions { justify-content: flex-start; }
+  .page__actions .accion-hint { width: 100%; }
+}
+
 /* barra segmentada de la transcripción por partes (Reunión) */
 .tramos { display: flex; gap: 4px; }
 .tramos__parte { flex: 1; height: 8px; background: var(--ids-color-bg-states-hover); transition: background 0.3s; }

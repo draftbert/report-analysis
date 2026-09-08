@@ -3,14 +3,18 @@ import { useParams } from "react-router-dom";
 
 import { api, esperarJob } from "@/api";
 import type { Acta, Job, Reunion as ReunionT, Transcripcion } from "@/api";
-import { Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, Trash2 } from "lucide-react";
 
-import { Dropzone, JobButton, JobResult, Markdown, useNotificar } from "@/components/ui";
+import { Dropzone, JobButton, JobResult, Markdown, Modal, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
 const esAudio = (f: File | null) => /\.(mp3|wav|m4a|webm|ogg|oga|flac|mp4|mpga|mov|mkv|avi|m4v|wmv|mpe?g)$/i.test(f?.name ?? "");
 const ACTUAL = "__transcripcion_actual__";   // fila del listado que representa la transcripción con voces
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+const AYUDA_ANALIZAR = "Transcribe el audio (o usa la transcripción) y extrae los cambios para el informe en un solo paso.";
+const AYUDA_TRANSCRIBIR = "Solo transcribe e identifica las voces; tú les pones nombre y después analizas (Informe → Instrucciones → Aplicar cambios).";
 
 export const Reunion = () => {
   const { ref = "" } = useParams();
@@ -31,6 +35,7 @@ export const Reunion = () => {
   const [etiquetando, setEtiquetando] = useState(false);
   const [abierta, setAbierta] = useState<string | null>(null);
   const [aplicando, setAplicando] = useState(false);
+  const [ayuda, setAyuda] = useState(false);
   // El borrador vive en el servidor (hablantes.md + meta.json): al adoptar el estado se
   // precargan nombres/acciones/casillas y `ultimoBorrador` evita autoguardados de más.
   const ultimoBorrador = useRef<string | null>(null);
@@ -40,7 +45,6 @@ export const Reunion = () => {
     for (const h of t.hablantes) { a[h.id] = { nombre: h.nombre, accion: h.accion }; g[h.id] = h.guardar; }
     setTrans(t); setAsig(a); setGuardar(g);
     ultimoBorrador.current = JSON.stringify([a, g]);
-    if (t.hay_transcripcion && !t.etiquetada) setAbierta((prev) => prev ?? ACTUAL);
   };
   const cargarTrans = () => api.transcripcion(ref).then(adoptar).catch(() => setTrans(null));
   useEffect(() => { api.reuniones(ref).then(setAnteriores).catch(() => setAnteriores([])); }, [ref, acta]);
@@ -83,18 +87,47 @@ export const Reunion = () => {
     finally { setAplicando(false); }
   };
 
+  const pendiente = !!trans?.hay_transcripcion && !trans.etiquetada;
+  const detalle = abierta && abierta !== ACTUAL ? anteriores.find((r) => r.nombre === abierta) : undefined;
+
   return (
     <div className="page">
+      {/* 1 ─ barra de acciones */}
       <div className="page__header">
-        <div><h2 className="page__title">Reunión</h2><p className="page__subtitle">Pasa la transcripción de Teams o el audio de la reunión (se transcribe con el modelo). El sistema separa lo que cambia el texto del informe de lo que afecta al PPT, y lo que queda pendiente de dato.</p></div>
+        <div>
+          <h2 className="page__title">Reunión</h2>
+          <button className="btn btn--ghost btn--small" onClick={() => setAyuda(!ayuda)} aria-expanded={ayuda}>
+            {ayuda ? <ChevronUp size={14} strokeWidth={1.5} /> : <ChevronDown size={14} strokeWidth={1.5} />}¿Cómo funciona?</button>
+        </div>
         <div className="page__actions">
           <label className="row detail"><input type="checkbox" checked={aplicar} onChange={(e) => setAplicar(e.target.checked)} /> Aplicar directamente los cambios de texto</label>
-          <JobButton<Acta> primario etiqueta={esAudio(fichero) ? "Transcribir y analizar" : "Analizar la reunión"} disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, esAudio(fichero) ? hablantes : [], (pct) => setSubida(pct < 100 ? pct : null)); }}
-            onTick={setAvance}
-            onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setSel(r.resultado.cambios_texto.map(() => true)); recargar(); } }} />
+          <span className="accion-hint" title={AYUDA_ANALIZAR}>
+            <JobButton<Acta> primario etiqueta="Analizar reunión" disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, esAudio(fichero) ? hablantes : [], (pct) => setSubida(pct < 100 ? pct : null)); }}
+              onTick={setAvance}
+              onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setSel(r.resultado.cambios_texto.map(() => true)); recargar(); } }} />
+            <Info size={14} strokeWidth={1.5} aria-label={AYUDA_ANALIZAR} />
+          </span>
+          <span className="accion-hint" title={AYUDA_TRANSCRIBIR}>
+            <JobButton etiqueta="Transcribir y nombrar" disabled={!fichero || !esAudio(fichero)}
+              lanzar={() => { setSubida(0); return api.transcribir(ref, fichero!, (pct) => setSubida(pct < 100 ? pct : null)); }}
+              onTick={setAvance}
+              onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok") { setAbierta(null); cargarTrans(); } }} />
+            <Info size={14} strokeWidth={1.5} aria-label={AYUDA_TRANSCRIBIR} />
+          </span>
         </div>
       </div>
-      <Dropzone titulo="Transcripción o audio de la reunión" descripcion={fichero ? `Seleccionado: ${fichero.name}` : "Transcripción de Teams (.txt, .docx, .vtt) o grabación de audio o vídeo (.mp3, .wav, .m4a, .mp4, .mov, .webm…; del vídeo se extrae solo el audio) de la revisión con el Gerente, la Directora o el área."} formatos=".txt, .docx, .vtt, .md, .mp3, .wav, .m4a, .webm, .ogg, .mp4, .mov, .mkv" multiple={false} onFicheros={(f) => setFichero(f[0] ?? null)} />
+      {ayuda && (
+        <div className="panel panel--muted stack">
+          <span className="detail"><strong>Analizar reunión.</strong> Pasa la transcripción de Teams o el audio de la reunión (se transcribe con el modelo). El sistema separa lo que cambia el texto del informe de lo que afecta al PPT, y lo que queda pendiente de dato.</span>
+          <span className="detail"><strong>Qué se puede subir.</strong> Transcripción de Teams (.txt, .docx, .vtt) o grabación de audio o vídeo (.mp3, .wav, .m4a, .mp4, .mov, .webm…; del vídeo se extrae solo el audio) de la revisión con el Gerente, la Directora o el área.</span>
+          <span className="detail"><strong>Transcribir y nombrar.</strong> Alternativa al análisis directo: transcribe el audio con hablantes anónimos y, al terminar, aparece una tarjeta para escuchar el clip de cada hablante, ponerle nombre y volcar la conversación a Instrucciones (Informe → Instrucciones → Aplicar cambios). Lo que escribas se guarda como borrador (sobrevive a recargar la página). Las voces que guardes se usan en la siguiente reunión de ESTE informe y se destruyen al archivar.</span>
+        </div>
+      )}
+
+      {/* 2 ─ zona de subida */}
+      <Dropzone titulo="Transcripción o audio de la reunión"
+        descripcion={fichero ? `Seleccionado: ${fichero.name}` : "Transcripción de Teams o grabación de audio/vídeo (del vídeo se extrae solo el audio)."}
+        formatos=".txt, .docx, .vtt, .md, .mp3, .wav, .m4a, .webm, .ogg, .mp4, .mov, .mkv" multiple={false} onFicheros={(f) => setFichero(f[0] ?? null)} />
       {esAudio(fichero) && (
         <div className="panel stack">
           <span className="section-title">Quién habla (opcional, máximo 4)</span>
@@ -167,28 +200,58 @@ export const Reunion = () => {
           {acta.acuerdos_sin_cambio.length === 0 ? <span className="detail">Ninguno.</span> : acta.acuerdos_sin_cambio.map((p, i) => <div key={i} className="detail">• {p}</div>)}
         </div>
       )}
-      <div className="panel stack">
-        <span className="section-title">Identificación de hablantes (transcribir ahora, nombrar después)</span>
-        <span className="detail">Alternativa al análisis directo: transcribe el audio con hablantes anónimos y, al terminar, la transcripción aparece abajo con las demás; ábrela para escuchar el clip de cada hablante, ponerle nombre y volcar la conversación a Instrucciones (Informe → Instrucciones → Aplicar cambios). Lo que escribas se guarda como borrador (sobrevive a recargar la página). Las voces que guardes se usan en la siguiente reunión de ESTE informe y se destruyen al archivar.</span>
-        <div className="row">
-          <JobButton etiqueta="Solo transcribir (nombrar hablantes)" disabled={!fichero || !esAudio(fichero)}
-            lanzar={() => { setSubida(0); return api.transcribir(ref, fichero!, (pct) => setSubida(pct < 100 ? pct : null)); }}
-            onTick={setAvance}
-            onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok") { setAbierta(null); cargarTrans(); } }} />
-          {trans?.hay_transcripcion && (
-            <span className="detail">Transcripción actual: «{trans.origen}» {trans.etiquetada ? "(ya etiquetada)" : "(pendiente de nombrar hablantes — está abajo, con las transcripciones)"}</span>)}
-        </div>
-        {trans && trans.voces.length > 0 && (
-          <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-            <span className="detail">Voces del informe:</span>
-            {trans.voces.map((v) => (
-              <span key={v.nombre} className="label">{v.nombre} · {Math.round(v.segundos)} s
-                <button className="btn btn--ghost btn--small" style={{ marginLeft: 6 }}
-                  onClick={async () => setTrans(await api.borrarVoz(ref, v.nombre))}>×</button></span>))}
-            <span className="detail">(se destruyen al archivar)</span>
+
+      {/* 3 ─ tarea activa: nombrar hablantes */}
+      {pendiente && trans && (
+        <div className="panel tarea stack">
+          <div className="row row--between">
+            <span className="section-title">Pendiente: nombrar hablantes</span>
+            <span className="detail">«{trans.origen}» · {trans.fecha.slice(0, 16).replace("T", " ")}</span>
           </div>
-        )}
-      </div>
+          <span className="detail">Escucha el clip de cada hablante y ponle nombre (o márcalo como fusión/ignorar). Al pulsar «Etiquetar» la conversación se vuelca a Instrucciones.</span>
+          {trans.hablantes.filter((h) => !h.conocido).map((h) => (
+            <div key={h.id} className="panel" style={{ gap: 8 }}>
+              <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <span className="label label--dark">{h.id}</span>
+                <audio controls preload="none" style={{ height: 30 }} src={`/api/expedientes/${encodeURIComponent(ref)}/audio/hablantes/${h.clip}`} />
+                <span className="detail">{Math.round(h.segundos)} s de habla</span>
+              </div>
+              <span className="detail">«{h.muestra}»</span>
+              <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <input className="input" style={{ maxWidth: 240 }} placeholder="Nombre" value={asig[h.id]?.nombre ?? ""}
+                  onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: e.target.value, accion: asig[h.id]?.accion ?? "" } })} />
+                <select className="input" style={{ maxWidth: 260 }} value={asig[h.id]?.accion ?? ""}
+                  onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: asig[h.id]?.nombre ?? "", accion: e.target.value } })}>
+                  <option value="">usar con este nombre</option>
+                  {trans.hablantes.filter((o) => o.id !== h.id && !o.conocido).map((o) => (
+                    <option key={o.id} value={`fusionar con ${o.id}`}>es la misma persona que {o.id}</option>))}
+                  <option value="ignorar">ignorar (ruido, hablante irrelevante)</option>
+                </select>
+                <label className="row detail" style={{ gap: 6 }}>
+                  <input type="checkbox" checked={!!guardar[h.id]} onChange={(e) => setGuardar({ ...guardar, [h.id]: e.target.checked })} />
+                  guardar su voz para próximas reuniones</label>
+              </div>
+            </div>
+          ))}
+          {trans.hablantes.some((h) => h.conocido) && (
+            <span className="detail">Ya nombrados por sus voces guardadas: {trans.hablantes.filter((h) => h.conocido).map((h) => h.id).join(", ")}.</span>)}
+          <div><button className="btn btn--primary" onClick={etiquetar} disabled={etiquetando}>
+            {etiquetando ? <><span className="spinner" />Etiquetando…</> : "Etiquetar y volcar a Instrucciones"}</button></div>
+          <span className="detail tarea__pie">El borrador se guarda solo: puedes actualizar la página o seguir otro día, y también terminar desde la consola (entrada/audio/hablantes.md).</span>
+        </div>
+      )}
+      {trans && trans.voces.length > 0 && (
+        <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+          <span className="detail">Voces del informe:</span>
+          {trans.voces.map((v) => (
+            <span key={v.nombre} className="label">{v.nombre} · {Math.round(v.segundos)} s
+              <button className="btn btn--ghost btn--small" style={{ marginLeft: 6 }}
+                onClick={async () => setTrans(await api.borrarVoz(ref, v.nombre))}>×</button></span>))}
+          <span className="detail">(se destruyen al archivar)</span>
+        </div>
+      )}
+
+      {/* 4 ─ lista y panel de detalle */}
       {(trans?.hay_transcripcion || anteriores.length > 0) && (
         <div className="stack">
           <span className="section-title">Actas y transcripciones</span>
@@ -217,48 +280,20 @@ export const Reunion = () => {
               </tr>
             ))}
           </tbody></table>
-          {abierta === ACTUAL && trans && (
-            <div className="panel stack">
-              {!trans.etiquetada && (
-                <div className="stack">
-                  <span className="detail">Escucha el clip de cada hablante y ponle nombre (o márcalo como fusión/ignorar). El borrador
-                    se guarda solo: puedes actualizar la página o seguir otro día, y también terminar desde la consola
-                    (entrada/audio/hablantes.md). Al pulsar «Etiquetar» la conversación se vuelca a Instrucciones.</span>
-                  {trans.hablantes.filter((h) => !h.conocido).map((h) => (
-                    <div key={h.id} className="panel" style={{ gap: 8 }}>
-                      <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                        <span className="label label--dark">{h.id}</span>
-                        <audio controls preload="none" style={{ height: 30 }} src={`/api/expedientes/${encodeURIComponent(ref)}/audio/hablantes/${h.clip}`} />
-                        <span className="detail">{Math.round(h.segundos)} s de habla</span>
-                      </div>
-                      <span className="detail">«{h.muestra}»</span>
-                      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                        <input className="input" style={{ maxWidth: 240 }} placeholder="Nombre" value={asig[h.id]?.nombre ?? ""}
-                          onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: e.target.value, accion: asig[h.id]?.accion ?? "" } })} />
-                        <select className="input" style={{ maxWidth: 260 }} value={asig[h.id]?.accion ?? ""}
-                          onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: asig[h.id]?.nombre ?? "", accion: e.target.value } })}>
-                          <option value="">usar con este nombre</option>
-                          {trans.hablantes.filter((o) => o.id !== h.id && !o.conocido).map((o) => (
-                            <option key={o.id} value={`fusionar con ${o.id}`}>es la misma persona que {o.id}</option>))}
-                          <option value="ignorar">ignorar (ruido, hablante irrelevante)</option>
-                        </select>
-                        <label className="row detail" style={{ gap: 6 }}>
-                          <input type="checkbox" checked={!!guardar[h.id]} onChange={(e) => setGuardar({ ...guardar, [h.id]: e.target.checked })} />
-                          guardar su voz para próximas reuniones</label>
-                      </div>
-                    </div>
-                  ))}
-                  {trans.hablantes.some((h) => h.conocido) && (
-                    <span className="detail">Ya nombrados por sus voces guardadas: {trans.hablantes.filter((h) => h.conocido).map((h) => h.id).join(", ")}.</span>)}
-                  <div><button className="btn btn--primary" onClick={etiquetar} disabled={etiquetando}>
-                    {etiquetando ? <><span className="spinner" />Etiquetando…</> : "Etiquetar y volcar a Instrucciones"}</button></div>
-                </div>
-              )}
-              <Markdown texto={trans.markdown} />
-            </div>
-          )}
-          {abierta && abierta !== ACTUAL && <div className="panel"><Markdown texto={anteriores.find((r) => r.nombre === abierta)?.markdown ?? ""} /></div>}
         </div>
+      )}
+      {abierta === ACTUAL && trans && (
+        <Modal titulo={trans.origen} onClose={() => setAbierta(null)}>
+          <span className="detail">{trans.fecha.slice(0, 16).replace("T", " ")} · duración {mmss(trans.duracion_s)} · {trans.hablantes.length} hablante(s) relevante(s)
+            {trans.etiquetada ? " · etiquetada y volcada a Instrucciones" : " · pendiente de nombrar hablantes (la tarjeta de arriba)"}</span>
+          <div className="visor"><Markdown texto={trans.markdown} /></div>
+        </Modal>
+      )}
+      {detalle && (
+        <Modal titulo={detalle.nombre} onClose={() => setAbierta(null)}>
+          <span className="detail">{detalle.fecha} · {detalle.tipo === "acta" ? "Acta" : "Transcripción"}</span>
+          <div className="visor"><Markdown texto={detalle.markdown} /></div>
+        </Modal>
       )}
     </div>
   );
