@@ -87,7 +87,6 @@ export const Reunion = () => {
   const { recargar } = useEstado();
   const notificar = useNotificar();
   const [fichero, setFichero] = useState<File | null>(null);
-  const [hablantes, setHablantes] = useState<{ nombre: string; muestra: File | null }[]>([]);
   const [subida, setSubida] = useState<number | null>(null);
   const [avance, setAvance] = useState<Job<Acta> | null>(null);
   const [aplicar, setAplicar] = useState(false);
@@ -168,7 +167,7 @@ export const Reunion = () => {
         <div className="page__actions">
           <label className="row detail"><input type="checkbox" checked={aplicar} onChange={(e) => setAplicar(e.target.checked)} /> Aplicar directamente los cambios de texto</label>
           <span className="accion-hint" title={AYUDA_ANALIZAR}>
-            <JobButton<Acta> primario etiqueta="Analizar reunión" disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, esAudio(fichero) ? hablantes : [], (pct) => setSubida(pct < 100 ? pct : null)); }}
+            <JobButton<Acta> primario etiqueta="Analizar reunión" disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, [], (pct) => setSubida(pct < 100 ? pct : null)); }}
               onTick={setAvance}
               onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); recargar(); } }} />
             <Info size={14} strokeWidth={1.5} aria-label={AYUDA_ANALIZAR} />
@@ -235,23 +234,6 @@ export const Reunion = () => {
               )}
             </div>
           )}
-        </div>
-      )}
-      {esAudio(fichero) && (
-        <div className="panel stack">
-          <span className="section-title">Quién habla (opcional, máximo 4)</span>
-          <span className="detail">El audio se transcribe con separación de hablantes. Si además añades una muestra de voz de 2–10 segundos de <strong>cada</strong> persona, la transcripción saldrá con sus nombres; si falta alguna muestra, saldrán como hablantes genéricos y los nombres se usarán solo como contexto del acta. Las muestras no se conservan.</span>
-          {hablantes.map((h, i) => (
-            <div key={i} className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-              <input className="input" style={{ maxWidth: 260 }} placeholder={`Nombre del hablante ${i + 1}`} value={h.nombre}
-                onChange={(e) => setHablantes(hablantes.map((x, k) => (k === i ? { ...x, nombre: e.target.value } : x)))} />
-              <label className="btn btn--ghost btn--small">{h.muestra ? `Muestra: ${h.muestra.name}` : "Añadir muestra de voz"}
-                <input type="file" accept=".mp3,.wav,.m4a,.webm,.ogg" style={{ display: "none" }}
-                  onChange={(e) => setHablantes(hablantes.map((x, k) => (k === i ? { ...x, muestra: e.target.files?.[0] ?? null } : x)))} /></label>
-              <button className="btn btn--ghost btn--small" onClick={() => setHablantes(hablantes.filter((_, k) => k !== i))}>Quitar</button>
-            </div>
-          ))}
-          {hablantes.length < 4 && <div><button className="btn btn--small" onClick={() => setHablantes([...hablantes, { nombre: "", muestra: null }])}>+ Añadir hablante</button></div>}
         </div>
       )}
       {!fichero && avance?.progreso && (
