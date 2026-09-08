@@ -109,11 +109,16 @@ function apartadoMd(c: Conclusion, i: number, sug: boolean) {
 
 let etiquetadaMock = false;
 let vocesMock: { nombre: string; segundos: number; origen: string; fecha: string }[] = [];
+let borradorMock: Record<string, { nombre: string; accion: string }> = {};
+let guardarMock: string[] = [];
 const transcripcionMock = () => ({
   hay_transcripcion: true, etiquetada: etiquetadaMock, origen: "reunion.mp4", fecha: "2026-09-07T10:00:00", duracion_s: 38,
+  markdown: "# Transcripción cruda — reunion.mp4\n\n- [00:00–00:17] SPEAKER_01: Buenos días, empezamos la revisión del borrador.\n- [00:18–00:30] SPEAKER_02: De acuerdo, me parece bien subir el riesgo.\n- [00:31–00:38] SPEAKER_01: Perfecto, lo cambiamos y seguimos.",
   hablantes: [
-    { id: "SPEAKER_01", clip: "SPEAKER_01.wav", muestra: "Buenos días, empezamos la revisión del borrador.", segundos: 17.1, conocido: false },
-    { id: "SPEAKER_02", clip: "SPEAKER_02.wav", muestra: "De acuerdo, me parece bien subir el riesgo.", segundos: 12.4, conocido: false },
+    { id: "SPEAKER_01", clip: "SPEAKER_01.wav", muestra: "Buenos días, empezamos la revisión del borrador.", segundos: 17.1, conocido: false,
+      nombre: borradorMock.SPEAKER_01?.nombre ?? "", accion: borradorMock.SPEAKER_01?.accion ?? "", guardar: guardarMock.includes("SPEAKER_01") },
+    { id: "SPEAKER_02", clip: "SPEAKER_02.wav", muestra: "De acuerdo, me parece bien subir el riesgo.", segundos: 12.4, conocido: false,
+      nombre: borradorMock.SPEAKER_02?.nombre ?? "", accion: borradorMock.SPEAKER_02?.accion ?? "", guardar: guardarMock.includes("SPEAKER_02") },
   ],
   voces: vocesMock,
 });
@@ -252,6 +257,7 @@ export const clienteMock: Api = {
   cambios: async () => ({ markdown: "## Cambios aplicados — 2026-08-27 10:12 (03_instrucciones.md)\n\n1. **[aplicado]** ### 1. … — Elevar el nivel de riesgo a Alto\n   - Antes: - Nivel de riesgo: Medio\n   - Después: - Nivel de riesgo: Alto" }),
   transcribir: (_ref, _f, onProgreso) => { onProgreso?.(100); return job("transcribir", () => ({ mensaje: "Transcripción: entrada/audio/transcripcion_cruda.md (10 segmentos, 00:38)", resultado: transcripcionMock() })); },
   transcripcion: async () => transcripcionMock(),
+  borradorTranscripcion: async (_ref, asignaciones, guardarIds) => { borradorMock = { ...borradorMock, ...asignaciones }; guardarMock = guardarIds; return transcripcionMock(); },
   etiquetar: async (_ref, asignaciones, guardarVoces) => { etiquetadaMock = true; vocesMock = guardarVoces.map((n) => ({ nombre: n, segundos: 15, origen: "reunion.mp4", fecha: "2026-09-07" })); return { mensaje: "7 intervenciones de 2 hablante(s) volcadas a 03_instrucciones.md.", ...transcripcionMock() }; },
   borrarVoz: async (_ref, nombre) => { vocesMock = vocesMock.filter((v) => v.nombre !== nombre); return transcripcionMock(); },
   reuniones: async () => reunionesMock,

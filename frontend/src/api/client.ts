@@ -121,6 +121,8 @@ export const clienteReal: Api = {
     return postConProgreso(`${BASE}${e(ref)}/acciones/transcribir`, fd, onProgreso);
   },
   transcripcion: (ref) => req(`${e(ref)}/transcripcion`),
+  borradorTranscripcion: (ref, asignaciones, guardarIds) =>
+    req(`${e(ref)}/transcripcion/borrador`, json({ asignaciones, guardar_voces: guardarIds }, "PUT")),
   etiquetar: (ref, asignaciones, guardarVoces) => req(`${e(ref)}/acciones/etiquetar`, json({ asignaciones, guardar_voces: guardarVoces })),
   borrarVoz: (ref, nombre) => req(`${e(ref)}/voces/${encodeURIComponent(nombre)}`, { method: "DELETE" }),
   ppt: (ref) => req(`${e(ref)}/acciones/ppt`, { method: "POST" }),

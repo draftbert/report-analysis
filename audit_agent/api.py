@@ -429,6 +429,17 @@ class Etiquetado(BaseModel):
     guardar_voces: list[str] = []
 
 
+@app.put("/api/expedientes/{ref}/transcripcion/borrador")
+def transcripcion_borrador(ref: str, o: Etiquetado):
+    """Guarda el borrador del etiquetado (nombres/acciones en hablantes.md y las casillas
+    de «guardar voz» en meta.json) sin aplicarlo: la web lo autoguarda para que un
+    refresco del navegador no pierda el trabajo a medias. Aquí `guardar_voces` son IDs."""
+    from . import transcripcion as tr
+    exp = _exp(ref)
+    tr.aplicar_asignaciones(exp, o.asignaciones, guardar_voces=o.guardar_voces)
+    return tr.estado_transcripcion(exp)
+
+
 @app.post("/api/expedientes/{ref}/acciones/etiquetar")
 def etiquetar(ref: str, o: Etiquetado):
     """Aplica nombres/fusiones/ignorados en local y vuelca a 03_instrucciones.md."""

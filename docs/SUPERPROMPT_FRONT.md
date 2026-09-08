@@ -103,6 +103,10 @@ Base `/api`. Todas las respuestas JSON, UTF-8. `{ref}` es la referencia del info
 - `GET /expedientes/{ref}/historial` → `[{ "fichero": "informe"|"conclusiones"|"instrucciones", "nombre", "fecha", "motivo" }]`
 - `POST /expedientes/{ref}/acciones/deshacer` `{ "fichero": "informe" }` → síncrono; `GET /expedientes/{ref}/diff?fichero=informe` → `{ "diff": "…" }`.
 - `GET /expedientes/{ref}/cambios` → `{ "markdown": "…" }` (registro de cambios aplicados). `GET /expedientes/{ref}/reuniones` → `[{ "nombre", "tipo": "acta"|"transcripcion", "fecha", "markdown" }]` (actas .md y transcripciones .txt/.vtt). `DELETE /expedientes/{ref}/reuniones/{nombre}` borra una y devuelve el listado actualizado.
+- Identificación de hablantes: `POST /expedientes/{ref}/acciones/transcribir` (multipart `fichero` audio/vídeo) → job.
+  `GET /expedientes/{ref}/transcripcion` → `{ hay_transcripcion, etiquetada, origen, fecha, duracion_s, "markdown" (transcripción entera), hablantes: [{ id, clip, muestra, segundos, conocido, nombre, accion, guardar }], voces: [{ nombre, segundos, origen, fecha }] }` — `nombre`/`accion`/`guardar` son el borrador ya guardado (la web lo precarga tras un refresco).
+  `PUT /expedientes/{ref}/transcripcion/borrador` `{ asignaciones: { SPEAKER_XX: { nombre, accion } }, guardar_voces: [ids] }` autoguarda el borrador sin etiquetar (la web lo llama con debounce al teclear). `POST /expedientes/{ref}/acciones/etiquetar` (mismo cuerpo, pero `guardar_voces` = NOMBRES) aplica y vuelca a Instrucciones. `GET /expedientes/{ref}/audio/hablantes/{clip}` sirve el clip .wav; `DELETE /expedientes/{ref}/voces/{nombre}` borra una voz guardada.
+  En la página Reunión la transcripción actual aparece como primera fila del listado «Actas y transcripciones» (etiqueta «Voces»); al abrirla se ve el panel de nombrado (si está pendiente) y la transcripción completa.
 
 ### Entregables y trazabilidad
 - `POST /expedientes/{ref}/acciones/ppt` → síncrono `{ "nombre", "url": "/api/expedientes/TEC-2026/salidas/ResumenEjecutivo_TEC-2026.pptx" }`.

@@ -224,7 +224,15 @@ def test_flujo_web_de_identificacion_de_hablantes(cliente, monkeypatch, tmp_path
     assert j["estado"] == "ok", j["mensaje"]
     t = c.get("/api/expedientes/T-V/transcripcion").json()
     assert t["hay_transcripcion"] and not t["etiquetada"] and [h["id"] for h in t["hablantes"]] == ["SPEAKER_01", "SPEAKER_02"]
+    assert "Subid el riesgo a alto." in t["markdown"]              # la web muestra la transcripción entera
     assert c.get(f"/api/expedientes/T-V/audio/hablantes/{t['hablantes'][0]['clip']}").status_code == 200
+    # el borrador del etiquetado se guarda en el expediente y sobrevive a un refresco del navegador
+    b = c.put("/api/expedientes/T-V/transcripcion/borrador", json={
+        "asignaciones": {"SPEAKER_01": {"nombre": "Marta", "accion": ""}}, "guardar_voces": ["SPEAKER_01"]}).json()
+    assert not b["etiquetada"]                                     # guardar el borrador no etiqueta nada
+    t = c.get("/api/expedientes/T-V/transcripcion").json()
+    h1, h2 = (next(h for h in t["hablantes"] if h["id"] == i) for i in ("SPEAKER_01", "SPEAKER_02"))
+    assert h1["nombre"] == "Marta" and h1["guardar"] and h2["nombre"] == "" and not h2["guardar"]
     r = c.post("/api/expedientes/T-V/acciones/etiquetar", json={
         "asignaciones": {"SPEAKER_01": {"nombre": "Marta", "accion": ""}, "SPEAKER_02": {"nombre": "Javier", "accion": ""}},
         "guardar_voces": ["Marta"]}).json()

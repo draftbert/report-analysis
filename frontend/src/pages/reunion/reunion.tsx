@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { api, esperarJob } from "@/api";
@@ -10,6 +10,7 @@ import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
 const esAudio = (f: File | null) => /\.(mp3|wav|m4a|webm|ogg|oga|flac|mp4|mpga|mov|mkv|avi|m4v|wmv|mpe?g)$/i.test(f?.name ?? "");
+const ACTUAL = "__transcripcion_actual__";   // fila del listado que representa la transcripción con voces
 
 export const Reunion = () => {
   const { ref = "" } = useParams();
@@ -28,11 +29,32 @@ export const Reunion = () => {
   const [asig, setAsig] = useState<Record<string, { nombre: string; accion: string }>>({});
   const [guardar, setGuardar] = useState<Record<string, boolean>>({});
   const [etiquetando, setEtiquetando] = useState(false);
-  const cargarTrans = () => api.transcripcion(ref).then(setTrans).catch(() => setTrans(null));
   const [abierta, setAbierta] = useState<string | null>(null);
   const [aplicando, setAplicando] = useState(false);
+  // El borrador vive en el servidor (hablantes.md + meta.json): al adoptar el estado se
+  // precargan nombres/acciones/casillas y `ultimoBorrador` evita autoguardados de más.
+  const ultimoBorrador = useRef<string | null>(null);
+  const adoptar = (t: Transcripcion) => {
+    const a: Record<string, { nombre: string; accion: string }> = {};
+    const g: Record<string, boolean> = {};
+    for (const h of t.hablantes) { a[h.id] = { nombre: h.nombre, accion: h.accion }; g[h.id] = h.guardar; }
+    setTrans(t); setAsig(a); setGuardar(g);
+    ultimoBorrador.current = JSON.stringify([a, g]);
+    if (t.hay_transcripcion && !t.etiquetada) setAbierta((prev) => prev ?? ACTUAL);
+  };
+  const cargarTrans = () => api.transcripcion(ref).then(adoptar).catch(() => setTrans(null));
   useEffect(() => { api.reuniones(ref).then(setAnteriores).catch(() => setAnteriores([])); }, [ref, acta]);
   useEffect(() => { cargarTrans(); }, [ref]);
+  useEffect(() => {
+    if (!trans?.hay_transcripcion || trans.etiquetada || ultimoBorrador.current === null) return;
+    const s = JSON.stringify([asig, guardar]);
+    if (s === ultimoBorrador.current) return;
+    const t = setTimeout(() => {
+      const ids = Object.entries(guardar).filter(([, v]) => v).map(([id]) => id);
+      api.borradorTranscripcion(ref, asig, ids).then(() => { ultimoBorrador.current = s; }).catch(() => { /* se reintenta al siguiente cambio */ });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [asig, guardar, trans, ref]);
 
   const etiquetar = async () => {
     if (!trans) return;
@@ -41,7 +63,7 @@ export const Reunion = () => {
       const voces = Object.entries(guardar).filter(([, v]) => v).map(([id]) => asig[id]?.nombre?.trim()).filter(Boolean) as string[];
       const r = await api.etiquetar(ref, asig, voces);
       notificar({ texto: r.mensaje.split("\n")[0] });
-      setTrans(r); setAsig({}); setGuardar({}); recargar();
+      adoptar(r); recargar();
     } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
     finally { setEtiquetando(false); }
   };
@@ -147,46 +169,15 @@ export const Reunion = () => {
       )}
       <div className="panel stack">
         <span className="section-title">Identificación de hablantes (transcribir ahora, nombrar después)</span>
-        <span className="detail">Alternativa al análisis directo: transcribe el audio con hablantes anónimos y, al terminar, escucha el clip de cada uno, ponles nombre aquí y vuelca la conversación a Instrucciones (Informe → Instrucciones → Aplicar cambios). Las voces que guardes se usan en la siguiente reunión de ESTE informe y se destruyen al archivar.</span>
+        <span className="detail">Alternativa al análisis directo: transcribe el audio con hablantes anónimos y, al terminar, la transcripción aparece abajo con las demás; ábrela para escuchar el clip de cada hablante, ponerle nombre y volcar la conversación a Instrucciones (Informe → Instrucciones → Aplicar cambios). Lo que escribas se guarda como borrador (sobrevive a recargar la página). Las voces que guardes se usan en la siguiente reunión de ESTE informe y se destruyen al archivar.</span>
         <div className="row">
           <JobButton etiqueta="Solo transcribir (nombrar hablantes)" disabled={!fichero || !esAudio(fichero)}
             lanzar={() => { setSubida(0); return api.transcribir(ref, fichero!, (pct) => setSubida(pct < 100 ? pct : null)); }}
             onTick={setAvance}
-            onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok") cargarTrans(); }} />
-          {trans?.hay_transcripcion && <span className="detail">Transcripción actual: «{trans.origen}» {trans.etiquetada ? "(ya etiquetada)" : "(pendiente de etiquetar)"}</span>}
+            onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok") { setAbierta(null); cargarTrans(); } }} />
+          {trans?.hay_transcripcion && (
+            <span className="detail">Transcripción actual: «{trans.origen}» {trans.etiquetada ? "(ya etiquetada)" : "(pendiente de nombrar hablantes — está abajo, con las transcripciones)"}</span>)}
         </div>
-        {trans?.hay_transcripcion && !trans.etiquetada && (
-          <div className="stack">
-            {trans.hablantes.filter((h) => !h.conocido).map((h) => (
-              <div key={h.id} className="panel" style={{ gap: 8 }}>
-                <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  <span className="label label--dark">{h.id}</span>
-                  <audio controls preload="none" style={{ height: 30 }} src={`/api/expedientes/${encodeURIComponent(ref)}/audio/hablantes/${h.clip}`} />
-                  <span className="detail">{Math.round(h.segundos)} s de habla</span>
-                </div>
-                <span className="detail">«{h.muestra}»</span>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                  <input className="input" style={{ maxWidth: 240 }} placeholder="Nombre" value={asig[h.id]?.nombre ?? ""}
-                    onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: e.target.value, accion: asig[h.id]?.accion ?? "" } })} />
-                  <select className="input" style={{ maxWidth: 260 }} value={asig[h.id]?.accion ?? ""}
-                    onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: asig[h.id]?.nombre ?? "", accion: e.target.value } })}>
-                    <option value="">usar con este nombre</option>
-                    {trans.hablantes.filter((o) => o.id !== h.id && !o.conocido).map((o) => (
-                      <option key={o.id} value={`fusionar con ${o.id}`}>es la misma persona que {o.id}</option>))}
-                    <option value="ignorar">ignorar (ruido, hablante irrelevante)</option>
-                  </select>
-                  <label className="row detail" style={{ gap: 6 }}>
-                    <input type="checkbox" checked={!!guardar[h.id]} onChange={(e) => setGuardar({ ...guardar, [h.id]: e.target.checked })} />
-                    guardar su voz para próximas reuniones</label>
-                </div>
-              </div>
-            ))}
-            {trans.hablantes.some((h) => h.conocido) && (
-              <span className="detail">Ya nombrados por sus voces guardadas: {trans.hablantes.filter((h) => h.conocido).map((h) => h.id).join(", ")}.</span>)}
-            <div><button className="btn btn--primary" onClick={etiquetar} disabled={etiquetando}>
-              {etiquetando ? <><span className="spinner" />Etiquetando…</> : "Etiquetar y volcar a Instrucciones"}</button></div>
-          </div>
-        )}
         {trans && trans.voces.length > 0 && (
           <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
             <span className="detail">Voces del informe:</span>
@@ -198,10 +189,18 @@ export const Reunion = () => {
           </div>
         )}
       </div>
-      {anteriores.length > 0 && (
+      {(trans?.hay_transcripcion || anteriores.length > 0) && (
         <div className="stack">
           <span className="section-title">Actas y transcripciones</span>
           <table className="table"><tbody>
+            {trans?.hay_transcripcion && (
+              <tr key={ACTUAL} data-clickable onClick={() => setAbierta(abierta === ACTUAL ? null : ACTUAL)}>
+                <td className="detail">{trans.fecha.slice(0, 16).replace("T", " ")}</td>
+                <td><span className="label label--dark">Voces</span> {trans.origen}
+                  <span className="detail">{trans.etiquetada ? " · etiquetada y volcada a Instrucciones" : " · pendiente de nombrar hablantes"}</span></td>
+                <td style={{ textAlign: "right" }} />
+              </tr>
+            )}
             {anteriores.map((r) => (
               <tr key={r.nombre} data-clickable onClick={() => setAbierta(abierta === r.nombre ? null : r.nombre)}>
                 <td className="detail">{r.fecha}</td>
@@ -218,7 +217,47 @@ export const Reunion = () => {
               </tr>
             ))}
           </tbody></table>
-          {abierta && <div className="panel"><Markdown texto={anteriores.find((r) => r.nombre === abierta)?.markdown ?? ""} /></div>}
+          {abierta === ACTUAL && trans && (
+            <div className="panel stack">
+              {!trans.etiquetada && (
+                <div className="stack">
+                  <span className="detail">Escucha el clip de cada hablante y ponle nombre (o márcalo como fusión/ignorar). El borrador
+                    se guarda solo: puedes actualizar la página o seguir otro día, y también terminar desde la consola
+                    (entrada/audio/hablantes.md). Al pulsar «Etiquetar» la conversación se vuelca a Instrucciones.</span>
+                  {trans.hablantes.filter((h) => !h.conocido).map((h) => (
+                    <div key={h.id} className="panel" style={{ gap: 8 }}>
+                      <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                        <span className="label label--dark">{h.id}</span>
+                        <audio controls preload="none" style={{ height: 30 }} src={`/api/expedientes/${encodeURIComponent(ref)}/audio/hablantes/${h.clip}`} />
+                        <span className="detail">{Math.round(h.segundos)} s de habla</span>
+                      </div>
+                      <span className="detail">«{h.muestra}»</span>
+                      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                        <input className="input" style={{ maxWidth: 240 }} placeholder="Nombre" value={asig[h.id]?.nombre ?? ""}
+                          onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: e.target.value, accion: asig[h.id]?.accion ?? "" } })} />
+                        <select className="input" style={{ maxWidth: 260 }} value={asig[h.id]?.accion ?? ""}
+                          onChange={(e) => setAsig({ ...asig, [h.id]: { nombre: asig[h.id]?.nombre ?? "", accion: e.target.value } })}>
+                          <option value="">usar con este nombre</option>
+                          {trans.hablantes.filter((o) => o.id !== h.id && !o.conocido).map((o) => (
+                            <option key={o.id} value={`fusionar con ${o.id}`}>es la misma persona que {o.id}</option>))}
+                          <option value="ignorar">ignorar (ruido, hablante irrelevante)</option>
+                        </select>
+                        <label className="row detail" style={{ gap: 6 }}>
+                          <input type="checkbox" checked={!!guardar[h.id]} onChange={(e) => setGuardar({ ...guardar, [h.id]: e.target.checked })} />
+                          guardar su voz para próximas reuniones</label>
+                      </div>
+                    </div>
+                  ))}
+                  {trans.hablantes.some((h) => h.conocido) && (
+                    <span className="detail">Ya nombrados por sus voces guardadas: {trans.hablantes.filter((h) => h.conocido).map((h) => h.id).join(", ")}.</span>)}
+                  <div><button className="btn btn--primary" onClick={etiquetar} disabled={etiquetando}>
+                    {etiquetando ? <><span className="spinner" />Etiquetando…</> : "Etiquetar y volcar a Instrucciones"}</button></div>
+                </div>
+              )}
+              <Markdown texto={trans.markdown} />
+            </div>
+          )}
+          {abierta && abierta !== ACTUAL && <div className="panel"><Markdown texto={anteriores.find((r) => r.nombre === abierta)?.markdown ?? ""} /></div>}
         </div>
       )}
     </div>

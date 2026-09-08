@@ -486,40 +486,57 @@ def _resolver(ident: str, mapa: dict[str, tuple[str, str]], profundidad: int = 0
                           "pon un nombre, «fusionar con SPEAKER_XX» o «ignorar».")
 
 
-def aplicar_asignaciones(exp: Expediente, asignaciones: dict) -> None:
+def aplicar_asignaciones(exp: Expediente, asignaciones: dict, guardar_voces: list[str] | None = None) -> None:
     """Escribe en hablantes.md las asignaciones {SPEAKER_XX: {nombre, accion}} que llegan
-    de la interfaz web (misma fuente de verdad que el flujo manual)."""
+    de la interfaz web (misma fuente de verdad que el flujo manual). Si se pasa
+    `guardar_voces` (ids de hablante marcados «guardar su voz»), la preferencia se apunta
+    en meta.json: así el borrador completo sobrevive a un refresco del navegador."""
     ruta = dir_audio(exp) / "hablantes.md"
-    if not ruta.exists():
-        return
-    lineas = []
-    for linea in ruta.read_text(encoding="utf-8").splitlines():
-        m = _RE_FILA.match(linea)
-        if m and m.group(1) in asignaciones:
-            a = asignaciones[m.group(1)] or {}
-            partes = linea.split("|")
-            partes[4] = f" {(a.get('nombre') or '').strip()} "
-            partes[5] = f" {(a.get('accion') or '').strip()} "
-            linea = "|".join(partes)
-        lineas.append(linea)
-    ruta.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+    if ruta.exists():
+        lineas = []
+        for linea in ruta.read_text(encoding="utf-8").splitlines():
+            m = _RE_FILA.match(linea)
+            if m and m.group(1) in asignaciones:
+                a = asignaciones[m.group(1)] or {}
+                partes = linea.split("|")
+                partes[4] = f" {(a.get('nombre') or '').strip()} "
+                partes[5] = f" {(a.get('accion') or '').strip()} "
+                linea = "|".join(partes)
+            lineas.append(linea)
+        ruta.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+    meta_ruta = dir_audio(exp) / "hablantes" / "meta.json"
+    if guardar_voces is not None and meta_ruta.exists():
+        meta = json.loads(meta_ruta.read_text(encoding="utf-8"))
+        meta["guardar_borrador"] = sorted(guardar_voces)
+        meta_ruta.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def estado_transcripcion(exp: Expediente) -> dict:
-    """Para la web: hablantes de la transcripción actual (con clip y muestra), si está
-    etiquetada, y las voces guardadas del expediente."""
+    """Para la web: hablantes de la transcripción actual (con clip, muestra y el borrador
+    de nombres/acciones ya escrito en hablantes.md), si está etiquetada, el texto completo
+    de la transcripción y las voces guardadas del expediente."""
     base = dir_audio(exp)
     meta_ruta = base / "hablantes" / "meta.json"
     cruda = base / "transcripcion_cruda.md"
     salida = {"hay_transcripcion": cruda.exists(), "etiquetada": False, "origen": "", "fecha": "",
-              "duracion_s": 0, "hablantes": [], "voces": []}
+              "duracion_s": 0, "markdown": "", "hablantes": [], "voces": []}
     if cruda.exists():
-        salida["etiquetada"] = cruda.read_text(encoding="utf-8")[:40].startswith("> Etiquetada")
+        salida["markdown"] = cruda.read_text(encoding="utf-8")
+        salida["etiquetada"] = salida["markdown"][:40].startswith("> Etiquetada")
+    borrador: dict[str, tuple[str, str]] = {}
+    if (base / "hablantes.md").exists():
+        for linea in (base / "hablantes.md").read_text(encoding="utf-8").splitlines():
+            m = _RE_FILA.match(linea)
+            if m:
+                borrador[m.group(1)] = (m.group(2).strip(), m.group(3).strip())
     if meta_ruta.exists():
         meta = json.loads(meta_ruta.read_text(encoding="utf-8"))
         salida.update(origen=meta.get("origen", ""), fecha=meta.get("fecha", ""), duracion_s=meta.get("duracion_s", 0))
+        con_voz = set(meta.get("guardar_borrador", []))
         salida["hablantes"] = [{"id": ident, "clip": d.get("clip", ""), "muestra": d.get("muestra", ""),
-                                "segundos": d.get("segundos", 0), "conocido": bool(d.get("conocido"))}
+                                "segundos": d.get("segundos", 0), "conocido": bool(d.get("conocido")),
+                                "nombre": borrador.get(ident, ("", ""))[0], "accion": borrador.get(ident, ("", ""))[1],
+                                "guardar": ident in con_voz}
                                for ident, d in meta.get("hablantes", {}).items()]
     salida["voces"] = [{"nombre": n, "segundos": d.get("segundos", 0), "origen": d.get("origen", ""), "fecha": d.get("fecha", "")}
                        for n, d in sorted(cargar_voces(exp).items(), key=lambda kv: -(kv[1].get("segundos") or 0))]
