@@ -123,10 +123,6 @@ const transcripcionMock = () => ({
   voces: vocesMock,
 });
 
-let reunionesMock: Reunion[] = [
-  { nombre: "2026-08-27_1030_transcript_reunion_teams.md", tipo: "acta", fecha: "2026-08-27 10:30", markdown: "# Acta de cambios — reunión «transcript_reunion_teams»\n\nSe revisó el borrador y se acordaron cambios." },
-  { nombre: "2026-08-27_1029_reunion_transcripcion.txt", tipo: "transcripcion", fecha: "2026-08-27 10:29", markdown: "Asistentes: Marta, Javier\n\nMarta: Repasamos el borrador…\nJavier: De acuerdo." },
-];
 
 let progresoMock: { progreso?: string; progreso_pct?: number | null; progreso_partes?: ("pendiente" | "en_curso" | "hecha" | "error")[] } = {};
 function simularPartes() {
@@ -198,6 +194,14 @@ const ACTA: Acta = {
   acuerdos_sin_cambio: ["Conformidad del área en diez días hábiles desde el envío de la versión final.", "Seguimiento en enero."],
 };
 
+let reunionesMock: Reunion[] = [
+  {
+    origen: "transcript_reunion_teams", fecha: "2026-08-27 10:30",
+    actas: [{ nombre: "2026-08-27_1030_transcript_reunion_teams.md", fecha: "2026-08-27 10:30", markdown: "# Acta de cambios — reunión «transcript_reunion_teams»\n\nSe revisó el borrador y se acordaron cambios.", datos: ACTA }],
+    transcripciones: [{ nombre: "2026-08-27_1029_transcript_reunion_teams_transcripcion.txt", fecha: "2026-08-27 10:29", markdown: "Marta: Repasamos el borrador…\nJavier: De acuerdo." }],
+  },
+];
+
 const resultadoCambios = (mensaje: string): ResultadoCambios => ({
   plan: [
     { seccion: "### 1. Mantenimiento manual y desactualización del maestro de tarifas", motivo: mensaje, estado: "aplicado", detalle: "" },
@@ -261,12 +265,21 @@ export const clienteMock: Api = {
   etiquetar: (_ref, _asignaciones, guardarVoces) => job("etiquetar", () => {
     etiquetadaMock = true;
     vocesMock = guardarVoces.map((n) => ({ nombre: n, segundos: 15, origen: "reunion.mp4", fecha: "2026-09-07" }));
-    reunionesMock = [{ nombre: "2026-09-07_1005_reunion_transcripcion.txt", tipo: "transcripcion", fecha: "2026-09-07 10:05", markdown: "Marta: Buenos días, empezamos la revisión del borrador.\nJavier: De acuerdo, me parece bien subir el riesgo." }, ...reunionesMock];
+    reunionesMock = [{
+      origen: "reunion", fecha: "2026-09-07 10:06",
+      actas: [{ nombre: "2026-09-07_1006_reunion.md", fecha: "2026-09-07 10:06", markdown: "# Acta de cambios — reunión «reunion»\n\nSe revisó el borrador.", datos: ACTA }],
+      transcripciones: [{ nombre: "2026-09-07_1005_reunion_transcripcion.txt", fecha: "2026-09-07 10:05", markdown: "Marta: Buenos días, empezamos la revisión del borrador.\nJavier: De acuerdo, me parece bien subir el riesgo." }],
+    }, ...reunionesMock];
     return { mensaje: "7 intervenciones de 2 hablante(s). Transcripción etiquetada: reuniones/2026-09-07_1005_reunion_transcripcion.txt\n\nActa: reuniones/2026-09-07_1006_reunion.md", resultado: { ...ACTA, ...transcripcionMock() } };
   }, 3000),
   borrarVoz: async (_ref, nombre) => { vocesMock = vocesMock.filter((v) => v.nombre !== nombre); return transcripcionMock(); },
   reuniones: async () => reunionesMock,
-  borrarReunion: async (_ref, nombre) => { reunionesMock = reunionesMock.filter((r) => r.nombre !== nombre); return reunionesMock; },
+  borrarReunion: async (_ref, nombre) => {
+    reunionesMock = reunionesMock
+      .map((r) => ({ ...r, actas: r.actas.filter((a) => a.nombre !== nombre), transcripciones: r.transcripciones.filter((t) => t.nombre !== nombre) }))
+      .filter((r) => r.actas.length + r.transcripciones.length > 0);
+    return reunionesMock;
+  },
   ppt: async () => { await espera(800); return { nombre: "ResumenEjecutivo_TEC-2026.pptx", url: "#" }; },
   archivar: async () => { await espera(800); return { nombre: "TEC-2026_archivo_20260827-1100.zip", url: "#" }; },
   trazas: async () => trazas,

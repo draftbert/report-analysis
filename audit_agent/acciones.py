@@ -1246,7 +1246,9 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
         raise
 
     marca = datetime.now()
-    acta = exp.ruta / "reuniones" / f"{marca:%Y-%m-%d_%H%M}_{ruta.stem[:40]}.md"
+    # nombre limpio: sin el prefijo de fecha ni el sufijo _transcripcion de un txt ya guardado en reuniones/
+    stem_limpio = re.sub(r"_transcripcion$", "", re.sub(r"^\d{4}-\d{2}-\d{2}_\d{4}_", "", ruta.stem)) or ruta.stem
+    acta = exp.ruta / "reuniones" / f"{marca:%Y-%m-%d_%H%M}_{stem_limpio[:40]}.md"
     transcripcion_previa = ULTIMO_RESULTADO.get("transcripcion")
     fallidas_previas = ULTIMO_RESULTADO.get("partes_fallidas")
     ULTIMO_RESULTADO.clear()
@@ -1274,6 +1276,10 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
     L += ["", f"## Pendientes de dato o confirmación ({len(res.pendientes)})", ""] + ([f"- {x}" for x in res.pendientes] or ["(ninguno)"])
     L += ["", f"## Acuerdos que no cambian el informe ({len(res.acuerdos_sin_cambio)})", ""] + ([f"- {x}" for x in res.acuerdos_sin_cambio] or ["(ninguno)"])
     acta.write_text("\n".join(L) + "\n", encoding="utf-8")
+    # estructura del acta junto al .md: la web la renderiza como tarjetas (no aparece en el listado)
+    acta.with_suffix(".json").write_text(json.dumps(
+        {**res.model_dump(), "transcripcion": ULTIMO_RESULTADO.get("transcripcion")},
+        ensure_ascii=False, indent=2), encoding="utf-8")
 
     if res.cambios_texto:
         bloque = [f"\nReunión «{ruta.stem}» ({marca:%d/%m/%Y}) — instrucciones detectadas por el sistema; borra o edita las que no procedan:"]

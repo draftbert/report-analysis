@@ -3,18 +3,75 @@ import { useParams } from "react-router-dom";
 
 import { api, esperarJob } from "@/api";
 import type { Acta, Job, Reunion as ReunionT, Transcripcion } from "@/api";
-import { ChevronDown, ChevronUp, Info, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Info, Trash2 } from "lucide-react";
 
-import { Dropzone, JobButton, JobResult, Markdown, Modal, useNotificar } from "@/components/ui";
+import { Dropzone, JobButton, JobResult, Markdown, useNotificar } from "@/components/ui";
 import type { JobResultado } from "@/components/ui";
 import { useEstado } from "@/layout/layout";
 
 const esAudio = (f: File | null) => /\.(mp3|wav|m4a|webm|ogg|oga|flac|mp4|mpga|mov|mkv|avi|m4v|wmv|mpe?g)$/i.test(f?.name ?? "");
-const ACTUAL = "__transcripcion_actual__";   // fila del listado que representa la transcripción con voces
+const ACTUAL = "__transcripcion_actual__";   // ítem del listado que representa la transcripción con voces
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 const AYUDA_ANALIZAR = "Transcribe el audio (o usa la transcripción) y extrae los cambios para el informe en un solo paso.";
 const AYUDA_TRANSCRIBIR = "Solo transcribe e identifica las voces; tú les pones nombre y, al etiquetar, se genera el acta y los cambios van a Instrucciones (Informe → Instrucciones → Aplicar cambios).";
+
+/** El acta como contenido principal: resumen + tarjetas de cambios (seleccionables y
+ *  aplicables con la mecánica de correcciones de siempre), PPT, pendientes y acuerdos. */
+const ActaView = ({ refExp, acta, ocultarAplicar }: { refExp: string; acta: Acta; ocultarAplicar?: boolean }) => {
+  const { recargar } = useEstado();
+  const notificar = useNotificar();
+  const [sel, setSel] = useState<boolean[]>(acta.cambios_texto.map(() => true));
+  const [aplicando, setAplicando] = useState(false);
+  const [resultado, setResultado] = useState<JobResultado | null>(null);
+
+  const aplicarSeleccion = async () => {
+    const instrucciones = acta.cambios_texto.filter((_, i) => sel[i]).map((c) => `- ${c.instruccion}${c.solicitado_por ? ` [${c.solicitado_por}]` : ""}`).join("\n");
+    if (!instrucciones) { notificar({ texto: "No hay cambios seleccionados." }); return; }
+    setAplicando(true);
+    try {
+      await api.guardarInstrucciones(refExp, instrucciones);
+      const { job_id } = await api.aplicarCambios(refExp, false);
+      const j = await esperarJob(job_id);
+      setResultado({ estado: j.estado === "ok" ? "ok" : "error", mensaje: j.mensaje, resultado: j.resultado });
+      recargar();
+    } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
+    finally { setAplicando(false); }
+  };
+
+  return (
+    <div className="stack">
+      <div className="panel panel--muted"><span className="section-title">Resumen de la reunión</span><span className="body">{acta.resumen}</span></div>
+      <span className="section-title">Cambios en el texto del informe ({acta.cambios_texto.length})</span>
+      {acta.cambios_texto.length === 0 && <span className="detail">Ninguno.</span>}
+      {acta.cambios_texto.map((c, i) => (
+        <label key={i} className="acta-card">
+          <input type="checkbox" checked={!!sel[i]} onChange={(e) => setSel(sel.map((s, k) => (k === i ? e.target.checked : s)))} />
+          <div className="acta-card__body">
+            <span className="label label--dark">{c.seccion}{c.solicitado_por ? ` · pide: ${c.solicitado_por}` : ""}</span>
+            <span className="body">{c.que_cambiar}</span>
+            <span className="detail">Instrucción: {c.instruccion}</span>
+            {c.cita && <span className="acta-card__cita">«{c.cita}»</span>}
+          </div>
+        </label>
+      ))}
+      {!ocultarAplicar && acta.cambios_texto.length > 0 && (
+        <div className="row row--between"><span className="detail">Las instrucciones también están en el buzón de Instrucciones del informe.</span>
+          <button className="btn btn--primary" onClick={aplicarSeleccion} disabled={aplicando}>{aplicando ? <><span className="spinner" />Aplicando…</> : "Aplicar los seleccionados"}</button></div>
+      )}
+      <JobResult r={resultado} onClose={() => setResultado(null)} />
+      <span className="section-title">Cambios en la presentación (PPT) — informativo ({acta.cambios_ppt.length})</span>
+      {acta.cambios_ppt.length === 0 && <span className="detail">Ninguno.</span>}
+      {acta.cambios_ppt.map((c, i) => (
+        <div key={i} className="acta-card acta-card--muted"><div className="acta-card__body"><span className="body">{c.que_cambiar}</span><span className="detail">{c.solicitado_por ? `Pide: ${c.solicitado_por}. ` : ""}La presentación es beta: estos cambios se ajustan a mano.</span>{c.cita && <span className="acta-card__cita">«{c.cita}»</span>}</div></div>
+      ))}
+      <span className="section-title">Pendientes de dato o confirmación ({acta.pendientes.length})</span>
+      {acta.pendientes.length === 0 ? <span className="detail">Ninguno.</span> : acta.pendientes.map((p, i) => <div key={i} className="acta-card"><span className="body">• {p}</span></div>)}
+      <span className="section-title">Acuerdos que no cambian el informe ({acta.acuerdos_sin_cambio.length})</span>
+      {acta.acuerdos_sin_cambio.length === 0 ? <span className="detail">Ninguno.</span> : acta.acuerdos_sin_cambio.map((p, i) => <div key={i} className="detail">• {p}</div>)}
+    </div>
+  );
+};
 
 export const Reunion = () => {
   const { ref = "" } = useParams();
@@ -26,7 +83,6 @@ export const Reunion = () => {
   const [avance, setAvance] = useState<Job<Acta> | null>(null);
   const [aplicar, setAplicar] = useState(false);
   const [acta, setActa] = useState<Acta | null>(null);
-  const [sel, setSel] = useState<boolean[]>([]);
   const [resultado, setResultado] = useState<JobResultado | null>(null);
   const [anteriores, setAnteriores] = useState<ReunionT[]>([]);
   const [trans, setTrans] = useState<Transcripcion | null>(null);
@@ -34,7 +90,6 @@ export const Reunion = () => {
   const [guardar, setGuardar] = useState<Record<string, boolean>>({});
   const [etiquetando, setEtiquetando] = useState(false);
   const [abierta, setAbierta] = useState<string | null>(null);
-  const [aplicando, setAplicando] = useState(false);
   const [ayuda, setAyuda] = useState(false);
   // El borrador vive en el servidor (hablantes.md + meta.json): al adoptar el estado se
   // precargan nombres/acciones/casillas y `ultimoBorrador` evita autoguardados de más.
@@ -47,7 +102,8 @@ export const Reunion = () => {
     ultimoBorrador.current = JSON.stringify([a, g]);
   };
   const cargarTrans = () => api.transcripcion(ref).then(adoptar).catch(() => setTrans(null));
-  useEffect(() => { api.reuniones(ref).then(setAnteriores).catch(() => setAnteriores([])); }, [ref, acta]);
+  const cargarReuniones = () => api.reuniones(ref).then(setAnteriores).catch(() => setAnteriores([]));
+  useEffect(() => { cargarReuniones(); }, [ref, acta]);
   useEffect(() => { cargarTrans(); }, [ref]);
   useEffect(() => {
     if (!trans?.hay_transcripcion || trans.etiquetada || ultimoBorrador.current === null) return;
@@ -70,31 +126,26 @@ export const Reunion = () => {
       setAvance(null);
       setResultado({ estado: j.estado === "ok" ? "ok" : "error", mensaje: j.mensaje, resultado: j.resultado });
       if (j.estado === "ok") {
-        if (j.resultado?.cambios_texto) { setActa(j.resultado); setSel(j.resultado.cambios_texto.map(() => true)); }
-        cargarTrans(); recargar();
-        api.reuniones(ref).then(setAnteriores).catch(() => {});
+        if (j.resultado?.cambios_texto) setActa(j.resultado);
+        cargarTrans(); recargar(); cargarReuniones();
       } else notificar({ texto: j.mensaje, error: true });
     } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
     finally { setEtiquetando(false); }
   };
 
-  const aplicarSeleccion = async () => {
-    if (!acta) return;
-    const instrucciones = acta.cambios_texto.filter((_, i) => sel[i]).map((c) => `- ${c.instruccion}${c.solicitado_por ? ` [${c.solicitado_por}]` : ""}`).join("\n");
-    if (!instrucciones) { notificar({ texto: "No hay cambios seleccionados." }); return; }
-    setAplicando(true);
+  const eliminarFicheros = async (nombres: string[], etiquetaConfirm: string) => {
+    if (!window.confirm(`¿Eliminar ${etiquetaConfirm}? No se puede deshacer.\n\n${nombres.join("\n")}`)) return;
     try {
-      await api.guardarInstrucciones(ref, instrucciones);
-      const { job_id } = await api.aplicarCambios(ref, false);
-      const j = await esperarJob(job_id);
-      setResultado({ estado: j.estado === "ok" ? "ok" : "error", mensaje: j.mensaje, resultado: j.resultado });
-      recargar();
-    } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
-    finally { setAplicando(false); }
+      let lista = anteriores;
+      for (const n of nombres) lista = await api.borrarReunion(ref, n);
+      setAnteriores(lista);
+      if (abierta && !lista.some((r) => r.origen === abierta)) setAbierta(null);
+      notificar({ texto: `${nombres.length} fichero(s) eliminado(s).` });
+    } catch (err) { notificar({ texto: (err as Error).message, error: true }); }
   };
 
   const pendiente = !!trans?.hay_transcripcion && !trans.etiquetada;
-  const detalle = abierta && abierta !== ACTUAL ? anteriores.find((r) => r.nombre === abierta) : undefined;
+  const item = abierta && abierta !== ACTUAL ? anteriores.find((r) => r.origen === abierta) : undefined;
 
   return (
     <div className="page">
@@ -110,7 +161,7 @@ export const Reunion = () => {
           <span className="accion-hint" title={AYUDA_ANALIZAR}>
             <JobButton<Acta> primario etiqueta="Analizar reunión" disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, esAudio(fichero) ? hablantes : [], (pct) => setSubida(pct < 100 ? pct : null)); }}
               onTick={setAvance}
-              onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); setSel(r.resultado.cambios_texto.map(() => true)); recargar(); } }} />
+              onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); recargar(); } }} />
             <Info size={14} strokeWidth={1.5} aria-label={AYUDA_ANALIZAR} />
           </span>
           <span className="accion-hint" title={AYUDA_TRANSCRIBIR}>
@@ -125,7 +176,7 @@ export const Reunion = () => {
       {ayuda && (
         <div className="panel panel--muted stack">
           <span className="detail"><strong>Analizar reunión.</strong> Pasa la transcripción de Teams o el audio de la reunión (se transcribe con el modelo). El sistema separa lo que cambia el texto del informe de lo que afecta al PPT, y lo que queda pendiente de dato.</span>
-          <span className="detail"><strong>Qué se puede subir.</strong> Transcripción de Teams (.txt, .docx, .vtt) o grabación de audio o vídeo (.mp3, .wav, .m4a, .mp4, .mov, .webm…; del vídeo se extrae solo el audio) de la revisión con el Gerente, la Directora o el área.</span>
+          <span className="detail"><strong>Qué se puede subir.</strong> Transcripción de Teams (.txt, .docx, .vtt) o grabación de audio o vídeo (.mp3, .wav, .m4a, .mp4, .mov, .webm…; del vídeo se extrae solo el audio) de la revisión con el Gerente, la Directora o el área. Puedes subir tantas reuniones como necesites: cada una queda abajo como un ítem con su acta y su transcripción.</span>
           <span className="detail"><strong>Transcribir y nombrar.</strong> Alternativa al análisis directo: transcribe el audio con hablantes anónimos y, al terminar, aparece una tarjeta para escuchar el clip de cada hablante y ponerle nombre. Al etiquetar, la conversación se analiza como una reunión: acta con quién pide cada cosa y cambios detectados a Instrucciones (Informe → Instrucciones → Aplicar cambios). Lo que escribas se guarda como borrador (sobrevive a recargar la página). Las voces que guardes se usan en la siguiente reunión de ESTE informe y se destruyen al archivar.</span>
         </div>
       )}
@@ -178,32 +229,9 @@ export const Reunion = () => {
       <JobResult r={resultado} onClose={() => setResultado(null)} />
       {acta && (
         <div className="stack">
-          <div className="panel panel--muted"><span className="section-title">Resumen de la reunión</span><span className="body">{acta.resumen}</span></div>
-          <span className="section-title">Cambios en el texto del informe ({acta.cambios_texto.length})</span>
-          {acta.cambios_texto.map((c, i) => (
-            <label key={i} className="acta-card">
-              <input type="checkbox" checked={!!sel[i]} onChange={(e) => setSel(sel.map((s, k) => (k === i ? e.target.checked : s)))} />
-              <div className="acta-card__body">
-                <span className="label label--dark">{c.seccion}{c.solicitado_por ? ` · pide: ${c.solicitado_por}` : ""}</span>
-                <span className="body">{c.que_cambiar}</span>
-                <span className="detail">Instrucción: {c.instruccion}</span>
-                {c.cita && <span className="acta-card__cita">«{c.cita}»</span>}
-              </div>
-            </label>
-          ))}
-          {!aplicar && acta.cambios_texto.length > 0 && (
-            <div className="row row--between"><span className="detail">Las instrucciones también están en el buzón de Instrucciones del informe.</span>
-              <button className="btn btn--primary" onClick={aplicarSeleccion} disabled={aplicando}>{aplicando ? <><span className="spinner" />Aplicando…</> : "Aplicar los seleccionados"}</button></div>
-          )}
-          <span className="section-title">Cambios en la presentación (PPT) — informativo ({acta.cambios_ppt.length})</span>
-          {acta.cambios_ppt.length === 0 && <span className="detail">Ninguno.</span>}
-          {acta.cambios_ppt.map((c, i) => (
-            <div key={i} className="acta-card acta-card--muted"><div className="acta-card__body"><span className="body">{c.que_cambiar}</span><span className="detail">{c.solicitado_por ? `Pide: ${c.solicitado_por}. ` : ""}La presentación es beta: estos cambios se ajustan a mano.</span>{c.cita && <span className="acta-card__cita">«{c.cita}»</span>}</div></div>
-          ))}
-          <span className="section-title">Pendientes de dato o confirmación ({acta.pendientes.length})</span>
-          {acta.pendientes.length === 0 ? <span className="detail">Ninguno.</span> : acta.pendientes.map((p, i) => <div key={i} className="acta-card"><span className="body">• {p}</span></div>)}
-          <span className="section-title">Acuerdos que no cambian el informe ({acta.acuerdos_sin_cambio.length})</span>
-          {acta.acuerdos_sin_cambio.length === 0 ? <span className="detail">Ninguno.</span> : acta.acuerdos_sin_cambio.map((p, i) => <div key={i} className="detail">• {p}</div>)}
+          <div className="row row--between"><span className="section-title">Resultado del análisis</span>
+            <button className="btn btn--ghost btn--small" onClick={() => setActa(null)}>Cerrar</button></div>
+          <ActaView refExp={ref} acta={acta} ocultarAplicar={aplicar} />
         </div>
       )}
 
@@ -257,31 +285,32 @@ export const Reunion = () => {
         </div>
       )}
 
-      {/* 4 ─ lista y panel de detalle */}
-      {(trans?.hay_transcripcion || anteriores.length > 0) && (
+      {/* 4 ─ reuniones del informe: vista general de ítems o detalle de uno */}
+      {(trans?.hay_transcripcion || anteriores.length > 0) && !abierta && (
         <div className="stack">
-          <span className="section-title">Actas y transcripciones</span>
+          <span className="section-title">Reuniones de este informe</span>
           <table className="table"><tbody>
             {trans?.hay_transcripcion && (
-              <tr key={ACTUAL} data-clickable onClick={() => setAbierta(abierta === ACTUAL ? null : ACTUAL)}>
+              <tr key={ACTUAL} data-clickable onClick={() => setAbierta(ACTUAL)}>
                 <td className="detail">{trans.fecha.slice(0, 16).replace("T", " ")}</td>
                 <td><span className="label label--dark">Voces</span> {trans.origen}
-                  <span className="detail">{trans.etiquetada ? " · etiquetada y volcada a Instrucciones" : " · pendiente de nombrar hablantes"}</span></td>
+                  <span className="detail">{trans.etiquetada ? " · etiquetada" : " · pendiente de nombrar hablantes"}</span></td>
                 <td style={{ textAlign: "right" }} />
               </tr>
             )}
             {anteriores.map((r) => (
-              <tr key={r.nombre} data-clickable onClick={() => setAbierta(abierta === r.nombre ? null : r.nombre)}>
+              <tr key={r.origen} data-clickable onClick={() => setAbierta(r.origen)}>
                 <td className="detail">{r.fecha}</td>
-                <td><span className="label">{r.tipo === "acta" ? "Acta" : "Transcripción"}</span> {r.nombre}</td>
+                <td>
+                  <span className="body">{r.origen.replace(/_/g, " ")}</span>{" "}
+                  {r.actas.length > 0 && <span className="tag">Acta{r.actas.length > 1 ? ` ×${r.actas.length}` : ""}</span>}{" "}
+                  {r.transcripciones.length > 0 && <span className="tag">Transcripción{r.transcripciones.length > 1 ? ` ×${r.transcripciones.length}` : ""}</span>}{" "}
+                  {r.actas[0]?.datos && <span className="detail">{r.actas[0].datos.cambios_texto.length} cambio(s) de texto · {r.actas[0].datos.pendientes.length} pendiente(s)</span>}
+                </td>
                 <td style={{ textAlign: "right" }}>
-                  <button className="btn btn--ghost btn--small" aria-label={`Eliminar ${r.nombre}`}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      if (!window.confirm(`¿Eliminar ${r.tipo === "acta" ? "el acta" : "la transcripción"} «${r.nombre}»? No se puede deshacer.`)) return;
-                      try { setAnteriores(await api.borrarReunion(ref, r.nombre)); if (abierta === r.nombre) setAbierta(null); notificar({ texto: `${r.nombre} eliminado.` }); }
-                      catch (err) { notificar({ texto: (err as Error).message, error: true }); }
-                    }}><Trash2 size={14} strokeWidth={1.5} />Eliminar</button>
+                  <button className="btn btn--ghost btn--small" aria-label={`Eliminar la reunión ${r.origen}`}
+                    onClick={(e) => { e.stopPropagation(); eliminarFicheros([...r.actas.map((a) => a.nombre), ...r.transcripciones.map((t) => t.nombre)], `la reunión «${r.origen.replace(/_/g, " ")}» (acta y transcripciones)`); }}>
+                    <Trash2 size={14} strokeWidth={1.5} />Eliminar</button>
                 </td>
               </tr>
             ))}
@@ -289,17 +318,46 @@ export const Reunion = () => {
         </div>
       )}
       {abierta === ACTUAL && trans && (
-        <Modal titulo={trans.origen} onClose={() => setAbierta(null)}>
-          <span className="detail">{trans.fecha.slice(0, 16).replace("T", " ")} · duración {mmss(trans.duracion_s)} · {trans.hablantes.length} hablante(s) relevante(s)
-            {trans.etiquetada ? " · etiquetada y volcada a Instrucciones" : " · pendiente de nombrar hablantes (la tarjeta de arriba)"}</span>
+        <div className="stack">
+          <div className="row">
+            <button className="btn btn--ghost btn--small" onClick={() => setAbierta(null)}><ArrowLeft size={14} strokeWidth={1.5} />Todas las reuniones</button>
+            <span className="section-title">{trans.origen}</span>
+            <span className="detail">{trans.fecha.slice(0, 16).replace("T", " ")} · duración {mmss(trans.duracion_s)} · {trans.hablantes.length} hablante(s) relevante(s)
+              {trans.etiquetada ? " · etiquetada" : " · pendiente de nombrar hablantes (la tarjeta de arriba)"}</span>
+          </div>
           <div className="visor"><Markdown texto={trans.markdown} /></div>
-        </Modal>
+        </div>
       )}
-      {detalle && (
-        <Modal titulo={detalle.nombre} onClose={() => setAbierta(null)}>
-          <span className="detail">{detalle.fecha} · {detalle.tipo === "acta" ? "Acta" : "Transcripción"}</span>
-          <div className="visor"><Markdown texto={detalle.markdown} /></div>
-        </Modal>
+      {item && (
+        <div className="stack">
+          <div className="row">
+            <button className="btn btn--ghost btn--small" onClick={() => setAbierta(null)}><ArrowLeft size={14} strokeWidth={1.5} />Todas las reuniones</button>
+            <span className="section-title">{item.origen.replace(/_/g, " ")}</span>
+            <span className="detail">{item.fecha}</span>
+          </div>
+          {item.actas.length === 0 && (
+            <span className="detail">Esta reunión aún no tiene acta: solo transcripción (abajo). Para generar el acta, sube el fichero de la transcripción con «Analizar reunión».</span>
+          )}
+          {item.actas[0] && (
+            item.actas[0].datos
+              ? <ActaView key={item.actas[0].nombre} refExp={ref} acta={item.actas[0].datos} />
+              : <div className="stack"><span className="section-title">Acta ({item.actas[0].fecha})</span><Markdown texto={item.actas[0].markdown} /></div>
+          )}
+          {item.actas.slice(1).map((a) => (
+            <div key={a.nombre} className="stack">
+              <div className="row row--between"><span className="section-title">Acta anterior de esta reunión ({a.fecha})</span>
+                <button className="btn btn--ghost btn--small" onClick={() => eliminarFicheros([a.nombre], `el acta «${a.nombre}»`)}><Trash2 size={14} strokeWidth={1.5} />Eliminar</button></div>
+              <div className="visor"><Markdown texto={a.markdown} /></div>
+            </div>
+          ))}
+          {item.transcripciones.map((t) => (
+            <div key={t.nombre} className="stack">
+              <div className="row row--between"><span className="section-title">Transcripción ({t.fecha})</span>
+                <button className="btn btn--ghost btn--small" onClick={() => eliminarFicheros([t.nombre], `la transcripción «${t.nombre}»`)}><Trash2 size={14} strokeWidth={1.5} />Eliminar</button></div>
+              <div className="visor"><Markdown texto={t.markdown} /></div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

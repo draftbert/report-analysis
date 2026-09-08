@@ -673,9 +673,21 @@ def cambios(ref: str):
     return {"markdown": _exp(ref).leer("cambios")}
 
 
+def _clave_reunion(nombre: str) -> str:
+    """Clave de agrupación de un fichero de reuniones/: sin prefijos de fecha ni sufijo
+    _transcripcion, en minúsculas. Acta y transcripción del mismo origen comparten raíz."""
+    s = Path(nombre).stem
+    while re.match(r"^\d{4}-\d{2}-\d{2}_\d{4}_", s):
+        s = s[16:]
+    s = re.sub(r"_transcripcion$", "", s, flags=re.I)
+    return s.lower() or Path(nombre).stem.lower()
+
+
 def _listar_reuniones(exp: Expediente) -> list[dict]:
-    """Actas (.md) y transcripciones (.txt/.vtt/.docx) de reuniones/, más recientes primero."""
-    salida = []
+    """Reuniones agrupadas por origen, más recientes primero: cada ítem junta el acta
+    (con su estructura .json si existe: la web la pinta como tarjetas) y sus
+    transcripciones. Ficheros de origen distinto = ítems distintos."""
+    items: list[dict] = []
     for p in sorted((exp.ruta / "reuniones").glob("*"), reverse=True):
         ext = p.suffix.lower()
         if ext == ".md":
@@ -686,8 +698,26 @@ def _listar_reuniones(exp: Expediente) -> list[dict]:
             tipo, contenido = "transcripcion", "_(documento Word)_"
         else:
             continue
-        salida.append({"nombre": p.name, "tipo": tipo, "fecha": p.name[:16].replace("_", " "), "markdown": contenido})
-    return salida
+        clave = _clave_reunion(p.name)
+        item = next((i for i in items if i["_clave"].startswith(clave) or clave.startswith(i["_clave"])), None)
+        if item is None:
+            item = {"_clave": clave, "origen": clave, "fecha": p.name[:16].replace("_", " "), "actas": [], "transcripciones": []}
+            items.append(item)
+        item["_clave"] = min(item["_clave"], clave, key=len)
+        item["origen"] = item["_clave"]
+        if tipo == "acta":
+            datos = None
+            if p.with_suffix(".json").exists():
+                try:
+                    datos = json.loads(p.with_suffix(".json").read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    datos = None
+            item["actas"].append({"nombre": p.name, "fecha": p.name[:16].replace("_", " "), "markdown": contenido, "datos": datos})
+        else:
+            item["transcripciones"].append({"nombre": p.name, "fecha": p.name[:16].replace("_", " "), "markdown": contenido})
+    for i in items:
+        i.pop("_clave")
+    return items
 
 
 @app.get("/api/expedientes/{ref}/reuniones")
@@ -703,6 +733,8 @@ def borrar_reunion(ref: str, nombre: str):
     if not ruta.is_file():
         raise HTTPException(404, {"error": f"No existe {Path(nombre).name} en reuniones/."})
     ruta.unlink()
+    if ruta.suffix.lower() == ".md":
+        ruta.with_suffix(".json").unlink(missing_ok=True)   # la estructura del acta va con su .md
     return _listar_reuniones(exp)
 
 

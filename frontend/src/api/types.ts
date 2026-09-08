@@ -75,13 +75,16 @@ export interface ResultadoCambios { plan: CambioPlan[]; pendientes: string[]; di
 export interface CambioTexto { seccion: string; que_cambiar: string; instruccion: string; solicitado_por: string; cita: string }
 export interface CambioPPT { que_cambiar: string; solicitado_por: string; cita: string }
 export interface Acta {
-  acta: string; resumen: string; cambios_texto: CambioTexto[]; cambios_ppt: CambioPPT[]; pendientes: string[]; acuerdos_sin_cambio: string[];
+  acta?: string; resumen: string; cambios_texto: CambioTexto[]; cambios_ppt: CambioPPT[]; pendientes: string[]; acuerdos_sin_cambio: string[];
 }
 
 export interface Job<T = unknown> { estado: "en_curso" | "ok" | "error"; accion: string; mensaje: string; resultado: T | null; progreso?: string; progreso_pct?: number | null; progreso_partes?: ("pendiente" | "en_curso" | "hecha" | "error")[] | null }
 export interface Version { fichero: string; nombre: string; fecha: string; motivo: string }
 export interface Traza { nombre: string; fecha: string; accion: string; modelo: string; error?: string | null; tokens: { prompt: number | null; completion: number | null } }
-export interface Reunion { nombre: string; tipo: "acta" | "transcripcion"; fecha: string; markdown: string }
+export interface ReunionActa { nombre: string; fecha: string; markdown: string; datos: (Acta & { transcripcion?: string | null }) | null }
+export interface ReunionTranscripcion { nombre: string; fecha: string; markdown: string }
+/** Ítem del listado de reuniones: agrupa el acta (con su estructura si existe) y las transcripciones del mismo origen. */
+export interface Reunion { origen: string; fecha: string; actas: ReunionActa[]; transcripciones: ReunionTranscripcion[] }
 export interface HablanteTranscripcion { id: string; clip: string; muestra: string; segundos: number; conocido: boolean; nombre: string; accion: string; guardar: boolean }
 export interface Transcripcion { hay_transcripcion: boolean; etiquetada: boolean; origen: string; fecha: string; duracion_s: number; markdown: string; hablantes: HablanteTranscripcion[]; voces: { nombre: string; segundos: number; origen: string; fecha: string }[] }
 export interface Descarga { nombre: string; url: string }
