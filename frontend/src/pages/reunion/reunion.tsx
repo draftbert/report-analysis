@@ -98,6 +98,7 @@ export const Reunion = () => {
   const [guardar, setGuardar] = useState<Record<string, boolean>>({});
   const [etiquetando, setEtiquetando] = useState(false);
   const [abierta, setAbierta] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [ayuda, setAyuda] = useState(false);
   // El borrador vive en el servidor (hablantes.md + meta.json): al adoptar el estado se
   // precargan nombres/acciones/casillas y `ultimoBorrador` evita autoguardados de más.
@@ -130,8 +131,9 @@ export const Reunion = () => {
     try {
       const voces = Object.entries(guardar).filter(([, v]) => v).map(([id]) => asig[id]?.nombre?.trim()).filter(Boolean) as string[];
       const { job_id } = await api.etiquetar(ref, asig, voces);
+      setJobId(job_id);
       const j = await esperarJob<Acta & Transcripcion>(job_id, (t) => setAvance(t as Job<Acta>));
-      setAvance(null);
+      setAvance(null); setJobId(null);
       setResultado({ estado: j.estado === "ok" ? "ok" : "error", mensaje: j.mensaje, resultado: j.resultado });
       if (j.estado === "ok") {
         if (j.resultado?.cambios_texto) setActa(j.resultado);
@@ -139,6 +141,12 @@ export const Reunion = () => {
       } else notificar({ texto: j.mensaje, error: true });
     } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
     finally { setEtiquetando(false); }
+  };
+
+  const detener = async () => {
+    if (!jobId || !window.confirm("¿Detener el procesamiento? Lo hecho en esta ejecución se descarta (se corta al acabar la parte en curso).")) return;
+    try { notificar({ texto: (await api.detenerJob(jobId)).mensaje }); }
+    catch (e) { notificar({ texto: (e as Error).message, error: true }); }
   };
 
   const eliminarFicheros = async (nombres: string[], etiquetaConfirm: string) => {
@@ -167,16 +175,16 @@ export const Reunion = () => {
         <div className="page__actions">
           <label className="row detail"><input type="checkbox" checked={aplicar} onChange={(e) => setAplicar(e.target.checked)} /> Aplicar directamente los cambios de texto</label>
           <span className="accion-hint" title={AYUDA_ANALIZAR}>
-            <JobButton<Acta> primario etiqueta="Analizar reunión" disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, [], (pct) => setSubida(pct < 100 ? pct : null)); }}
+            <JobButton<Acta> primario etiqueta="Analizar reunión" disabled={!fichero} lanzar={() => { setSubida(0); setAvance(null); return api.reunion(ref, fichero!, aplicar, [], (pct) => setSubida(pct < 100 ? pct : null)).then((r) => { setJobId(r.job_id); return r; }); }}
               onTick={setAvance}
-              onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); recargar(); } }} />
+              onFin={(r) => { setAvance(null); setJobId(null); setResultado(r); if (r.estado === "ok" && r.resultado) { setActa(r.resultado); recargar(); } }} />
             <Info size={14} strokeWidth={1.5} aria-label={AYUDA_ANALIZAR} />
           </span>
           <span className="accion-hint" title={AYUDA_TRANSCRIBIR}>
             <JobButton etiqueta="Transcribir y nombrar" disabled={!fichero || !esAudio(fichero)}
-              lanzar={() => { setSubida(0); return api.transcribir(ref, fichero!, (pct) => setSubida(pct < 100 ? pct : null)); }}
+              lanzar={() => { setSubida(0); return api.transcribir(ref, fichero!, (pct) => setSubida(pct < 100 ? pct : null)).then((r) => { setJobId(r.job_id); return r; }); }}
               onTick={setAvance}
-              onFin={(r) => { setAvance(null); setResultado(r); if (r.estado === "ok") { setAbierta(null); cargarTrans(); } }} />
+              onFin={(r) => { setAvance(null); setJobId(null); setResultado(r); if (r.estado === "ok") { setAbierta(null); cargarTrans(); } }} />
             <Info size={14} strokeWidth={1.5} aria-label={AYUDA_TRANSCRIBIR} />
           </span>
         </div>
@@ -219,7 +227,10 @@ export const Reunion = () => {
           {avance?.progreso && (
             <div className="stack">
               <div className="row row--between"><span className="label">{avance.progreso}</span>
-                {avance.progreso_pct != null && <span className="detail">{avance.progreso_pct} %</span>}</div>
+                <span className="row" style={{ gap: 10 }}>
+                  {avance.progreso_pct != null && <span className="detail">{avance.progreso_pct} %</span>}
+                  {jobId && <button className="btn btn--small btn--danger" onClick={detener}>Detener</button>}
+                </span></div>
               {avance.progreso_partes && avance.progreso_partes.length > 1 && (
                 <>
                   <div className="tramos" role="progressbar" aria-valuenow={avance.progreso_partes.filter((p) => p === "hecha").length} aria-valuemin={0} aria-valuemax={avance.progreso_partes.length}>
@@ -239,7 +250,10 @@ export const Reunion = () => {
       {!fichero && avance?.progreso && (
         <div className="panel stack" aria-live="polite">
           <div className="row row--between"><span className="label">{avance.progreso}</span>
-            {avance.progreso_pct != null && <span className="detail">{avance.progreso_pct} %</span>}</div>
+            <span className="row" style={{ gap: 10 }}>
+              {avance.progreso_pct != null && <span className="detail">{avance.progreso_pct} %</span>}
+              {jobId && <button className="btn btn--small btn--danger" onClick={detener}>Detener</button>}
+            </span></div>
         </div>
       )}
       <JobResult r={resultado} onClose={() => setResultado(null)} />

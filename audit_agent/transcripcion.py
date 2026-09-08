@@ -39,6 +39,12 @@ from pathlib import Path
 import yaml
 
 from .expediente import Expediente, ExpedienteError
+
+
+class Cancelado(Exception):
+    """Detención pedida por el usuario (botón «Detener» de la web). La lanza el
+    `informar` del job en el siguiente punto de control; NUNCA debe tragarse como
+    fallo de una parte."""
 from .kaia_client import EXTENSIONES_AUDIO, EXTENSIONES_VIDEO, transcribir_audio  # noqa: F401  (mockeable en tests)
 
 EXTENSIONES_AV = tuple(dict.fromkeys(EXTENSIONES_AUDIO + EXTENSIONES_VIDEO))
@@ -208,6 +214,8 @@ def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=Non
                 estados[i] = "hecha"
                 _publicar()
                 return r
+            except Cancelado:
+                raise
             except Exception as exc:  # noqa: BLE001 — el motivo se conserva por parte
                 ultimo = str(exc)
                 if intento == 1:
@@ -217,6 +225,8 @@ def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=Non
             estados[i] = "hecha"
             _publicar()
             return r
+        except Cancelado:
+            raise
         except Exception as exc:  # noqa: BLE001
             errores[i] = f"{ultimo} | en mitades: {exc}"
             estados[i] = "error"

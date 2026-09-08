@@ -277,3 +277,16 @@ def test_reunion_repetida_avisa_y_borrar_desbloquea(cliente):
     # borrar el acta olvida la huella y desbloquea la re-subida
     c.delete(f"/api/expedientes/T-H/reuniones/{listado[0]['actas'][0]['nombre']}")
     assert subir()["estado"] == "ok"
+
+
+def test_detener_job(cliente):
+    import threading
+    c, _ = cliente
+    api_mod._JOBS["j-test"] = {"estado": "en_curso", "accion": "transcribir", "mensaje": "", "resultado": None,
+                               "_cancelar": threading.Event(), "expediente": "X"}
+    r = c.post("/api/jobs/j-test/detener").json()
+    assert api_mod._JOBS["j-test"]["_cancelar"].is_set() and "Deteniendo" in r["mensaje"]
+    api_mod._JOBS["j-test"]["estado"] = "error"
+    assert "ya había terminado" in c.post("/api/jobs/j-test/detener").json()["mensaje"]
+    assert c.post("/api/jobs/nope/detener").status_code == 404
+    assert "_cancelar" not in c.get("/api/jobs/j-test").json()          # el evento no viaja al front

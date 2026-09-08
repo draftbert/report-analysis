@@ -218,6 +218,10 @@ export const clienteMock: Api = {
     const j = jobs[id] ?? { estado: "error", accion: "?", mensaje: "Trabajo desconocido", resultado: null };
     return (j.estado === "en_curso" && j.accion === "reunion" ? { ...j, ...progresoMock } : j) as Job<T>;
   },
+  detenerJob: async (id: string) => {
+    if (jobs[id]?.estado === "en_curso") { jobs[id] = { ...jobs[id], estado: "error", mensaje: "⏹ Procesamiento detenido a petición del usuario." }; return { mensaje: "Deteniendo el procesamiento: se corta en el siguiente punto de control." }; }
+    return { mensaje: "El trabajo ya había terminado." };
+  },
   documentos: async () => docs,
   subir: async (_ref, carpeta, ficheros, onProgreso) => {
     for (const f of ficheros) { for (let pct = 0; pct <= 100; pct += 20) { onProgreso?.(f.name, pct); await espera(120); } }

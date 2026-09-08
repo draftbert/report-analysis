@@ -75,13 +75,18 @@ def _checker() -> StyleChecker:
 def _job(ref: str, accion: str, fn, ctx=None) -> dict:
     """Lanza `fn()` en un hilo, en serie por expediente. Devuelve {job_id}. Si se pasa
     `ctx`, su `informar(texto, pct)` va actualizando `progreso`/`progreso_pct` del job."""
+    from .transcripcion import Cancelado
     job_id = uuid.uuid4().hex[:12]
+    cancelar = threading.Event()
     _JOBS[job_id] = {"estado": "en_curso", "accion": accion, "mensaje": "", "resultado": None,
-                     "progreso": "", "progreso_pct": None,
+                     "progreso": "", "progreso_pct": None, "_cancelar": cancelar,
                      "expediente": ref, "inicio": datetime.now().isoformat(timespec="seconds")}
     if ctx is not None:
-        ctx.informar = lambda texto, pct=None, partes=None: _JOBS[job_id].update(
-            progreso=texto, progreso_pct=pct, progreso_partes=partes)
+        def informar(texto, pct=None, partes=None):
+            if cancelar.is_set():
+                raise Cancelado()
+            _JOBS[job_id].update(progreso=texto, progreso_pct=pct, progreso_partes=partes)
+        ctx.informar = informar
 
     def correr():
         with _lock(ref):
@@ -90,6 +95,9 @@ def _job(ref: str, accion: str, fn, ctx=None) -> dict:
                 mensaje = fn()
                 _JOBS[job_id].update(estado="ok", mensaje=mensaje or "",
                                      resultado=json.loads(json.dumps(acciones.ULTIMO_RESULTADO, default=str)) or None)
+            except Cancelado:
+                _JOBS[job_id].update(estado="error", mensaje="⏹ Procesamiento detenido a petición del usuario. "
+                                     "Lo hecho en esta ejecución se ha descartado.")
             except (ExpedienteError, LLMNoDisponible, LecturaError, ValueError) as exc:
                 _JOBS[job_id].update(estado="error", mensaje=str(exc))
             except Exception as exc:  # noqa: BLE001 — el job no debe dejar al front colgado
@@ -231,6 +239,21 @@ def job(job_id: str):
     if not j:
         raise HTTPException(404, {"error": "Trabajo desconocido."})
     return {k: j.get(k) for k in ("estado", "accion", "mensaje", "resultado", "progreso", "progreso_pct", "progreso_partes")}
+
+
+@app.post("/api/jobs/{job_id}/detener")
+def detener_job(job_id: str):
+    """Pide detener un trabajo en curso: el corte llega en el siguiente punto de control
+    (entre partes de la transcripción, entre fases); una llamada al modelo ya lanzada no
+    se puede interrumpir a mitad."""
+    j = _JOBS.get(job_id)
+    if not j:
+        raise HTTPException(404, {"error": "Trabajo desconocido."})
+    if j["estado"] != "en_curso":
+        return {"mensaje": "El trabajo ya había terminado."}
+    j["_cancelar"].set()
+    j.update(progreso="Deteniendo… (se corta al acabar la parte en curso)")
+    return {"mensaje": "Deteniendo el procesamiento: se corta en el siguiente punto de control."}
 
 
 # ---------------------------------------------------------------- documentos

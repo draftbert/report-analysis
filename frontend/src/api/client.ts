@@ -69,6 +69,7 @@ export const clienteReal: Api = {
   estado: (ref) => req(e(ref)),
   eliminarExpediente: (ref, confirmacion) => req(e(ref), json({ confirmacion }, "DELETE")),
   job: (id) => req(`/jobs/${id}`),
+  detenerJob: (id) => req(`/jobs/${id}/detener`, { method: "POST" }),
   documentos: (ref) => req(`${e(ref)}/documentos`),
   subir: async (ref, carpeta, ficheros, onProgreso) => {
     let docs: Documentos | null = null;

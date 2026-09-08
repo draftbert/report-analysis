@@ -364,3 +364,24 @@ def test_transcribir_misma_grabacion_avisa_y_repetir_desbloquea(exp_audio, monke
     with pytest.raises(ExpedienteError, match="Reunión repetida"):
         accion_transcribir(exp, audio, forzar=True)
     assert "Transcripción:" in accion_transcribir(exp, audio, forzar=True, repetir=True)
+
+
+def test_cancelado_corta_entre_partes_sin_tragarse_como_fallo(monkeypatch, tmp_path):
+    """El botón «Detener» hace que informar lance Cancelado en el siguiente punto de
+    control; los try/except por parte NO deben convertirlo en «parte fallida»."""
+    if not FFMPEG:
+        pytest.skip("sin ffmpeg")
+    monkeypatch.setenv("KAIA_TRANSCRIBE_MAX_S", "4")
+    wav = tmp_path / "reunion.wav"
+    _wav(wav, 13.0)                                                    # 3 partes
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: R(S("A", 0, 3, "hola")))
+    hechas = []
+
+    def informar(texto, pct=None, partes=None):
+        if partes and partes.count("hecha") >= 1:
+            raise transcripcion.Cancelado()
+        hechas.append(texto)
+
+    (tmp_path / "tmp").mkdir()
+    with pytest.raises(transcripcion.Cancelado):
+        transcripcion.transcribir_en_partes(wav, [], tmp_path / "tmp", informar)

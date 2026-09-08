@@ -95,6 +95,8 @@ export interface Api {
   estado(ref: string): Promise<ExpedienteEstado>;
   eliminarExpediente(ref: string, confirmacion: string): Promise<{ mensaje: string }>;
   job<T = unknown>(id: string): Promise<Job<T>>;
+  /** Pide detener un trabajo en curso; el corte llega en el siguiente punto de control. */
+  detenerJob(id: string): Promise<{ mensaje: string }>;
   documentos(ref: string): Promise<Documentos>;
   /** Sube los ficheros uno a uno; `onProgreso(nombre, pct)` recibe el avance (0-100) de cada uno. */
   subir(ref: string, carpeta: "contexto" | "papeles_trabajo", ficheros: File[], onProgreso?: (nombre: string, pct: number) => void): Promise<Documentos>;
