@@ -219,7 +219,8 @@ def cmd_etiquetar(args):
             except EOFError:
                 return False
             return r in ("s", "si", "sí", "y")
-    return accion_etiquetar(_abrir(args), preguntar_guardar=preguntar)
+    ctx = _contexto(args)
+    return accion_etiquetar(ctx.exp, preguntar_guardar=preguntar, ctx=ctx)
 
 
 def cmd_voces(args):

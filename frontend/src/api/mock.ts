@@ -258,7 +258,12 @@ export const clienteMock: Api = {
   transcribir: (_ref, _f, onProgreso) => { onProgreso?.(100); return job("transcribir", () => ({ mensaje: "Transcripción: entrada/audio/transcripcion_cruda.md (10 segmentos, 00:38)", resultado: transcripcionMock() })); },
   transcripcion: async () => transcripcionMock(),
   borradorTranscripcion: async (_ref, asignaciones, guardarIds) => { borradorMock = { ...borradorMock, ...asignaciones }; guardarMock = guardarIds; return transcripcionMock(); },
-  etiquetar: async (_ref, asignaciones, guardarVoces) => { etiquetadaMock = true; vocesMock = guardarVoces.map((n) => ({ nombre: n, segundos: 15, origen: "reunion.mp4", fecha: "2026-09-07" })); return { mensaje: "7 intervenciones de 2 hablante(s) volcadas a 03_instrucciones.md.", ...transcripcionMock() }; },
+  etiquetar: (_ref, _asignaciones, guardarVoces) => job("etiquetar", () => {
+    etiquetadaMock = true;
+    vocesMock = guardarVoces.map((n) => ({ nombre: n, segundos: 15, origen: "reunion.mp4", fecha: "2026-09-07" }));
+    reunionesMock = [{ nombre: "2026-09-07_1005_reunion_transcripcion.txt", tipo: "transcripcion", fecha: "2026-09-07 10:05", markdown: "Marta: Buenos días, empezamos la revisión del borrador.\nJavier: De acuerdo, me parece bien subir el riesgo." }, ...reunionesMock];
+    return { mensaje: "7 intervenciones de 2 hablante(s). Transcripción etiquetada: reuniones/2026-09-07_1005_reunion_transcripcion.txt\n\nActa: reuniones/2026-09-07_1006_reunion.md", resultado: { ...ACTA, ...transcripcionMock() } };
+  }, 3000),
   borrarVoz: async (_ref, nombre) => { vocesMock = vocesMock.filter((v) => v.nombre !== nombre); return transcripcionMock(); },
   reuniones: async () => reunionesMock,
   borrarReunion: async (_ref, nombre) => { reunionesMock = reunionesMock.filter((r) => r.nombre !== nombre); return reunionesMock; },

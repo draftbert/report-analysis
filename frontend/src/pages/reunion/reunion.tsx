@@ -14,7 +14,7 @@ const ACTUAL = "__transcripcion_actual__";   // fila del listado que representa 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 const AYUDA_ANALIZAR = "Transcribe el audio (o usa la transcripción) y extrae los cambios para el informe en un solo paso.";
-const AYUDA_TRANSCRIBIR = "Solo transcribe e identifica las voces; tú les pones nombre y después analizas (Informe → Instrucciones → Aplicar cambios).";
+const AYUDA_TRANSCRIBIR = "Solo transcribe e identifica las voces; tú les pones nombre y, al etiquetar, se genera el acta y los cambios van a Instrucciones (Informe → Instrucciones → Aplicar cambios).";
 
 export const Reunion = () => {
   const { ref = "" } = useParams();
@@ -65,9 +65,15 @@ export const Reunion = () => {
     setEtiquetando(true);
     try {
       const voces = Object.entries(guardar).filter(([, v]) => v).map(([id]) => asig[id]?.nombre?.trim()).filter(Boolean) as string[];
-      const r = await api.etiquetar(ref, asig, voces);
-      notificar({ texto: r.mensaje.split("\n")[0] });
-      adoptar(r); recargar();
+      const { job_id } = await api.etiquetar(ref, asig, voces);
+      const j = await esperarJob<Acta & Transcripcion>(job_id, (t) => setAvance(t as Job<Acta>));
+      setAvance(null);
+      setResultado({ estado: j.estado === "ok" ? "ok" : "error", mensaje: j.mensaje, resultado: j.resultado });
+      if (j.estado === "ok") {
+        if (j.resultado?.cambios_texto) { setActa(j.resultado); setSel(j.resultado.cambios_texto.map(() => true)); }
+        cargarTrans(); recargar();
+        api.reuniones(ref).then(setAnteriores).catch(() => {});
+      } else notificar({ texto: j.mensaje, error: true });
     } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
     finally { setEtiquetando(false); }
   };
@@ -120,7 +126,7 @@ export const Reunion = () => {
         <div className="panel panel--muted stack">
           <span className="detail"><strong>Analizar reunión.</strong> Pasa la transcripción de Teams o el audio de la reunión (se transcribe con el modelo). El sistema separa lo que cambia el texto del informe de lo que afecta al PPT, y lo que queda pendiente de dato.</span>
           <span className="detail"><strong>Qué se puede subir.</strong> Transcripción de Teams (.txt, .docx, .vtt) o grabación de audio o vídeo (.mp3, .wav, .m4a, .mp4, .mov, .webm…; del vídeo se extrae solo el audio) de la revisión con el Gerente, la Directora o el área.</span>
-          <span className="detail"><strong>Transcribir y nombrar.</strong> Alternativa al análisis directo: transcribe el audio con hablantes anónimos y, al terminar, aparece una tarjeta para escuchar el clip de cada hablante, ponerle nombre y volcar la conversación a Instrucciones (Informe → Instrucciones → Aplicar cambios). Lo que escribas se guarda como borrador (sobrevive a recargar la página). Las voces que guardes se usan en la siguiente reunión de ESTE informe y se destruyen al archivar.</span>
+          <span className="detail"><strong>Transcribir y nombrar.</strong> Alternativa al análisis directo: transcribe el audio con hablantes anónimos y, al terminar, aparece una tarjeta para escuchar el clip de cada hablante y ponerle nombre. Al etiquetar, la conversación se analiza como una reunión: acta con quién pide cada cosa y cambios detectados a Instrucciones (Informe → Instrucciones → Aplicar cambios). Lo que escribas se guarda como borrador (sobrevive a recargar la página). Las voces que guardes se usan en la siguiente reunión de ESTE informe y se destruyen al archivar.</span>
         </div>
       )}
 
@@ -208,7 +214,7 @@ export const Reunion = () => {
             <span className="section-title">Pendiente: nombrar hablantes</span>
             <span className="detail">«{trans.origen}» · {trans.fecha.slice(0, 16).replace("T", " ")}</span>
           </div>
-          <span className="detail">Escucha el clip de cada hablante y ponle nombre (o márcalo como fusión/ignorar). Al pulsar «Etiquetar» la conversación se vuelca a Instrucciones.</span>
+          <span className="detail">Escucha el clip de cada hablante y ponle nombre (o márcalo como fusión/ignorar). Al pulsar «Etiquetar» la conversación se analiza como una reunión: acta con quién pide cada cosa (abajo, con las demás) y cambios detectados a Instrucciones.</span>
           {trans.hablantes.filter((h) => !h.conocido).map((h) => (
             <div key={h.id} className="panel" style={{ gap: 8 }}>
               <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -236,7 +242,7 @@ export const Reunion = () => {
           {trans.hablantes.some((h) => h.conocido) && (
             <span className="detail">Ya nombrados por sus voces guardadas: {trans.hablantes.filter((h) => h.conocido).map((h) => h.id).join(", ")}.</span>)}
           <div><button className="btn btn--primary" onClick={etiquetar} disabled={etiquetando}>
-            {etiquetando ? <><span className="spinner" />Etiquetando…</> : "Etiquetar y volcar a Instrucciones"}</button></div>
+            {etiquetando ? <><span className="spinner" />Etiquetando y generando el acta…</> : "Etiquetar y generar acta"}</button></div>
           <span className="detail tarea__pie">El borrador se guarda solo: puedes actualizar la página o seguir otro día, y también terminar desde la consola (entrada/audio/hablantes.md).</span>
         </div>
       )}

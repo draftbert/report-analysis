@@ -442,13 +442,20 @@ def transcripcion_borrador(ref: str, o: Etiquetado):
 
 @app.post("/api/expedientes/{ref}/acciones/etiquetar")
 def etiquetar(ref: str, o: Etiquetado):
-    """Aplica nombres/fusiones/ignorados en local y vuelca a 03_instrucciones.md."""
+    """Aplica nombres/fusiones/ignorados en local, guarda la transcripción etiquetada en
+    reuniones/ y la analiza como una reunión (acta + instrucciones). Job: el análisis usa
+    el modelo; el `resultado` lleva el acta (si la hubo) y el estado de la transcripción."""
     from . import transcripcion as tr
-    exp = _exp(ref)
+    exp = _exp(ref); ctx = _ctx(exp)
     tr.aplicar_asignaciones(exp, o.asignaciones)
     deseadas = set(o.guardar_voces)
-    mensaje = tr.accion_etiquetar(exp, preguntar_guardar=lambda nombre, clip: nombre in deseadas)
-    return {"mensaje": mensaje, **tr.estado_transcripcion(exp)}
+
+    def tarea():
+        mensaje = tr.accion_etiquetar(exp, preguntar_guardar=lambda nombre, clip: nombre in deseadas, ctx=ctx)
+        acciones.ULTIMO_RESULTADO.update(tr.estado_transcripcion(exp))
+        return mensaje
+
+    return _job(ref, "etiquetar", tarea, ctx=ctx)
 
 
 @app.get("/api/expedientes/{ref}/audio/hablantes/{fichero}")

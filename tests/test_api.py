@@ -233,11 +233,15 @@ def test_flujo_web_de_identificacion_de_hablantes(cliente, monkeypatch, tmp_path
     t = c.get("/api/expedientes/T-V/transcripcion").json()
     h1, h2 = (next(h for h in t["hablantes"] if h["id"] == i) for i in ("SPEAKER_01", "SPEAKER_02"))
     assert h1["nombre"] == "Marta" and h1["guardar"] and h2["nombre"] == "" and not h2["guardar"]
-    r = c.post("/api/expedientes/T-V/acciones/etiquetar", json={
+    # etiquetar es un job: sin 02_informe.md no hay acta y cae al volcado en bruto al buzón
+    j = _esperar(c, c.post("/api/expedientes/T-V/acciones/etiquetar", json={
         "asignaciones": {"SPEAKER_01": {"nombre": "Marta", "accion": ""}, "SPEAKER_02": {"nombre": "Javier", "accion": ""}},
-        "guardar_voces": ["Marta"]}).json()
-    assert "volcadas a 03_instrucciones.md" in r["mensaje"] and r["etiquetada"]
+        "guardar_voces": ["Marta"]}).json()["job_id"])
+    assert j["estado"] == "ok", j["mensaje"]
+    r = j["resultado"]
+    assert "volcada a 03_instrucciones.md" in j["mensaje"] and "Sin acta" in j["mensaje"] and r["etiquetada"]
     assert [v["nombre"] for v in r["voces"]] == ["Marta"]
+    assert list((api_mod.DIR_EXPEDIENTES / "T-V" / "reuniones").glob("*_transcripcion.txt"))
     instrucciones = (api_mod.DIR_EXPEDIENTES / "T-V" / "03_instrucciones.md").read_text(encoding="utf-8")
     assert "- Marta: Subid el riesgo a alto." in instrucciones and "- Javier: De acuerdo" in instrucciones
     assert c.delete("/api/expedientes/T-V/voces/Marta").json()["voces"] == []

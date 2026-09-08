@@ -129,7 +129,8 @@ export interface Api {
   transcripcion(ref: string): Promise<Transcripcion>;
   /** Autoguarda el borrador del etiquetado (sobrevive al refresco). `guardarIds` = ids de hablante con «guardar voz». */
   borradorTranscripcion(ref: string, asignaciones: Record<string, { nombre: string; accion: string }>, guardarIds: string[]): Promise<Transcripcion>;
-  etiquetar(ref: string, asignaciones: Record<string, { nombre: string; accion: string }>, guardarVoces: string[]): Promise<{ mensaje: string } & Transcripcion>;
+  /** Job: etiqueta en local, guarda la transcripción en reuniones/ y la analiza como reunión (acta + instrucciones). */
+  etiquetar(ref: string, asignaciones: Record<string, { nombre: string; accion: string }>, guardarVoces: string[]): Promise<{ job_id: string }>;
   borrarVoz(ref: string, nombre: string): Promise<Transcripcion>;
   ppt(ref: string): Promise<Descarga>;
   archivar(ref: string): Promise<Descarga>;

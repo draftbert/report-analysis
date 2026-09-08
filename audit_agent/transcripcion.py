@@ -543,10 +543,14 @@ def estado_transcripcion(exp: Expediente) -> dict:
     return salida
 
 
-def accion_etiquetar(exp: Expediente, preguntar_guardar=None) -> str:
+def accion_etiquetar(exp: Expediente, preguntar_guardar=None, ctx=None) -> str:
     """Aplica EN LOCAL los nombres/fusiones/ignorados de hablantes.md sobre la
-    transcripción cruda (sin segunda llamada a la API), agrupa intervenciones
-    consecutivas y vuelca a 03_instrucciones.md para el `aplicar-cambios` de siempre.
+    transcripción cruda (sin segunda llamada a la API de transcripción), agrupa
+    intervenciones consecutivas y guarda la conversación etiquetada como transcripción
+    en reuniones/. Con `ctx` (Contexto con LLM), la pasa además por el MISMO análisis
+    que `reunion`: acta en reuniones/ con quién pide cada cosa e instrucciones
+    detectadas en 03_instrucciones.md; si el análisis no está disponible (sin modelo,
+    sin 02_informe.md), cae al volcado en bruto de la conversación al buzón.
     `preguntar_guardar(nombre, clip)` -> bool decide, hablante a hablante, si su clip
     se guarda en las voces del expediente para las siguientes reuniones."""
     base = dir_audio(exp)
@@ -595,11 +599,28 @@ def accion_etiquetar(exp: Expediente, preguntar_guardar=None) -> str:
             intervenciones.append((nombre, frase))
 
     marca = datetime.now()
-    bloque = [f"\nReunión transcrita «{meta.get('origen', '?')}» ({marca:%d/%m/%Y %H:%M}) — transcripción etiquetada; "
-              "borra lo que no aplique antes de `aplicar-cambios`:"]
-    bloque += [f"- {nombre}: {frase}" for nombre, frase in intervenciones]
-    exp.anexar_registro("instrucciones", "\n".join(bloque) + "\n")
-    cruda.write_text(f"> Etiquetada el {marca:%Y-%m-%d %H:%M} → 03_instrucciones.md\n\n" + texto_cruda, encoding="utf-8")
+    # la conversación etiquetada queda como transcripción del expediente, junto a las demás
+    origen_stem = Path(meta.get("origen") or "reunion").stem
+    limpio = re.sub(r"[^\w\- ]", "", origen_stem)[:40]
+    destino_txt = exp.ruta / "reuniones" / f"{marca:%Y-%m-%d_%H%M}_{limpio}_transcripcion.txt"
+    destino_txt.parent.mkdir(exist_ok=True)
+    destino_txt.write_text("\n".join(f"{nombre}: {frase}" for nombre, frase in intervenciones) + "\n", encoding="utf-8")
+
+    analisis, motivo = None, ""
+    if ctx is not None:
+        from . import acciones                      # import diferido: acciones también importa este módulo
+        from .llm import LLMNoDisponible
+        try:
+            analisis = acciones.accion_reunion(ctx, destino_txt, aplicar=False)
+        except (ExpedienteError, LLMNoDisponible) as exc:
+            motivo = str(exc)
+    if analisis is None:
+        bloque = [f"\nReunión transcrita «{meta.get('origen', '?')}» ({marca:%d/%m/%Y %H:%M}) — transcripción etiquetada; "
+                  "borra lo que no aplique antes de `aplicar-cambios`:"]
+        bloque += [f"- {nombre}: {frase}" for nombre, frase in intervenciones]
+        exp.anexar_registro("instrucciones", "\n".join(bloque) + "\n")
+    cruda.write_text(f"> Etiquetada el {marca:%Y-%m-%d %H:%M} → "
+                     f"{'acta en reuniones/ y ' if analisis else ''}03_instrucciones.md\n\n" + texto_cruda, encoding="utf-8")
 
     guardadas = []
     if preguntar_guardar is not None:
@@ -616,8 +637,13 @@ def accion_etiquetar(exp: Expediente, preguntar_guardar=None) -> str:
 
     hablantes_finales = sorted({n for n, _ in intervenciones})
     out = [f"{len(intervenciones)} intervenciones de {len(hablantes_finales)} hablante(s) "
-           f"({', '.join(hablantes_finales)}) volcadas a 03_instrucciones.md.",
-           "Revisa el buzón (borra lo que no aplique) y ejecuta `aplicar-cambios`."]
+           f"({', '.join(hablantes_finales)}). Transcripción etiquetada: {destino_txt.relative_to(exp.ruta)}"]
+    if analisis is not None:
+        out += ["", analisis]
+    else:
+        out += ["Conversación volcada a 03_instrucciones.md: revisa el buzón (borra lo que no aplique) y ejecuta `aplicar-cambios`."]
+        if motivo:
+            out.append(f"(Sin acta: {motivo} Puedes generar el acta más tarde con `reunion {destino_txt.relative_to(exp.ruta)}`.)")
     if guardadas:
         out.append("Voces guardadas para las próximas reuniones de ESTE expediente: " + ", ".join(guardadas) +
                    " (se borran al archivar).")

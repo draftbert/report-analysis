@@ -312,3 +312,44 @@ def test_retranscribir_la_copia_normalizada_no_la_corrompe(exp_audio, monkeypatc
     assert normalizado.stat().st_size == tam               # la fuente no se toca
     assert not viejo.exists()                              # los clips viejos no sobreviven
     assert (dir_audio(exp) / "hablantes" / "SPEAKER_01.wav").exists()
+
+
+def test_etiquetar_genera_acta_con_el_analisis_de_reunion(exp_audio, contexto, monkeypatch):
+    """Con ctx (LLM disponible) el etiquetado guarda la transcripción en reuniones/ y la
+    analiza como una reunión: acta con quién pide cada cosa e instrucciones detectadas al
+    buzón (sin volcado en bruto)."""
+    from audit_agent.esquemas import AnalisisReunion, CambioTextoDetectado
+    exp, audio = exp_audio
+    contexto.llm.respuestas["reunion"] = AnalisisReunion(
+        resumen="Se revisó el borrador con el área.",
+        cambios_texto=[CambioTextoDetectado(seccion="Conclusión 1", que_cambiar="Subir el nivel de riesgo",
+                                            instruccion="En la conclusión 1, subir el nivel de riesgo a Alto.",
+                                            solicitado_por="Marta")])
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: RESPUESTA_DOS_VOCES)
+    accion_transcribir(exp, audio)
+    exp.archivo("informe").write_text("# Informe\n\n## Conclusión 1\n\nTexto actual.", encoding="utf-8")
+    _rellenar_hablantes(exp, {"SPEAKER_01": ("Marta", ""), "SPEAKER_02": ("Javier", "")})
+    salida = accion_etiquetar(exp, ctx=contexto)
+    txts = list((exp.ruta / "reuniones").glob("*_transcripcion.txt"))
+    actas = list((exp.ruta / "reuniones").glob("*.md"))
+    assert len(txts) == 1 and "Marta: Buenos días" in txts[0].read_text(encoding="utf-8")
+    assert len(actas) == 1 and "pide: Marta" in actas[0].read_text(encoding="utf-8")
+    instrucciones = exp.archivo("instrucciones").read_text(encoding="utf-8")
+    assert "- En la conclusión 1, subir el nivel de riesgo a Alto. [Marta]" in instrucciones
+    assert "Reunión transcrita «reunion.wav»" not in instrucciones      # con acta no hay volcado en bruto
+    assert "Acta: reuniones/" in salida and "Transcripción etiquetada: reuniones/" in salida
+    assert (dir_audio(exp) / "transcripcion_cruda.md").read_text(encoding="utf-8").startswith("> Etiquetada")
+
+
+def test_etiquetar_sin_modelo_cae_al_volcado_en_bruto(exp_audio, contexto, monkeypatch):
+    """Si el análisis no está disponible (p. ej. sin 02_informe.md), la conversación se
+    vuelca en bruto al buzón y el mensaje explica cómo generar el acta más tarde."""
+    exp, audio = exp_audio
+    monkeypatch.setattr(transcripcion, "transcribir_audio", lambda ruta, hablantes=None: RESPUESTA_DOS_VOCES)
+    accion_transcribir(exp, audio)
+    _rellenar_hablantes(exp, {"SPEAKER_01": ("Marta", ""), "SPEAKER_02": ("Javier", "")})
+    salida = accion_etiquetar(exp, ctx=contexto)                        # sin 02_informe.md
+    instrucciones = exp.archivo("instrucciones").read_text(encoding="utf-8")
+    assert "- Marta: Buenos días" in instrucciones and "Reunión transcrita «reunion.wav»" in instrucciones
+    assert "Sin acta" in salida and "02_informe.md" in salida
+    assert list((exp.ruta / "reuniones").glob("*_transcripcion.txt"))   # la transcripción queda igualmente
