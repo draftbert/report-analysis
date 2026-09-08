@@ -242,23 +242,37 @@ def transcribir_en_partes(ruta: Path, hablantes, destino_dir: Path, informar=Non
     arranque = 0
     if len(partes) > 1:
         # Las letras de hablante no son estables entre llamadas. Mientras queden plazas
-        # de referencia (máx. 4), las partes van EN SECUENCIA y cada voz nueva con ≥2 s
-        # de tramo limpio se enrola como «HABLANTE_N» para las partes siguientes (una
-        # persona que entra a mitad de reunión también se identifica); con las plazas
-        # cubiertas, el resto va en paralelo.
+        # de referencia (máx. 4), cada voz nueva con ≥2 s de tramo limpio se enrola como
+        # «HABLANTE_N» para las partes siguientes (una persona que entra a mitad de
+        # reunión también se identifica). Para no perder el paralelismo: la parte 1 va
+        # SOLA (ahí suele hablar casi todo el mundo) y después lotes de 2 con alta entre
+        # lote y lote; una voz que debute en las DOS partes de un mismo lote puede salir
+        # duplicada (se resuelve al nombrar con «es la misma persona que…»). Con las
+        # plazas cubiertas, el resto va del tirón en paralelo.
         informar("Transcribiendo por partes e identificando las voces según aparecen…", 12)
+        primera = True
         while arranque < len(partes) and len(refs) < MAX_VOCES_ENVIADAS:
-            respuestas[arranque] = _una(arranque, list(refs))
-            if respuestas[arranque] is not None:
+            lote = [arranque] if primera else list(range(arranque, min(arranque + 2, len(partes))))
+            primera = False
+            if len(lote) == 1:
+                respuestas[lote[0]] = _una(lote[0], list(refs))
+            else:
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    futuros = {pool.submit(_una, i, list(refs)): i for i in lote}
+                    for futuro in as_completed(futuros):
+                        respuestas[futuros[futuro]] = futuro.result()
+            for i in lote:
+                if respuestas[i] is None or len(refs) >= MAX_VOCES_ENVIADAS:
+                    continue
                 try:
                     pseudos = sum(1 for n in conocidos if n.startswith("HABLANTE_"))
-                    nuevas = _referencias_de_parte(respuestas[arranque], partes[arranque], destino_dir,
+                    nuevas = _referencias_de_parte(respuestas[i], partes[i], destino_dir,
                                                    conocidos, MAX_VOCES_ENVIADAS - len(refs), numero_inicial=pseudos + 1)
                 except ExpedienteError:
                     nuevas = []
                 refs = refs + nuevas
                 conocidos |= {n for n, _ in nuevas}
-            arranque += 1
+            arranque += len(lote)
     if arranque < len(partes):
         with ThreadPoolExecutor(max_workers=min(2, len(partes) - arranque)) as pool:
             futuros = {pool.submit(_una, i, refs): i for i in range(arranque, len(partes))}

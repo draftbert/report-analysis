@@ -263,10 +263,11 @@ def test_integracion_real_dos_voces(expediente_tmp, tmp_path):
     assert "SPEAKER_01" in cruda
 
 
-def test_partes_multiples_identidad_estable_y_alta_sobre_la_marcha(expediente_tmp, monkeypatch, tmp_path):
-    """Con audio troceado, las voces se enrolan como referencias según aparecen: la de
-    la parte 1 vale para todas; una voz nueva en la parte 2 se enrola para la 3; y las
-    letras sin referencia quedan aisladas («A·pN») en vez de fusionarse con quien no toca."""
+def test_partes_multiples_identidad_estable_con_lotes_de_dos(expediente_tmp, monkeypatch, tmp_path):
+    """La parte 1 va sola (enrola las voces principales) y el resto en lotes de 2 con
+    alta entre lote y lote: una voz nueva de la parte 2 se enrola, pero como la 3 corre
+    en el mismo lote no la recibe como referencia y su letra queda aislada («A·pN»)
+    en vez de fusionarse con quien no toca (al nombrar se resuelve con «fusionar con»)."""
     if not FFMPEG:
         pytest.skip("sin ffmpeg")
     audio = tmp_path / "larga.wav"
@@ -275,24 +276,26 @@ def test_partes_multiples_identidad_estable_y_alta_sobre_la_marcha(expediente_tm
     llamadas = []
 
     def falso(ruta, hablantes=None):
-        llamadas.append((Path(ruta).name, [n for n, _ in (hablantes or [])]))
-        if len(llamadas) == 1:
+        nombre = Path(ruta).name
+        llamadas.append((nombre, sorted(n for n, _ in (hablantes or []))))
+        if "_audio_01" in nombre:
             return R(S("A", 0.0, 3.0, "Voz principal de la primera parte hablando un rato largo."),
                      S("B", 3.2, 3.6, "Apunte brevísimo."))
-        if len(llamadas) == 2:
+        if "_audio_02" in nombre:
             return R(S("HABLANTE_1", 0.0, 1.5, "Sigo siendo la misma voz."),
                      S("A", 1.8, 4.0, "Soy una persona nueva que entra en la segunda parte."))
         return R(S("HABLANTE_1", 0.0, 2.0, "Cierro yo."),
-                 S("HABLANTE_2", 2.2, 4.0, "Y yo, ya identificada."),
-                 S("A", 4.2, 4.8, "Voz suelta sin referencia."))
+                 S("A", 2.2, 4.1, "La nueva otra vez, pero esta parte corre en paralelo y no me conoce."))
 
     monkeypatch.setattr(transcripcion, "transcribir_audio", falso)
     accion_transcribir(expediente_tmp, audio, umbral_s=0.5)
-    assert llamadas[0][1] == [] and llamadas[1][1] == ["HABLANTE_1"] and llamadas[2][1] == ["HABLANTE_1", "HABLANTE_2"]
+    por_parte = {n.split("_audio_")[1][:2]: r for n, r in llamadas}
+    assert len(llamadas) == 3
+    assert por_parte["01"] == [] and por_parte["02"] == ["HABLANTE_1"] and por_parte["03"] == ["HABLANTE_1"]
     meta = json.loads((dir_audio(expediente_tmp) / "hablantes" / "meta.json").read_text(encoding="utf-8"))
     etiquetas = {d["etiqueta_api"] for d in meta["hablantes"].values()}
     assert {"HABLANTE_1", "HABLANTE_2"} <= etiquetas and "A" not in etiquetas
-    assert "A·p3" in etiquetas                       # la voz suelta de la parte 3 no se mezcla
+    assert "A·p3" in etiquetas                       # la voz sin referencia de la parte 3 no se mezcla
     h1 = next(d for d in meta["hablantes"].values() if d["etiqueta_api"] == "HABLANTE_1")
     assert h1["segundos"] == pytest.approx(3.0 + 1.5 + 2.0, abs=0.3)   # una sola persona a través de las partes
 
