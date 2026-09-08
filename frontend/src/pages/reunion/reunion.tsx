@@ -286,15 +286,15 @@ export const Reunion = () => {
       )}
 
       {/* 4 ─ reuniones del informe: vista general de ítems o detalle de uno */}
-      {(trans?.hay_transcripcion || anteriores.length > 0) && !abierta && (
+      {(pendiente || anteriores.length > 0) && !abierta && (
         <div className="stack">
           <span className="section-title">Reuniones de este informe</span>
           <table className="table"><tbody>
-            {trans?.hay_transcripcion && (
+            {pendiente && trans && (
               <tr key={ACTUAL} data-clickable onClick={() => setAbierta(ACTUAL)}>
                 <td className="detail">{trans.fecha.slice(0, 16).replace("T", " ")}</td>
                 <td><span className="label label--dark">Voces</span> {trans.origen}
-                  <span className="detail">{trans.etiquetada ? " · etiquetada" : " · pendiente de nombrar hablantes"}</span></td>
+                  <span className="detail"> · pendiente de nombrar hablantes</span></td>
                 <td style={{ textAlign: "right" }} />
               </tr>
             )}
