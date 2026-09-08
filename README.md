@@ -81,7 +81,8 @@ expedientes/CNC-2026-03/
   01_conclusiones.md      conclusiones y sugerencias propuestas → el auditor edita, aprueba y recomienda
   02_informe.md           el informe: introducción · resumen ejecutivo · detalle de conclusiones · sugerencias
                           (cada apartado se escribe como se leerá en su diapositiva; `ppt` lo exporta 1:1)
-  03_instrucciones.md     buzón de instrucciones: lo rellenas tú o `reunion` → `aplicar-cambios`
+  03_instrucciones.md     buzón de instrucciones DEL AUDITOR (notas manuales) → `aplicar-cambios`;
+                          los cambios de reuniones van por el acta, nunca por este buzón
   reuniones/              actas de `reunion` (texto vs PPT vs pendientes vs acuerdos)
   revision.md             hallazgos de vocabulario y estilo (acumulado)
   cambios_aplicados.md    qué cambios pidió el modelo y cuáles se aplicaron
