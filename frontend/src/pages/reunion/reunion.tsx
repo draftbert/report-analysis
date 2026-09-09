@@ -25,6 +25,48 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).
 const AYUDA_ANALIZAR = "Transcribe el audio (o usa la transcripción) y extrae los cambios para el informe en un solo paso.";
 const AYUDA_TRANSCRIBIR = "Solo transcribe e identifica las voces; tú les pones nombre y, al etiquetar, se genera el acta de la reunión, desde la que aplicas los cambios que elijas.";
 
+// ---- vista de transcripción estilo conversación (hora · quién · qué dijo) ----
+const RE_SEG_CRUDA = /^- \[(\d+:\d{2})[–-][^\]]*\] ([^:]{1,60}): (.*)$/;
+const RE_DIALOGO = /^([^:\n]{1,60}): (.*)$/;
+const parsearDialogo = (texto: string) => {
+  const filas: { hora?: string; quien: string; texto: string }[] = [];
+  for (const linea of texto.split("\n")) {
+    const l = linea.trim();
+    if (!l || l.startsWith("#") || l.startsWith(">")) continue;
+    let m = l.match(RE_SEG_CRUDA);
+    if (m) { filas.push({ hora: m[1], quien: m[2].trim(), texto: m[3] }); continue; }
+    if (l.startsWith("- ")) continue;                    // metadatos de cabecera (Fecha, Duración…)
+    m = l.match(RE_DIALOGO);
+    if (m && !/^\d+$/.test(m[1].trim()) && !/^https?/i.test(m[1])) {
+      filas.push({ quien: m[1].trim(), texto: m[2] });
+      continue;
+    }
+    if (filas.length) filas[filas.length - 1].texto += " " + l;   // continuación de la intervención
+  }
+  return filas;
+};
+
+/** Transcripción como conversación (como un transcript de llamada); si el fichero no
+ *  tiene pinta de diálogo, cae al Markdown de siempre. */
+const TranscriptView = ({ texto }: { texto: string }) => {
+  const filas = parsearDialogo(texto);
+  if (filas.length < 2) return <div className="visor"><Markdown texto={texto} /></div>;
+  return (
+    <div className="visor transcript">
+      <span className="transcript__inicio">Comienza la reunión</span>
+      {filas.map((f, i) => (
+        <div key={i} className="transcript__fila">
+          <span className="transcript__hora">{f.hora ?? ""}</span>
+          <div>
+            <span className="transcript__quien">{f.quien}</span>
+            <p className="transcript__texto">{f.texto}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 /** El acta como contenido principal: resumen + tarjetas de cambios (seleccionables y
  *  aplicables con la mecánica de correcciones de siempre), PPT, pendientes y acuerdos. */
 const ActaView = ({ refExp, acta, ocultarAplicar }: { refExp: string; acta: Acta; ocultarAplicar?: boolean }) => {
@@ -378,7 +420,7 @@ export const Reunion = () => {
             <span className="detail">{trans.fecha.slice(0, 16).replace("T", " ")} · duración {mmss(trans.duracion_s)} · {trans.hablantes.length} hablante(s) relevante(s)
               {trans.etiquetada ? " · etiquetada" : " · pendiente de nombrar hablantes (la tarjeta de arriba)"}</span>
           </div>
-          <div className="visor"><Markdown texto={trans.markdown} /></div>
+          <TranscriptView texto={trans.markdown} />
         </div>
       )}
       {dupe && (
@@ -418,7 +460,7 @@ export const Reunion = () => {
             <div key={t.nombre} className="stack">
               <div className="row row--between"><span className="section-title">Transcripción ({t.fecha})</span>
                 <button className="btn btn--ghost btn--small" onClick={() => eliminarFicheros([t.nombre], `la transcripción «${t.nombre}»`)}><Trash2 size={14} strokeWidth={1.5} />Eliminar</button></div>
-              <div className="visor"><Markdown texto={t.markdown} /></div>
+              <TranscriptView texto={t.markdown} />
             </div>
           ))}
         </div>

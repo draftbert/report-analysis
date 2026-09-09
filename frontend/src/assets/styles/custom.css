@@ -243,6 +243,14 @@ button, input, textarea, select { font-family: inherit; }
 .tarea__pie { border-top: 1px solid var(--ids-color-border-low); padding-top: var(--ids-size-50); }
 .visor { border: 1px solid var(--ids-color-border-low); padding: var(--ids-size-100); max-height: 65vh; overflow: auto; }
 .visor .md { font-family: var(--ids-typo-font-family-mono); font-size: 12.5px; line-height: 19px; }
+
+/* transcripción como conversación de llamada: hora · quién · qué dijo */
+.transcript { display: flex; flex-direction: column; gap: var(--ids-size-125, 14px); padding: var(--ids-size-150); }
+.transcript__inicio { font: var(--ids-typo-detail-m); color: var(--ids-color-content-low); }
+.transcript__fila { display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: var(--ids-size-100); }
+.transcript__hora { font: var(--ids-typo-detail-m); color: var(--ids-color-content-low); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.transcript__quien { font: var(--ids-typo-body-m); font-weight: 600; color: var(--ids-color-content-default); }
+.transcript__texto { margin: 2px 0 0; font: var(--ids-typo-body-m); color: var(--ids-color-content-default); line-height: 21px; overflow-wrap: anywhere; }
 @media (max-width: 720px) {
   .page__header { flex-direction: column; }
   .page__actions { justify-content: flex-start; }
