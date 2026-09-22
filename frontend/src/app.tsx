@@ -2,34 +2,27 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { ConfirmProvider, NotificacionesProvider } from "@/components/ui";
 import { Layout } from "@/layout/layout";
-import { Conclusiones } from "@/pages/conclusiones/conclusiones";
-import { Contexto } from "@/pages/contexto/contexto";
-import { Entrada } from "@/pages/entrada/entrada";
-import { Entregables } from "@/pages/entregables/entregables";
-import { Expedientes } from "@/pages/expedientes/expedientes";
+import { Estudio } from "@/pages/estudio/estudio";
 import { Informe } from "@/pages/informe/informe";
-import { Reunion } from "@/pages/reunion/reunion";
-import { Trazas } from "@/pages/trazas/trazas";
+import { Informes } from "@/pages/informes/informes";
+import { Inicio } from "@/pages/inicio/inicio";
+import { Nuevo } from "@/pages/nuevo/nuevo";
 
 const Application = () => (
   <NotificacionesProvider>
     <ConfirmProvider>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Expedientes />} />
-        <Route path="/expedientes/:ref" element={<Layout />}>
-          <Route index element={<Navigate to="entrada" replace />} />
-          <Route path="entrada" element={<Entrada />} />
-          <Route path="contexto" element={<Contexto />} />
-          <Route path="conclusiones" element={<Conclusiones />} />
-          <Route path="informe" element={<Informe />} />
-          <Route path="reunion" element={<Reunion />} />
-          <Route path="entregables" element={<Entregables />} />
-          <Route path="trazas" element={<Trazas />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Inicio />} />
+            <Route path="/informes" element={<Informes />} />
+            <Route path="/nuevo" element={<Nuevo />} />
+            <Route path="/informes/:ref" element={<Estudio />} />
+            <Route path="/informes/:ref/informe" element={<Informe />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
     </ConfirmProvider>
   </NotificacionesProvider>
 );

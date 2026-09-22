@@ -1,18 +1,18 @@
-export type Estado = "propuesta" | "aprobada" | "descartada";
-export type Tipo = "recomendacion" | "sugerencia"; // bloque con recomendación y plan de acción | mejora sin plan
-export type Riesgo = "Crítico" | "Alto" | "Medio" | "Bajo" | "";
+/* Contrato con la API del backend (audit_agent/api.py). Los nombres de campo son los del JSON. */
 
-export interface ExpedienteResumen {
+export type EstadoConclusion = "propuesta" | "aprobada" | "descartada";
+export type TipoConclusion = "recomendacion" | "sugerencia"; // bloque con recomendación y plan de acción | mejora sin plan
+export type Riesgo = "Crítico" | "Alto" | "Medio" | "Bajo" | "";
+export type Carpeta = "contexto" | "papeles_trabajo";
+
+/** GET /api/expedientes devuelve la lista completa de estados; GET /api/expedientes/{ref}, uno. */
+export interface Expediente {
   referencia: string;
   nombre: string;
   fecha: string;
-  fase: string;
-  siguiente: string;
-  modificado: string;
-}
-
-export interface ExpedienteEstado extends ExpedienteResumen {
   distribucion: string[];
+  fase: string;            // «N · texto» (0 sin papeles … 4 entregable generado)
+  siguiente: string;       // guía del flujo, redactada por la API
   contexto: string[];
   papeles: string[];
   conclusiones: {
@@ -27,7 +27,11 @@ export interface ExpedienteEstado extends ExpedienteResumen {
   ppt: { nombre: string; desactualizado: boolean } | null;
   archivos: string[];
   llm: string;
+  modificado: string;
 }
+
+export interface NuevoExpediente { referencia: string; nombre: string; fecha: string; distribucion: string[] }
+export interface Salud { estado: string; version: string; expedientes: number }
 
 export interface Documento { nombre: string; bytes: number; lector: string }
 export interface Documentos { contexto: Documento[]; papeles_trabajo: Documento[] }
@@ -35,8 +39,8 @@ export interface Documentos { contexto: Documento[]; papeles_trabajo: Documento[
 export interface Conclusion {
   id: string;
   titulo: string;
-  tipo: Tipo;
-  estado: Estado;
+  tipo: TipoConclusion;
+  estado: EstadoConclusion;
   prueba: string;
   nivel_riesgo: Riesgo;
   riesgo_propuesto: boolean;
@@ -68,6 +72,7 @@ export interface Informe {
   conclusiones: Conclusion[];
   sugerencias: Conclusion[];
 }
+export interface InformeEdicion { markdown?: string; introduccion?: string; resumen_ejecutivo?: string; evaluacion_global?: string }
 
 export interface CambioPlan { seccion: string; motivo: string; estado: string; detalle: string; texto_original?: string; texto_nuevo?: string }
 export interface ResultadoCambios { plan: CambioPlan[]; pendientes: string[]; diff: string; solo_plan?: boolean }
@@ -78,7 +83,10 @@ export interface Acta {
   acta?: string; resumen: string; cambios_texto: CambioTexto[]; cambios_ppt: CambioPPT[]; pendientes: string[]; acuerdos_sin_cambio: string[];
 }
 
-export interface Job<T = unknown> { estado: "en_curso" | "ok" | "error"; accion: string; mensaje: string; resultado: T | null; progreso?: string; progreso_pct?: number | null; progreso_partes?: ("pendiente" | "en_curso" | "hecha" | "error")[] | null }
+export interface Job<T = unknown> {
+  estado: "en_curso" | "ok" | "error"; accion: string; mensaje: string; resultado: T | null;
+  progreso?: string; progreso_pct?: number | null; progreso_partes?: ("pendiente" | "en_curso" | "hecha" | "error")[] | null;
+}
 export interface Version { fichero: string; nombre: string; fecha: string; motivo: string }
 export interface Traza { nombre: string; fecha: string; accion: string; modelo: string; error?: string | null; tokens: { prompt: number | null; completion: number | null } }
 export interface ReunionActa { nombre: string; fecha: string; markdown: string; datos: (Acta & { transcripcion?: string | null }) | null }
@@ -86,34 +94,42 @@ export interface ReunionTranscripcion { nombre: string; fecha: string; markdown:
 /** Ítem del listado de reuniones: agrupa el acta (con su estructura si existe) y las transcripciones del mismo origen. */
 export interface Reunion { origen: string; fecha: string; actas: ReunionActa[]; transcripciones: ReunionTranscripcion[] }
 export interface HablanteTranscripcion { id: string; clip: string; muestra: string; segundos: number; conocido: boolean; nombre: string; accion: string; guardar: boolean }
-export interface Transcripcion { hay_transcripcion: boolean; etiquetada: boolean; origen: string; fecha: string; duracion_s: number; markdown: string; hablantes: HablanteTranscripcion[]; voces: { nombre: string; segundos: number; origen: string; fecha: string }[] }
+export interface Voz { nombre: string; segundos: number; origen: string; fecha: string }
+export interface Transcripcion { hay_transcripcion: boolean; etiquetada: boolean; origen: string; fecha: string; duracion_s: number; markdown: string; hablantes: HablanteTranscripcion[]; voces: Voz[] }
+export type Asignaciones = Record<string, { nombre: string; accion: string }>;
 export interface Descarga { nombre: string; url: string }
 
 export interface Api {
-  listarExpedientes(): Promise<ExpedienteResumen[]>;
-  crearExpediente(d: { referencia: string; nombre: string; fecha: string; distribucion: string[] }): Promise<ExpedienteEstado>;
-  estado(ref: string): Promise<ExpedienteEstado>;
-  eliminarExpediente(ref: string, confirmacion: string): Promise<{ mensaje: string }>;
+  logout(): Promise<void>;
+  salud(): Promise<Salud>;
   job<T = unknown>(id: string): Promise<Job<T>>;
   /** Pide detener un trabajo en curso; el corte llega en el siguiente punto de control. */
   detenerJob(id: string): Promise<{ mensaje: string }>;
+
+  listarExpedientes(): Promise<Expediente[]>;
+  crearExpediente(d: NuevoExpediente): Promise<Expediente>;
+  estado(ref: string): Promise<Expediente>;
+  /** Borra el expediente entero; `confirmacion` debe ser la referencia exacta. */
+  eliminarExpediente(ref: string, confirmacion: string): Promise<{ mensaje: string }>;
+
   documentos(ref: string): Promise<Documentos>;
-  /** Sube los ficheros uno a uno; `onProgreso(nombre, pct)` recibe el avance (0-100) de cada uno. */
-  subir(ref: string, carpeta: "contexto" | "papeles_trabajo", ficheros: File[], onProgreso?: (nombre: string, pct: number) => void): Promise<Documentos>;
-  borrarDocumento(ref: string, carpeta: string, nombre: string): Promise<Documentos>;
+  /** Sube los ficheros uno a uno; `onProgreso(nombre, pct)` recibe el avance real (0-100) de cada uno. */
+  subir(ref: string, carpeta: Carpeta, ficheros: File[], onProgreso?: (nombre: string, pct: number) => void): Promise<Documentos>;
+  borrarDocumento(ref: string, carpeta: Carpeta, nombre: string): Promise<Documentos>;
+
   redactarContexto(ref: string, o: { forzar?: boolean; secciones?: string[] }): Promise<{ job_id: string }>;
   extraer(ref: string, forzar: boolean): Promise<{ job_id: string }>;
   conclusiones(ref: string): Promise<{ markdown: string; conclusiones: Conclusion[] }>;
   guardarConclusion(ref: string, id: string, campos: Partial<Conclusion>): Promise<Conclusion>;
-  guardarConclusionesMd(ref: string, markdown: string): Promise<{ conclusiones: Conclusion[] }>;
-  aprobar(ref: string, ids: string[], estado: Estado): Promise<{ mensaje: string }>;
+  aprobar(ref: string, ids: string[], estado: EstadoConclusion): Promise<{ mensaje: string }>;
   revisarConclusiones(ref: string): Promise<{ hallazgos: Hallazgo[] }>;
   corregirConclusiones(ref: string, ids?: string[]): Promise<{ job_id: string }>;
   regenerar(ref: string, id: string, notas: string): Promise<{ job_id: string }>;
   recomendar(ref: string, o: { ids?: string[]; respuestas: Record<string, string>; auto: boolean; formatear?: boolean }): Promise<{ job_id: string }>;
   redactarConclusiones(ref: string): Promise<{ mensaje: string }>;
+
   informe(ref: string): Promise<Informe>;
-  guardarInforme(ref: string, d: { markdown?: string; introduccion?: string; resumen_ejecutivo?: string; evaluacion_global?: string }): Promise<Informe>;
+  guardarInforme(ref: string, d: InformeEdicion): Promise<Informe>;
   revisar(ref: string): Promise<{ hallazgos: Hallazgo[]; errores: number; avisos: number }>;
   corregir(ref: string, avisos: boolean): Promise<{ job_id: string }>;
   condensar(ref: string, objetivo?: number): Promise<{ job_id: string }>;
@@ -122,24 +138,28 @@ export interface Api {
   guardarInstrucciones(ref: string, texto: string): Promise<{ texto: string }>;
   /** Sin `texto`, aplica el buzón 03_instrucciones.md; con `texto` (cambios de un acta), directo y sin tocar el buzón. */
   aplicarCambios(ref: string, soloPlan?: boolean, texto?: string): Promise<{ job_id: string }>;
-  /** Transcripción (.txt/.docx/.vtt) o audio (.mp3/.wav/.m4a/.webm…). Con audio, hasta 4 hablantes
-   *  con muestra de voz opcional (solo se usan las muestras si todos los hablantes tienen una). */
-  reunion(ref: string, fichero: File, aplicar: boolean, hablantes?: { nombre: string; muestra: File | null }[], onProgreso?: (pct: number) => void, repetir?: boolean): Promise<{ job_id: string }>;
   historial(ref: string): Promise<Version[]>;
   deshacer(ref: string, fichero: string): Promise<{ mensaje: string }>;
   diff(ref: string, fichero: string): Promise<{ diff: string; contra: string | null }>;
-  cambios(ref: string): Promise<{ markdown: string }>;
+
+  /** Transcripción (.txt/.docx/.vtt) o audio/vídeo. `onProgreso(pct)` es la subida; `repetir` salta el aviso de duplicado. */
+  reunion(ref: string, fichero: File, aplicar: boolean, onProgreso?: (pct: number) => void, repetir?: boolean): Promise<{ job_id: string }>;
   reuniones(ref: string): Promise<Reunion[]>;
   borrarReunion(ref: string, nombre: string): Promise<Reunion[]>;
   transcribir(ref: string, fichero: File, onProgreso?: (pct: number) => void, repetir?: boolean): Promise<{ job_id: string }>;
   transcripcion(ref: string): Promise<Transcripcion>;
-  /** Autoguarda el borrador del etiquetado (sobrevive al refresco). `guardarIds` = ids de hablante con «guardar voz». */
-  borradorTranscripcion(ref: string, asignaciones: Record<string, { nombre: string; accion: string }>, guardarIds: string[]): Promise<Transcripcion>;
-  /** Job: etiqueta en local, guarda la transcripción en reuniones/ y la analiza como reunión (acta + instrucciones). */
-  etiquetar(ref: string, asignaciones: Record<string, { nombre: string; accion: string }>, guardarVoces: string[]): Promise<{ job_id: string }>;
+  /** Autoguarda el borrador del etiquetado. `guardarIds` = ids de hablante con «guardar voz». */
+  borradorTranscripcion(ref: string, asignaciones: Asignaciones, guardarIds: string[]): Promise<Transcripcion>;
+  /** Job: etiqueta en local, guarda la transcripción en reuniones/ y la analiza como reunión (acta). */
+  etiquetar(ref: string, asignaciones: Asignaciones, guardarVoces: string[]): Promise<{ job_id: string }>;
   borrarVoz(ref: string, nombre: string): Promise<Transcripcion>;
+
   ppt(ref: string): Promise<Descarga>;
   archivar(ref: string): Promise<Descarga>;
   trazas(ref: string): Promise<Traza[]>;
   traza(ref: string, nombre: string): Promise<Record<string, unknown>>;
+
+  /** URLs de descarga/clips (se abren con el navegador, con la cookie de sesión). */
+  urlSalida(ref: string, nombre: string): string;
+  urlClip(ref: string, fichero: string): string;
 }

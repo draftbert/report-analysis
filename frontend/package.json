@@ -1,17 +1,15 @@
 {
   "name": "revisor-informes-front",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:mock": "VITE_MOCK=1 vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "types:check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "diff": "7.0.0",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.468.0",
     "react": "18.3.1",
@@ -21,7 +19,6 @@
     "remark-gfm": "4.0.0"
   },
   "devDependencies": {
-    "@types/diff": "6.0.0",
     "@types/react": "18.3.27",
     "@types/react-dom": "18.3.7",
     "@vitejs/plugin-react": "4.3.4",

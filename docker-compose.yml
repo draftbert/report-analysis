@@ -6,6 +6,9 @@ services:
       dockerfile: Dockerfile.backend
     image: revisor-informes/backend:${VERSION:-latest}
     container_name: revisor-backend
+    labels:
+      glance.parent: revisor
+      glance.name: API
     restart: unless-stopped
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"   # uid/gid del host (los exporta run.sh)
     env_file:
@@ -28,6 +31,13 @@ services:
       context: ./frontend
     image: revisor-informes/frontend:${VERSION:-latest}
     container_name: revisor-frontend
+    labels:
+      glance.id: revisor
+      glance.name: Revisor de informes
+      glance.icon: mdi:file-document-check-outline
+      glance.url: http://revisor.suei.ro
+      glance.description: Revisión de informes de auditoría con KAIA
+      glance.category: Auditoría
     restart: unless-stopped
     environment:
       - TZ=${TZ:-Europe/Madrid}                 # logs de nginx en hora local
@@ -36,3 +46,10 @@ services:
         condition: service_healthy
     ports:
       - "${FRONT_PORT:-8080}:80"
+    networks:
+      - proxy
+      - default
+
+networks:
+  proxy:
+    external: true

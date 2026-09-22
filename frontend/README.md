@@ -1,46 +1,48 @@
 # Front del revisor de informes
 
-Vite + React 18 + TypeScript, con el mismo look & feel y la misma estructura
-que la plantilla corporativa (AMIGA + Sewing DS): tokens de diseño `--ids-*`,
-CSS BEM por página, cabecera + menú lateral, notificación negra fija, tablas y
-dropzones de la plantilla.
+Vite + React 18 + TypeScript (`strict`), construido con el **kit del front homogéneo**
+Inditex/IDS: `docs/GUIA_FRONT_HOMOGENEO.md` fija la estructura, el catálogo de clases
+(`src/assets/styles/custom.css`), los componentes compartidos (`src/components/ui.tsx`),
+el seguimiento de trabajos largos (`src/hooks/useJob.ts`), las utilidades de formato
+(`src/lib/formato.ts`), el contrato con la API y la sesión (nginx `auth_request` +
+`public/acceso.html`). Una pantalla nueva se compone con esas piezas; si falta una clase
+o un componente, se añade al kit con nombre BEM y se documenta en la guía.
 
-Fuera del entorno corporativo no se pueden instalar `@inditex/*` ni
-`@amiga-fwk-web/*` (registro privado), así que:
-
-- `src/assets/styles/tokens.css` define los tokens `--ids-*` con valores
-  equivalentes. En el entorno corporativo se elimina ese fichero y se importa
-  `@inditex/sewingiopdsweb-styles` en `main.tsx`: los nombres coinciden.
-- El shell (`src/layout/layout.tsx`) reproduce `ApplicationLayout` + `Header`
-  (botón atrás, logo, título, botón de menú) + `Menu` desplegable (logo, grupos,
-  pie con avatar y versión) de Sewing, con `framer-motion` para el deslizamiento
-  del menú, las transiciones de página, modales y notificaciones; y la barra de
-  *workflow* de puntos de la plantilla como navegación por fases. Para migrar,
-  basta con envolver las páginas con los componentes reales de Sewing y pasarles
-  `SECCIONES` como `items` del menú.
-- Iconos: `lucide-react` (línea, 1,5 px, monocromos, como los de Sewing); en el
-  entorno corporativo se sustituyen por los de `@inditex/sewingiopdsweb-resources`.
-- `Logo` es una marca tipográfica provisional: en corporativo, `Logo` de Sewing.
-- No hay AMIGA `Auth`/`ConfigProvider`: la app habla con `/api` en el mismo
-  origen (el servidor Python sirve `dist/`).
+Fuera del entorno corporativo no se pueden instalar `@inditex/*` (registro privado), así que
+`src/assets/styles/tokens.css` define los tokens `--ids-*`; en corporativo se sustituye por
+`@inditex/sewingiopdsweb-styles`. El logotipo se carga del CDN de AMIGA con marca
+tipográfica de respaldo.
 
 ## Uso
 
 ```bash
 npm install
 npm run dev          # http://localhost:3030, proxy /api → http://localhost:8000 (arranca antes `./revisor web`)
-npm run dev:mock     # sin back-end: datos de ejemplo del expediente TEC-2026 y jobs simulados (VITE_MOCK=1)
-npm run build        # dist/ (lo sirve `./revisor web` en http://127.0.0.1:8000)
+npm run build        # tsc --noEmit + vite build → dist/ (lo sirve `./revisor web` o el nginx del Dockerfile)
 npm run types:check
 ```
+
+No hay mocks: el front se prueba contra la API real (`./revisor web`). En Docker,
+`frontend/Dockerfile` construye `dist/` y lo sirve con nginx (`nginx.conf`: SPA + proxy
+`/api` + puerta de sesión; ver la guía § 7 y § 8).
+
+## Pantallas (ruta → patrón de la guía § 5 → API)
+
+| Ruta | Patrón | Qué hace | Endpoints |
+|---|---|---|---|
+| `/` | Portada | Hero y KPIs reales de la cartera (informes, en curso, emitidos, conclusiones aprobadas). | `GET /expedientes`, `GET /salud` |
+| `/informes` | Listado | Tabla con buscador y filtro de estado; abrir, ver informe, eliminar (con la referencia escrita). | `GET /expedientes`, `DELETE /expedientes/{ref}` |
+| `/nuevo` | Alta | Documentos de entrada (papeles de trabajo / contexto) + datos del informe; crea y sube con progreso. | `POST /expedientes`, `POST …/documentos/{carpeta}` |
+| `/informes/:ref?pestana=` | Estudio | Pestañas Entrada · Contexto · Conclusiones · Reunión · Entregables · Trazas (a una columna); el siguiente paso y «Ver informe» van en la barra del panel. | documentos, informe, conclusiones, acciones (jobs), reuniones, transcripción, trazas, ppt, archivar |
+| `/informes/:ref/informe` | Documento | El informe apartado a apartado (cada uno es una diapositiva), edición de introducción/resumen/evaluación, Markdown completo, acciones del modelo, entregables y cajón del asistente (cambios, buzón, revisión, historial). | informe, revisar, corregir, condensar, cambio, instrucciones, aplicar-cambios, historial, diff, deshacer |
 
 ## Estructura
 
 ```
-src/api/          types.ts (contrato), client.ts (fetch a /api), mock.ts (modo mock), index.ts (esperarJob)
-src/components/   ui.tsx: JobButton, JobResult, RiskBadge, StateChip, MarkdownEditor, DiffView, Dropzone, Modal, SlideCard
-src/layout/       shell: cabecera, menú lateral con estado por sección, barra de título con fase y siguiente paso
-src/pages/        expedientes · entrada · contexto · conclusiones · informe · reunion · entregables · trazas
+src/api/          types.ts (contrato: tipos + interface Api), client.ts (fetch a /api), index.ts (api, esperarJob)
+src/components/   ui.tsx: Logo, Loader, notificaciones, confirmaciones, Modal, etiquetas, Markdown, DiffView, ResultBox, Dropzone, Switch, MenuFlotante, Progreso
+src/hooks/        useJob: lanzar / seguir / detener un trabajo largo con progreso
+src/layout/       Cabecera IDS (brand / normal, navegación central, buscador, cierre de sesión) + Layout (Outlet)
+src/lib/          formato: fechas, tamaños, fases, clases por valor (estado, riesgo, severidad, plan)
+src/pages/        inicio · informes · nuevo · estudio (entrada, contexto, conclusiones, reunion, entregables, trazas) · informe
 ```
-
-Contrato de API: `docs/SUPERPROMPT_FRONT.md` § 5 (implementado en `audit_agent/api.py`).

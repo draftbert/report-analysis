@@ -54,8 +54,13 @@ de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-p
   ambiguo = no aplicado, contradictorio = CONFLICTO. Cada caso raro nuevo va a `tests/test_aplicar_cambios.py`.
 
 - **Web:** `api.py` envuelve `acciones.py` sin lógica propia (jobs en hilo, un lock por expediente); el front
-  (`frontend/`) usa el contrato de `docs/SUPERPROMPT_FRONT.md`; los tokens `--ids-*` de `tokens.css` se
-  sustituyen por `@inditex/sewingiopdsweb-styles` en el entorno corporativo (la plantilla AMIGA de referencia ya no está en el repo).
+  (`frontend/`) sigue `docs/GUIA_FRONT_HOMOGENEO.md` (kit: `custom.css` + `components/ui.tsx` + `useJob` +
+  `formato.ts` + `client.ts`; solo clases del catálogo § 3 y componentes de § 4; clases nuevas con nombre BEM
+  y documentadas en la guía). Contrato: `src/api/types.ts` (mismos nombres que el JSON de `api.py`), todo
+  endpoint es un método de `interface Api` en `client.ts`; nada llama a `fetch` fuera. Pantallas: portada `/`,
+  listado `/informes`, alta `/nuevo`, estudio `/informes/:ref?pestana=` (entrada · contexto · conclusiones ·
+  reunión · entregables · trazas, a una columna) e informe `/informes/:ref/informe`. Los tokens `--ids-*` de `tokens.css` se sustituyen por
+  `@inditex/sewingiopdsweb-styles` en el entorno corporativo.
 
 ## Pruebas rápidas
 `.venv/bin/python -m pytest -q tests` (determinista, sin red; incluye la API). Front: `cd frontend && npm run types:check && npm run build`. `.venv/bin/python demo.py` (flujo completo con LLM). Sin LLM: `./revisor revisar-texto --fichero

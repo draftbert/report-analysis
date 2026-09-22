@@ -56,11 +56,13 @@ Solo el front se publica fuera (`0.0.0.0`); la API no se publica en producción 
 Ojo: por HTTP plano la contraseña viaja sin cifrar: para uso continuado, dominio + HTTPS.
 
 `./revisor web` arranca la API REST (`audit_agent/api.py`, contrato en
-`docs/SUPERPROMPT_FRONT.md`) y sirve el front compilado. Las acciones del modelo
-corren como trabajos en segundo plano (`/api/jobs/{id}`), en serie por
-informe. El front (`frontend/`, Vite + React + TypeScript) replica el look &
-feel corporativo (tokens `--ids-*`, CSS BEM, menú lateral) y tiene un modo mock
-para verlo sin back-end (`npm run dev:mock`). Ver `frontend/README.md`.
+`docs/SUPERPROMPT_FRONT.md` § 5 y en `frontend/src/api/types.ts`) y sirve el front
+compilado. Las acciones del modelo corren como trabajos en segundo plano
+(`/api/jobs/{id}`), en serie por informe. El front (`frontend/`, Vite + React +
+TypeScript) sigue el paradigma del front homogéneo Inditex/IDS
+(`docs/GUIA_FRONT_HOMOGENEO.md`: cabecera IDS, portada con KPIs, listado, alta,
+estudio con pestañas e informe con asistente); se prueba contra la API real
+(`npm run dev` con `./revisor web` arrancado). Ver `frontend/README.md`.
 
 La CLI (`./revisor …`) y la web trabajan sobre los mismos ficheros del
 informe: se pueden combinar.
@@ -332,7 +334,7 @@ audit_agent/ppt_builder.py  Exportación del informe sobre la plantilla corporat
 scripts/sanear_plantilla.py Saneado de la plantilla PPT (comentarios, autores, think-cell, metadatos) antes de versionarla
 audit_agent/cli.py          Comandos y menú interactivo
 audit_agent/api.py          API REST (FastAPI) para el front; `./revisor web`
-frontend/                   Front (Vite + React + TS, look & feel corporativo, modo mock)
+frontend/                   Front (Vite + React + TS, front homogéneo IDS: docs/GUIA_FRONT_HOMOGENEO.md)
 ejemplos/                   Papel de trabajo real (tarifarios), contexto de ejemplo, borrador, entrada sintética y corpus
 scripts/                    Generación de ficheros de entrada sintéticos
 tests/                      Suite determinista (pytest)

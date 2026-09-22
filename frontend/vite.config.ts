@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 // Mismo esquema que la plantilla corporativa (alias "@", CSS BEM, tokens --ids-*).
-// En el entorno corporativo se sustituye tokens.css por @inditex/sewingiopdsweb-styles.
+// En desarrollo, /api se redirige al backend (API_URL o localhost:8000).
 export default defineConfig({
   plugins: [react()],
   base: "/",

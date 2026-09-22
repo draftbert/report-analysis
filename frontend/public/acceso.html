@@ -6,20 +6,20 @@
   <title>Acceso · Revisor de informes</title>
   <!-- Autocontenido a propósito: se sirve ANTES de la sesión, sin nada del bundle de la SPA. -->
   <style>
-    :root { --tinta: #131313; --tinta-baja: #666; --borde: #dcdcdc; --fondo: #fff; --error: #b3261e; }
+    :root { --tinta: #000; --tinta-baja: #757575; --borde: #E3E3E3; --fondo: #fff; --error: #DA2727; }
     * { box-sizing: border-box; margin: 0; }
     body { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--fondo);
-           color: var(--tinta); font: 14px/1.5 "Helvetica Neue", Helvetica, Arial, sans-serif; }
+           color: var(--tinta); font: 300 14px/1.5 "Helvetica Now Text", "Helvetica Neue", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
     .acceso { width: min(360px, calc(100vw - 48px)); display: flex; flex-direction: column; gap: 28px; }
-    .acceso__marca { font-size: 20px; font-weight: 700; letter-spacing: 0.08em; }
-    .acceso__marca small { display: block; font-size: 11px; font-weight: 400; letter-spacing: 0.18em; color: var(--tinta-baja); text-transform: uppercase; margin-top: 6px; }
+    .acceso__marca { font-size: 20px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
+    .acceso__marca small { display: block; font-size: 11px; font-weight: 300; letter-spacing: 0.18em; color: var(--tinta-baja); margin-top: 6px; }
     .acceso__campo { display: flex; flex-direction: column; gap: 8px; }
     .acceso__label { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tinta-baja); }
-    .acceso__input { padding: 12px 14px; border: 1px solid var(--borde); font: inherit; outline: none; border-radius: 0; width: 100%; }
-    .acceso__input:focus { border-color: var(--tinta); }
-    .acceso__btn { padding: 12px 14px; background: var(--tinta); color: #fff; border: none; font: inherit;
-                   letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
-    .acceso__btn:hover { opacity: 0.88; }
+    .acceso__input { height: 40px; padding: 0 4px; border: none; border-bottom: 1px solid var(--tinta); font: inherit; outline: none; border-radius: 0; width: 100%; background: transparent; }
+    .acceso__input:focus { border-color: #0170E9; }
+    .acceso__btn { height: 48px; padding: 0 24px; background: var(--tinta); color: #fff; border: none; font: inherit; font-size: 13px;
+                   letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; }
+    .acceso__btn:hover { background: #363636; }
     .acceso__btn[disabled] { opacity: 0.5; cursor: default; }
     .acceso__error { color: var(--error); font-size: 13px; min-height: 20px; }
     .acceso__nota { font-size: 12px; color: var(--tinta-baja); }
@@ -27,14 +27,14 @@
 </head>
 <body>
   <form class="acceso" id="form" autocomplete="off">
-    <div class="acceso__marca">REVISOR DE INFORMES<small>Auditoría interna</small></div>
+    <div class="acceso__marca">Revisor de informes<small>Auditoría interna</small></div>
     <label class="acceso__campo">
       <span class="acceso__label">Contraseña</span>
       <input class="acceso__input" id="password" type="password" autofocus autocomplete="current-password" />
     </label>
     <button class="acceso__btn" id="entrar" type="submit">Entrar</button>
     <div class="acceso__error" id="error" role="alert" aria-live="polite"></div>
-    <div class="acceso__nota">Sesión de 12 horas. Acceso restringido al Departamento de Auditoría Interna.</div>
+    <div class="acceso__nota">Sesión de 12 horas. Acceso restringido al Departamento de Auditoría Interna; toda acción del modelo queda trazada.</div>
   </form>
   <script>
     const form = document.getElementById("form");
@@ -51,13 +51,15 @@
           body: JSON.stringify({ password: document.getElementById("password").value }),
         });
         if (res.ok) {
-          // El login se sirvió en la URL a la que iba el usuario (redirect interno de nginx):
-          // recargar aterriza justo ahí. Si se entró directamente a /acceso.html, a la portada.
+          // nginx sirvió el login en la URL a la que iba el usuario (redirect interno): recargar
+          // aterriza justo ahí. Si se entró directamente a /acceso.html (o desde vite), a la portada.
           if (location.pathname === "/acceso.html") location.replace("/");
           else location.reload();
           return;
         }
-        error.textContent = res.status === 401 ? "Contraseña incorrecta." : "No se ha podido iniciar sesión (" + res.status + ").";
+        let msg = res.status === 401 ? "Contraseña incorrecta." : "No se ha podido iniciar sesión (" + res.status + ").";
+        try { const b = await res.json(); if (b.error) msg = b.error; } catch {}
+        error.textContent = msg;
       } catch {
         error.textContent = "No hay conexión con el servidor. Inténtalo de nuevo.";
       } finally {
