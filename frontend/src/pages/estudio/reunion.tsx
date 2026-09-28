@@ -49,7 +49,7 @@ const TranscriptView = ({ texto }: { texto: string }) => {
   );
 };
 
-/** El acta, un color por apartado: resumen y marcadores con el recuento de cada uno (llevan a su caja), cambios de texto
+/** El acta, una caja por apartado: resumen y marcadores con el recuento de cada uno (llevan a su caja), cambios de texto
  *  por aplicar (seleccionables; se aplican directos con aplicar-cambios), aplicados al informe (con «Volver a pendientes»),
  *  pendientes de dato, acuerdos y cambios de presentación (informativos). */
 const ActaView = ({ refExp, acta, nombre, ocultarAplicar, recargar, alAplicar }: { refExp: string; acta: Acta; nombre: string; ocultarAplicar?: boolean; recargar: () => Promise<void>; alAplicar?: () => void }) => {
@@ -86,30 +86,31 @@ const ActaView = ({ refExp, acta, nombre, ocultarAplicar, recargar, alAplicar }:
   const alternar = (i: number) => setSel((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   const todosMarcados = pendientes.length > 0 && pendientes.every(({ i }) => sel.has(i));
   const ir = (id: string) => document.getElementById(`${nombre}-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const kpis: [string, string, number, string][] = [
-    ["texto", "Cambios por aplicar", pendientes.length, "texto"], ["aplicados", "Aplicados al informe", hechos.length, "aplicado"],
-    ["ppt", "Presentación (PPT)", acta.cambios_ppt.length, "ppt"], ["pendientes", "Pendientes de dato", acta.pendientes.length, "pendiente"],
-    ["acuerdos", "Acuerdos", acta.acuerdos_sin_cambio.length, "acuerdo"],
+  const kpis: [string, string, number][] = [
+    ["texto", "Cambios por aplicar", pendientes.length], ["aplicados", "Aplicados al informe", hechos.length],
+    ["pendientes", "Pendientes de dato", acta.pendientes.length], ["acuerdos", "Acuerdos", acta.acuerdos_sin_cambio.length],
+    ["ppt", "Presentación (PPT)", acta.cambios_ppt.length],
   ];
-  const cabecera = (id: string, titulo: string, cuenta: string, extra?: React.ReactNode) => (
+  const cabecera = (id: string, titulo: string, cuenta: string, etiqueta?: React.ReactNode, extra?: React.ReactNode) => (
     <header className="acta-bloque__cabecera">
-      <h3 className="acta-bloque__titulo">{titulo}<span className="acta-bloque__cuenta">{cuenta}</span></h3>{extra}
+      <h3 className="acta-bloque__titulo">{titulo}<span className="acta-bloque__cuenta">{cuenta}</span>{etiqueta}</h3>{extra}
     </header>);
   const lista = (items: string[], vacio: string) => items.length === 0
     ? <p className="acta-bloque__vacio">{vacio}</p>
-    : items.map((t, i) => <div key={i} className="acta-item"><div className="acta-item__texto">{t}</div></div>);
+    : items.map((t, i) => <div key={i} className="acta-item"><div className="acta-item__titulo">{t}</div></div>);
 
   return (
     <div className="acta">
       <div className="acta-resumen"><div className="acta-resumen__etiqueta">Resumen de la reunión</div><p>{acta.resumen}</p></div>
       <div className="acta-kpis">
-        {kpis.map(([id, etiqueta, n, color]) => (
-          <button key={id} type="button" className={`acta-kpi acta-color--${color} ${n === 0 ? "acta-kpi--cero" : ""}`} onClick={() => ir(id)}>
+        {kpis.map(([id, etiqueta, n]) => (
+          <button key={id} type="button" className={`acta-kpi ${n === 0 ? "acta-kpi--cero" : ""}`} onClick={() => ir(id)}>
             <span className="acta-kpi__valor">{n}</span><span className="acta-kpi__etiqueta">{etiqueta}</span></button>))}
       </div>
 
-      <section className="acta-bloque acta-color--texto" id={`${nombre}-texto`}>
-        {cabecera("texto", "Cambios en el texto del informe", `${pendientes.length} por aplicar`,
+      <section className="acta-bloque" id={`${nombre}-texto`}>
+        {cabecera("texto", "Cambios en el texto del informe", String(pendientes.length),
+          pendientes.length > 0 ? <span className="tag tag-info">Por aplicar</span> : undefined,
           pendientes.length > 0 && !ocultarAplicar && <button type="button" className="btn btn-ghost btn-ghost--inline small"
             onClick={() => setSel(todosMarcados ? new Set() : new Set(pendientes.map(({ i }) => i)))}>{todosMarcados ? "Quitar la selección" : "Seleccionar todos"}</button>)}
         <div className="acta-bloque__cuerpo">
@@ -137,13 +138,13 @@ const ActaView = ({ refExp, acta, nombre, ocultarAplicar, recargar, alAplicar }:
       </section>
 
       {hechos.length > 0 && (
-        <section className="acta-bloque acta-color--aplicado" id={`${nombre}-aplicados`}>
-          {cabecera("aplicados", "Aplicados al informe", String(hechos.length))}
+        <section className="acta-bloque" id={`${nombre}-aplicados`}>
+          {cabecera("aplicados", "Aplicados al informe", String(hechos.length), <span className="tag tag-success">Aplicados</span>)}
           <div className="acta-bloque__cuerpo">
             {hechos.map(({ c, i }) => {
               const a = aplicados[String(i)];
               return (
-                <div key={i} className="acta-item">
+                <div key={i} className="acta-item acta-item--hecho">
                   <div className="acta-item__meta"><span className="acta-item__seccion">{c.seccion}</span>{c.solicitado_por && <span className="acta-item__quien">Pide: {c.solicitado_por}</span>}
                     <span className="acta-item__quien" style={{ marginLeft: "auto" }}>{fmt.fechaHora(a.fecha)}</span></div>
                   <div className="acta-item__titulo">{c.que_cambiar}</div>
@@ -158,16 +159,16 @@ const ActaView = ({ refExp, acta, nombre, ocultarAplicar, recargar, alAplicar }:
         </section>)}
 
       <div className="acta-rejilla">
-        <section className="acta-bloque acta-color--pendiente" id={`${nombre}-pendientes`}>
-          {cabecera("pendientes", "Pendientes de dato o confirmación", String(acta.pendientes.length))}
+        <section className="acta-bloque" id={`${nombre}-pendientes`}>
+          {cabecera("pendientes", "Pendientes de dato o confirmación", String(acta.pendientes.length), acta.pendientes.length > 0 ? <span className="tag tag-warning">Falta un dato</span> : undefined)}
           <div className="acta-bloque__cuerpo">{lista(acta.pendientes, "Nada pendiente de dato.")}</div>
         </section>
-        <section className="acta-bloque acta-color--acuerdo" id={`${nombre}-acuerdos`}>
+        <section className="acta-bloque" id={`${nombre}-acuerdos`}>
           {cabecera("acuerdos", "Acuerdos que no cambian el informe", String(acta.acuerdos_sin_cambio.length))}
           <div className="acta-bloque__cuerpo">{lista(acta.acuerdos_sin_cambio, "Sin acuerdos adicionales.")}</div>
         </section>
-        <section className="acta-bloque acta-color--ppt" id={`${nombre}-ppt`}>
-          {cabecera("ppt", "Presentación (PPT)", String(acta.cambios_ppt.length), <span className="small muted">Solo informativo: se ajusta a mano</span>)}
+        <section className="acta-bloque" id={`${nombre}-ppt`}>
+          {cabecera("ppt", "Presentación (PPT)", String(acta.cambios_ppt.length), <span className="tag tag-neutral">Informativo</span>)}
           <div className="acta-bloque__cuerpo">
             {acta.cambios_ppt.length === 0 ? <p className="acta-bloque__vacio">Sin cambios en la presentación.</p> : acta.cambios_ppt.map((c, i) => (
               <div key={i} className="acta-item">
