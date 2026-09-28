@@ -38,6 +38,7 @@ export const Entregables = ({ refExp, exp, recargar }: PropsPestana) => {
             <p className="template-desc">Cada apartado del informe es una diapositiva: portada, índice, introducción, resumen ejecutivo con evaluación global, una diapositiva por observación con el diseño corporativo, sugerencias de mejora y anexo de planes de acción.</p>
             <div className="row" style={{ marginBottom: 16 }}>
               {exp.ppt ? <span className={`tag ${exp.ppt.desactualizado ? "tag-warning" : "tag-success"}`}>{exp.ppt.desactualizado ? "Desactualizada respecto al informe" : "Al día"}</span> : <span className="tag tag-neutral">Aún no generada</span>}
+              {exp.ppt?.desactualizado && <a className="btn btn-ghost btn-ghost--inline small" href={api.urlCambiosDesdePpt(refExp)} target="_blank" rel="noopener" title="Abre en otra pestaña lo que ha cambiado en el informe desde que se generó el PowerPoint">¿Qué ha cambiado?</a>}
               {exp.informe && <span className="small muted">informe modificado {fmt.fechaHora(exp.informe.modificado)}</span>}
             </div>
             {exp.ppt && <p className="small"><a className="btn btn-ghost btn-ghost--inline" href={api.urlSalida(refExp, exp.ppt.nombre)}><Download strokeWidth={1.5} /> {exp.ppt.nombre}</a></p>}

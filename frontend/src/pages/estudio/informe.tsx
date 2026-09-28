@@ -32,7 +32,10 @@ const banda = (a: CabeceraApartado) => (a.tipo === "conclusion" || a.tipo === "s
 export type Vista = "documento" | "cambios";
 const VISTAS: [Vista, string][] = [["documento", "Documento"], ["cambios", "Últimos cambios"]];
 
-export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, pie }: PropsPestana & { vista: Vista; cabecera: React.ReactNode; pie: React.ReactNode }) => {
+/** Valor de `contra` para comparar con el informe del último PowerPoint (no es un snapshot con nombre). */
+const DESDE_PPT = "__ppt__";
+
+export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, desdePpt, cabecera, pie }: PropsPestana & { vista: Vista; desdePpt?: boolean; cabecera: React.ReactNode; pie: React.ReactNode }) => {
   const notificar = useNotificar();
   const confirmar = useConfirmar();
   const [inf, setInf] = useState<InformeT | null>(null);
@@ -43,7 +46,7 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
   const [revision, setRevision] = useState<{ hallazgos: Hallazgo[]; propuestas: PropuestaCorreccion[] | null } | null>(null);
   const [aplicandoRevision, setAplicandoRevision] = useState(false);
   const proponer = useJob<{ propuestas?: PropuestaCorreccion[] }>();
-  const [contra, setContra] = useState("");   // "" = el último cambio; si no, nombre del snapshot desde el que acumular
+  const [contra, setContra] = useState(desdePpt ? DESDE_PPT : "");   // "" = el último cambio; DESDE_PPT; o el snapshot desde el que acumular
   const [cambios, setCambios] = useState<ComparacionInforme | null>(null);
 
   const cargar = useCallback(async () => {
@@ -63,7 +66,7 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
   useEffect(() => {
     if (vista !== "cambios") return;
     let vivo = true;
-    api.comparacionInforme(ref, contra || undefined).then((c) => { if (vivo) setCambios(c); })
+    api.comparacionInforme(ref, contra && contra !== DESDE_PPT ? contra : undefined, contra === DESDE_PPT ? "ppt" : undefined).then((c) => { if (vivo) setCambios(c); })
       .catch((e) => { if (vivo) { notificar({ texto: (e as Error).message, error: true }); setContra(""); } });
     return () => { vivo = false; };
   }, [vista, contra, inf, ref, notificar]);
@@ -143,11 +146,13 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
       <main className="main-layout aparece">
         <div className={`document-container ${editando ? "editing" : ""}`}>
           {cabecera}
-          {exp.ppt?.desactualizado && <Aviso tipo="aviso" accion={<button className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("entrega")}>Ir a Exportación</button>}>El informe ha cambiado desde el último PowerPoint.</Aviso>}
+          {exp.ppt?.desactualizado && <Aviso tipo="aviso" accion={<>
+            <a className="btn btn-ghost btn-ghost--inline small" href={api.urlCambiosDesdePpt(ref)} target="_blank" rel="noopener" title="Abre en otra pestaña lo que ha cambiado en el informe desde que se generó el PowerPoint">¿Qué ha cambiado?</a>
+            <button className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("entrega")}>Ir a Exportación</button></>}>El informe ha cambiado desde el último PowerPoint.</Aviso>}
           <div className="tab-row" role="tablist" aria-label="Vistas del informe">
             {VISTAS.map(([k, n]) => <button key={k} type="button" role="tab" className={`tab-item ${vista === k ? "active" : ""}`} aria-selected={vista === k} onClick={() => verVista(k)}>{n}</button>)}
           </div>
-          {vista === "cambios" && <Cambios c={cambios} contra={contra} setContra={(v) => { setCambios(null); setContra(v); }} />}
+          {vista === "cambios" && <Cambios c={cambios} contra={contra} hayPpt={!!exp.ppt} setContra={(v) => { setCambios(null); setContra(v); }} />}
           {vista === "documento" && <>
             <div className="doc-header">
               <div className="section-label section-label--muted">Informe de auditoría interna</div>
@@ -193,8 +198,19 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
 };
 
 // ---------------------------------------------------------------- últimos cambios (en lugar del documento)
-const Cambios = ({ c, contra, setContra }: { c: ComparacionInforme | null; contra: string; setContra: (v: string) => void }) => {
+const Cambios = ({ c, contra, hayPpt, setContra }: { c: ComparacionInforme | null; contra: string; hayPpt: boolean; setContra: (v: string) => void }) => {
+  const selector = c && (
+    <select className="select-input" value={contra} onChange={(e) => setContra(e.target.value)} aria-label="Comparar desde">
+      <option value="">Solo el último cambio</option>
+      {hayPpt && <option value={DESDE_PPT}>Desde el último PowerPoint</option>}
+      {c.versiones.map((v) => <option key={v.nombre} value={v.nombre}>Desde {v.fecha.slice(0, 16)} · {v.origen}</option>)}
+    </select>);
   if (!c) return <div aria-busy="true" aria-label="Cargando"><span className="esqueleto esqueleto--titulo" style={{ width: "60%" }} /><span className="esqueleto esqueleto--bloque" /><span className="esqueleto esqueleto--bloque" /></div>;
+  if (!c.contra && contra === DESDE_PPT) return (
+    <div className="aparece">
+      <div className="diff-resumen"><div className="diff-resumen__texto"><strong>Cambios desde el último PowerPoint</strong>{c.ppt && <span className="small muted">generado {c.ppt.slice(0, 16).replace("T", " ")}</span>}</div>{selector}</div>
+      <div className="empty">El informe no ha cambiado desde que se generó el PowerPoint.</div>
+    </div>);
   if (!c.contra) return <div className="empty">Todavía no hay cambios: cada cambio que hagas (chat, buzón, acta de reunión, edición manual o acciones del modelo) guarda la versión anterior y aquí se verá lo que ha cambiado.</div>;
   const cambiados = c.apartados.filter((a) => a.estado !== "igual");
   const iguales = c.apartados.length - cambiados.length;
@@ -202,16 +218,15 @@ const Cambios = ({ c, contra, setContra }: { c: ComparacionInforme | null; contr
     <div className="aparece">
       <div className="diff-resumen">
         <div className="diff-resumen__texto">
-          <strong>{contra ? "Cambios acumulados" : "Último cambio"}</strong>
-          <span className="tag tag-neutral">{c.contra.origen}</span>
-          <span className="small muted">{c.contra.fecha.slice(0, 16)}</span>
+          {contra === DESDE_PPT
+            ? <><strong>Cambios desde el último PowerPoint</strong>{c.ppt && <span className="small muted">generado {c.ppt.slice(0, 16).replace("T", " ")}</span>}</>
+            : <><strong>{contra ? "Cambios acumulados" : "Último cambio"}</strong>
+              <span className="tag tag-neutral">{c.contra.origen}</span>
+              <span className="small muted">{c.contra.fecha.slice(0, 16)}</span></>}
           <DiffCuenta nuevas={c.lineas_nuevas} borradas={c.lineas_borradas} />
           <span className="small muted">{cambiados.length} {cambiados.length === 1 ? "apartado cambiado" : "apartados cambiados"}{iguales ? ` · ${iguales} sin cambios (ocultos)` : ""}</span>
         </div>
-        <select className="select-input" value={contra} onChange={(e) => setContra(e.target.value)} aria-label="Comparar desde el cambio">
-          <option value="">Solo el último cambio</option>
-          {c.versiones.map((v) => <option key={v.nombre} value={v.nombre}>Desde {v.fecha.slice(0, 16)} · {v.origen}</option>)}
-        </select>
+        {selector}
       </div>
       {cambiados.length === 0
         ? <div className="empty">Sin diferencias con esa versión.</div>

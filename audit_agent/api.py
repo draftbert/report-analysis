@@ -746,20 +746,30 @@ def historial(ref: str):
 
 
 @app.get("/api/expedientes/{ref}/informe/comparacion")
-def comparacion_informe(ref: str, contra: str | None = None):
+def comparacion_informe(ref: str, contra: str | None = None, desde: str | None = None):
     """El informe actual comparado apartado a apartado con un snapshot de historial/.
-    Sin `contra`, con el más reciente que difiere del actual (= el último cambio)."""
+    Sin `contra`, con el más reciente que difiere del actual (= el último cambio).
+    `desde=ppt`: con el informe tal como estaba al generar el último PowerPoint, que es el primer snapshot creado
+    después de él (cada escritura guarda antes la versión anterior); si no hay ninguno, no ha cambiado nada."""
     exp = _exp(ref)
     actual = exp.leer("informe")
     snaps = exp.historial("informe")[::-1]   # más recientes primero
-    if contra:
+    ppt = None
+    if desde == "ppt":
+        ruta_ppt = exp.ruta_ppt()
+        if not ruta_ppt.exists():
+            raise HTTPException(404, {"error": "Todavía no se ha generado el PowerPoint de este informe."})
+        ppt = datetime.fromtimestamp(ruta_ppt.stat().st_mtime).isoformat(timespec="seconds")
+        marca = ruta_ppt.stat().st_mtime_ns
+        base = next((p for p in snaps[::-1] if p.stat().st_ctime_ns > marca), None)
+    elif contra:
         base = next((p for p in snaps if p.name == contra), None)
         if base is None:
             raise HTTPException(404, {"error": f"No existe la versión {contra} en historial/."})
     else:
         base = next((p for p in snaps if p.read_text(encoding="utf-8") != actual), None)
     vacio = {"apartados": [], "lineas_nuevas": 0, "lineas_borradas": 0}
-    return {"contra": _version(exp, "informe", base) if base else None,
+    return {"contra": _version(exp, "informe", base) if base else None, "ppt": ppt,
             "versiones": [_version(exp, "informe", p) for p in snaps],
             **(comparar_informes(base.read_text(encoding="utf-8"), actual) if base else vacio)}
 

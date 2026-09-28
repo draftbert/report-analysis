@@ -105,7 +105,8 @@ export const clienteReal: Api = {
   historial: (ref) => req(`${e(ref)}/historial`),
   deshacer: (ref, fichero) => req(acc(ref, "deshacer"), json({ fichero })),
   diff: (ref, fichero) => req(`${e(ref)}/diff?fichero=${encodeURIComponent(fichero)}`),
-  comparacionInforme: (ref, contra) => req(`${e(ref)}/informe/comparacion${contra ? `?contra=${encodeURIComponent(contra)}` : ""}`),
+  comparacionInforme: (ref, contra, desde) => req(`${e(ref)}/informe/comparacion${desde ? `?desde=${desde}` : contra ? `?contra=${encodeURIComponent(contra)}` : ""}`),
+  urlCambiosDesdePpt: (ref) => `/informes/${encodeURIComponent(ref)}?paso=informe&vista=cambios&desde=ppt`,
 
   reunion: (ref, fichero, aplicar, onProgreso, repetir = false) => {
     const fd = new FormData();

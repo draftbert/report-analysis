@@ -126,7 +126,7 @@ export interface ApartadoDiff {
 export type ModoVolcado = "rehacer" | "anadir";
 /** Cómo quedaría el informe al pasar las observaciones aprobadas (no escribe nada). */
 export interface SimulacionVolcado { modo: ModoVolcado; entran: string[]; bloqueadas: string[]; apartados: ApartadoDiff[]; lineas_nuevas: number; lineas_borradas: number }
-export interface ComparacionInforme { contra: Version | null; versiones: Version[]; apartados: ApartadoDiff[]; lineas_nuevas: number; lineas_borradas: number }
+export interface ComparacionInforme { contra: Version | null; /** con `desde=ppt`: cuándo se generó el PowerPoint */ ppt?: string | null; versiones: Version[]; apartados: ApartadoDiff[]; lineas_nuevas: number; lineas_borradas: number }
 export interface Traza { nombre: string; fecha: string; accion: string; modelo: string; error?: string | null; tokens: { prompt: number | null; completion: number | null } }
 export interface ReunionActa { nombre: string; fecha: string; markdown: string; datos: (Acta & { transcripcion?: string | null }) | null }
 export interface ReunionTranscripcion { nombre: string; fecha: string; markdown: string }
@@ -209,7 +209,10 @@ export interface Api {
   deshacer(ref: string, fichero: string): Promise<{ mensaje: string }>;
   diff(ref: string, fichero: string): Promise<{ diff: string; contra: string | null }>;
   /** Cambios del informe por apartados contra `contra` (nombre de un snapshot); sin él, contra el último cambio. */
-  comparacionInforme(ref: string, contra?: string): Promise<ComparacionInforme>;
+  /** `desde="ppt"`: contra el informe tal como estaba al generar el último PowerPoint. */
+  comparacionInforme(ref: string, contra?: string, desde?: "ppt"): Promise<ComparacionInforme>;
+  /** Ruta de la web con los cambios del informe desde el último PowerPoint (para abrirla en otra pestaña). */
+  urlCambiosDesdePpt(ref: string): string;
 
   /** Transcripción (.txt/.docx/.vtt) o audio/vídeo. `onProgreso(pct)` es la subida; `repetir` salta el aviso de duplicado. */
   reunion(ref: string, fichero: File, aplicar: boolean, onProgreso?: (pct: number) => void, repetir?: boolean): Promise<{ job_id: string }>;

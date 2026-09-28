@@ -108,7 +108,7 @@ export const Estudio = () => {
           <Pasos pasos={barra.map(pasoDe)} activo={paso} onIr={(id) => irA(id as PasoId)}
             extra={<span className="row">{anadiendo ? volverAlInforme : iterando ? botonContexto : null}{botonTrazas}</span>} />
           {paso === "informe"
-            ? <InformePaso key={ref} {...props} vista={vista === "cambios" ? "cambios" : "documento"}
+            ? <InformePaso key={ref} {...props} vista={vista === "cambios" ? "cambios" : "documento"} desdePpt={vista === "cambios" && params.get("desde") === "ppt"}
                 cabecera={<PasoCabecera kicker={kicker} titulo="Informe" ayuda={AYUDA.informe} sugerencia={sugerencia("informe")} aviso={avisoPendiente} />} pie={pie} />
             : (
               <main className="main-container main-container--una-columna aparece" key={paso}>

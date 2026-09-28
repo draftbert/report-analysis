@@ -165,6 +165,29 @@ def test_comparacion_del_informe_con_el_ultimo_cambio(cliente):
     assert c.get("/api/expedientes/T-8/informe/comparacion?contra=no-existe.md").status_code == 404
 
 
+def test_cambios_desde_el_ultimo_powerpoint(cliente):
+    c, _ = cliente
+    c.post("/api/expedientes", json={"referencia": "T-5", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
+    assert c.get("/api/expedientes/T-5/informe/comparacion?desde=ppt").status_code == 404   # aún no hay PowerPoint
+    exp_dir = api_mod.DIR_EXPEDIENTES / "T-5"
+    (exp_dir / "02_informe.md").write_text(
+        "# Informe\n\n## Introducción\n\nIntro con 12 casos.\n\n## Resumen ejecutivo\n\nRes.\n\n"
+        "## Detalle de conclusiones\n\n### 1. T\n\n- Nivel de riesgo: Medio\n\nCuerpo.\n\n"
+        "**Recomendación 1.1.** Implantar.\n\n## Sugerencias de mejora\n\n_(ninguna)_\n", encoding="utf-8")
+    c.put("/api/expedientes/T-5/informe", json={"introduccion": "Intro con 10 casos."})     # cambio anterior al PPT
+    assert c.post("/api/expedientes/T-5/acciones/ppt").status_code == 200
+    r = c.get("/api/expedientes/T-5/informe/comparacion?desde=ppt").json()
+    assert r["ppt"] and r["contra"] is None and r["apartados"] == []                         # nada cambió desde el PPT
+    c.put("/api/expedientes/T-5/informe", json={"introduccion": "Intro con 15 casos."})
+    c.put("/api/expedientes/T-5/informe", json={"resumen_ejecutivo": "Res. ampliado."})
+    r = c.get("/api/expedientes/T-5/informe/comparacion?desde=ppt").json()
+    cambiados = {a["id"] for a in r["apartados"] if a["estado"] != "igual"}
+    assert cambiados == {"introduccion", "resumen"}                                         # los dos cambios posteriores, no el anterior
+    intro = next(a for a in r["apartados"] if a["id"] == "introduccion")
+    assert [s["texto"] for l in intro["lineas"] if l["tipo"] == "del" for s in l["segmentos"] if s["cambio"]] == ["10"]
+    assert c.get("/api/expedientes/T-5").json()["ppt"]["desactualizado"] is True
+
+
 def test_aplicar_desde_un_acta_marca_los_enviados(cliente):
     import json
     from audit_agent.esquemas import Cambio, PlanCambios
