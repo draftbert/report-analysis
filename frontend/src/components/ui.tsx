@@ -111,10 +111,40 @@ export const SeveridadTag = ({ severidad }: { severidad: "error" | "aviso" }) =>
 /** Estado de una línea del plan de cambios (aplicado / no aplicado / CONFLICTO). */
 export const PlanTag = ({ estado }: { estado: string }) => <span className={`tag ${planClase(estado)}`}>{estado}</span>;
 
-// ---------------------------------------------------------------- markdown
-export const Markdown = ({ texto }: { texto: string }) => (
-  <div className="md"><ReactMarkdown remarkPlugins={[remarkGfm]}>{texto}</ReactMarkdown></div>
-);
+// ---------------------------------------------------------------- markdown (con resaltado opcional de fragmentos)
+/** Fragmento a resaltar dentro del texto pintado (p. ej. un hallazgo de la revisión de vocabulario). */
+export interface Resalte { texto: string; clase: string; titulo?: string }
+
+/** Parte un texto en trozos normales y <mark> para cada aparición de los fragmentos (el más largo gana si se solapan). */
+const partir = (texto: string, resaltes: Resalte[]): React.ReactNode => {
+  const tramos: { ini: number; fin: number; r: Resalte }[] = [];
+  for (const r of resaltes) {
+    if (!r.texto) continue;
+    for (let i = texto.indexOf(r.texto); i >= 0; i = texto.indexOf(r.texto, i + r.texto.length)) tramos.push({ ini: i, fin: i + r.texto.length, r });
+  }
+  if (!tramos.length) return texto;
+  tramos.sort((a, b) => a.ini - b.ini || b.fin - a.fin);
+  const partes: React.ReactNode[] = [];
+  let pos = 0;
+  for (const t of tramos) {
+    if (t.ini < pos) continue;
+    if (t.ini > pos) partes.push(texto.slice(pos, t.ini));
+    partes.push(<mark key={t.ini} className={t.r.clase} title={t.r.titulo}>{texto.slice(t.ini, t.fin)}</mark>);
+    pos = t.fin;
+  }
+  if (pos < texto.length) partes.push(texto.slice(pos));
+  return partes;
+};
+const marcar = (nodo: React.ReactNode, resaltes: Resalte[]): React.ReactNode =>
+  typeof nodo === "string" ? partir(nodo, resaltes)
+    : Array.isArray(nodo) ? nodo.map((n, i) => <React.Fragment key={i}>{marcar(n, resaltes)}</React.Fragment>) : nodo;
+
+/** Único renderizador de Markdown. Con `resaltar`, marca esos fragmentos en párrafos, viñetas, celdas y negritas. */
+export const Markdown = ({ texto, resaltar }: { texto: string; resaltar?: Resalte[] }) => {
+  const componentes = resaltar?.length ? Object.fromEntries((["p", "li", "td", "strong", "em"] as const).map((Etiqueta) =>
+    [Etiqueta, ({ children }: { children?: React.ReactNode }) => <Etiqueta>{marcar(children, resaltar)}</Etiqueta>])) : undefined;
+  return <div className="md"><ReactMarkdown remarkPlugins={[remarkGfm]} components={componentes}>{texto}</ReactMarkdown></div>;
+};
 
 // ---------------------------------------------------------------- diff unificado (plegable)
 export const DiffView = ({ diff, abiertoInicial = true }: { diff: string; abiertoInicial?: boolean }) => {

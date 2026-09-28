@@ -95,6 +95,8 @@ export const clienteReal: Api = {
   informe: (ref) => req(`${e(ref)}/informe`),
   guardarInforme: (ref, d) => req(`${e(ref)}/informe`, json(d, "PUT")),
   revisar: (ref) => req(acc(ref, "revisar"), { method: "POST" }),
+  proponerCorrecciones: (ref, soloErrores = false) => req(acc(ref, "proponer-correcciones"), json({ solo_plan: soloErrores })),
+  aplicarCorreccion: (ref, original, propuesta) => req(acc(ref, "aplicar-correccion"), json({ original, propuesta })),
   corregir: (ref, avisos) => req(acc(ref, "corregir"), json({ avisos })),
   condensar: (ref, objetivo = 0.85) => req(acc(ref, "condensar"), json({ objetivo })),
   cambio: (ref, mensaje, soloPlan = false) => req(acc(ref, "cambio"), json({ mensaje, solo_plan: soloPlan })),

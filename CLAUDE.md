@@ -59,6 +59,9 @@ el motivo del snapshot dice el origen del cambio: `cambio`=chat, `reunion`=acta,
   el mismo fichero avisa y bloquea salvo `--repetir` o borrando los ficheros del ítem (la web limpia la huella).
 - Nivel de riesgo sin evidencia en el PT: coletilla `(propuesto por el modelo, sin evidencia en PT)`;
   la quita `aprobar`; `redactar-conclusiones` no admite conclusiones que la conserven.
+- Revisión de vocabulario (web): `revisar` devuelve cada hallazgo con su apartado y párrafo (resaltado en el documento);
+  `proponer-correcciones` (job) pide al modelo cada párrafo corregido SIN escribir; `aplicar-correccion` sustituye ese
+  párrafo exacto (con snapshot, motivo `revision`) solo si sigue tal cual. `corregir` comparte `_lote_correcciones`/`_pedir_correcciones`.
 - `aplicar-cambios`: sustituciones acotadas por sección, sin aproximaciones (solo tildes/espacios),
   ambiguo = no aplicado, contradictorio = CONFLICTO. Cada caso raro nuevo va a `tests/test_aplicar_cambios.py`.
 

@@ -496,6 +496,26 @@ def apartados_informe(datos: dict) -> list[dict]:
     return apartados
 
 
+def apartado_por_linea(texto: str) -> list[str | None]:
+    """Para cada línea (índice 0 = línea 1) de 02_informe.md, el id del apartado en el que cae, con los mismos
+    ids que `apartados_informe` (introduccion, resumen, c1…, s1…); None fuera de ellos (cabecera, títulos de sección)."""
+    salida: list[str | None] = []
+    seccion, actual, n = "", None, 0
+    for linea in texto.splitlines():
+        if linea.startswith("## "):
+            t = _norm(linea[3:])
+            seccion = ("introduccion" if t.startswith("introduccion") else "resumen" if t.startswith("resumen")
+                       else "c" if "conclusion" in t else "s" if ("sugerencia" in t or "mejora" in t) else "")
+            actual, n = (seccion if seccion in ("introduccion", "resumen") else None), 0
+        elif linea.startswith("### ") and seccion in ("c", "s"):
+            n += 1
+            actual = f"{seccion}{n}"
+        elif linea.startswith("#"):
+            actual = None
+        salida.append(actual)
+    return salida
+
+
 def parrafos_con_lineas(texto: str) -> list[tuple[int, str]]:
     """Divide en párrafos (bloques separados por línea en blanco), devolviendo
     (nº de línea inicial 1-based, párrafo). Ignora blockquotes (`>`)."""

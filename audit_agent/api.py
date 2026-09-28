@@ -30,8 +30,8 @@ from . import __version__, acciones, reglas
 from .acciones import CONFIG_DEFECTO, Contexto, estado_expediente
 from .expediente import ARCHIVOS, Expediente, ExpedienteError
 from .comparar import comparar_informes, origen_cambio
-from .formato_md import (COLETILLA_RIESGO_PROPUESTO, apartados_informe, parsear_conclusiones,
-                         parsear_informe, render_conclusiones, render_informe)
+from .formato_md import (COLETILLA_RIESGO_PROPUESTO, apartado_por_linea, apartados_informe, parrafos_con_lineas,
+                         parsear_conclusiones, parsear_informe, render_conclusiones, render_informe)
 from .lectores import EXTENSIONES, LecturaError
 from .llm import LLMNoDisponible
 from .style_checker import StyleChecker, revisar_markdown
@@ -583,8 +583,33 @@ def revisar(ref: str):
     hall = revisar_markdown(_checker(), texto)
     exp.anexar_registro("revision", f"\n## Revisión del informe — {datetime.now():%Y-%m-%d %H:%M} (web)\n\n"
                         + acciones._formato_hallazgos(hall) + "\n")
+    # para resaltarlos sobre el documento: en qué apartado (diapositiva) y párrafo cae cada hallazgo
+    ubicacion, parrafos = apartado_por_linea(texto), dict(parrafos_con_lineas(texto))
+    for h in hall:
+        h["apartado"] = ubicacion[h["parrafo_linea"] - 1] if 0 < h["parrafo_linea"] <= len(ubicacion) else None
+        h["parrafo"] = parrafos.get(h["parrafo_linea"], "")
     return {"hallazgos": hall, "errores": sum(h["severidad"] == "error" for h in hall),
             "avisos": sum(h["severidad"] == "aviso" for h in hall)}
+
+
+@app.post("/api/expedientes/{ref}/acciones/proponer-correcciones")
+def proponer_correcciones(ref: str, o: Opciones):
+    """Job: el modelo propone cómo quedaría cada párrafo con hallazgos (resultado `propuestas`); no escribe nada."""
+    exp = _exp(ref); ctx = _ctx(exp)
+    return _job(ref, "proponer-correcciones", lambda: acciones.accion_proponer_correcciones(ctx, incluir_avisos=not o.solo_plan), ctx=ctx)
+
+
+class Correccion(BaseModel):
+    original: str
+    propuesta: str
+
+
+@app.post("/api/expedientes/{ref}/acciones/aplicar-correccion")
+def aplicar_correccion(ref: str, c: Correccion):
+    """Aplica al informe la corrección de un párrafo aceptada por el auditor (determinista, con snapshot)."""
+    exp = _exp(ref)
+    with _lock(ref):
+        return {"mensaje": _sincrono(lambda: acciones.accion_aplicar_correccion(exp, c.original, c.propuesta))}
 
 
 @app.post("/api/expedientes/{ref}/acciones/deshacer")

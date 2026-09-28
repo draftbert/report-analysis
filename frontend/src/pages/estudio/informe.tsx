@@ -6,8 +6,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, History, Pencil, Send, Sparkles, SpellCheck } from "lucide-react";
 
 import { api } from "@/api";
-import type { Apartado, ComparacionInforme, Expediente, Hallazgo, Informe as InformeT, ResultadoCambios, Version } from "@/api";
+import type { Apartado, ComparacionInforme, Expediente, Hallazgo, Informe as InformeT, PropuestaCorreccion, ResultadoCambios, Version } from "@/api";
 import { Aviso, CambioTag, DiffCuenta, DiffDocumento, DiffView, EsqueletoDocumento, Markdown, MenuFlotante, Modal, PlanTag, ResultBox, RiesgoTag, SeveridadTag, SlideCard, useConfirmar, useNotificar } from "@/components/ui";
+import type { Resalte } from "@/components/ui";
 import { useJob } from "@/hooks/useJob";
 import { fmt } from "@/lib/formato";
 
@@ -38,6 +39,11 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
   const [edicion, setEdicion] = useState({ introduccion: "", resumen_ejecutivo: "", evaluacion_global: "" });
   const [md, setMd] = useState<string | null>(null);
   const [drawer, setDrawer] = useState(false);
+  const [pestana, setPestana] = useState<PestanaDrawer>("chat");
+  // Revisión de vocabulario: hallazgos resaltados en el documento y propuestas del modelo en el cajón (no escriben nada).
+  const [revision, setRevision] = useState<{ hallazgos: Hallazgo[]; propuestas: PropuestaCorreccion[] | null } | null>(null);
+  const [aplicandoRevision, setAplicandoRevision] = useState(false);
+  const proponer = useJob<{ propuestas?: PropuestaCorreccion[] }>();
   const [diff, setDiff] = useState("");
   const [mensaje, setMensaje] = useState<{ texto: string; error: boolean } | null>(null);
   const [contra, setContra] = useState("");   // "" = el último cambio; si no, nombre del snapshot desde el que acumular
@@ -91,6 +97,39 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
     if (!(await confirmar({ titulo: "Restaurar la versión anterior", accion: "Restaurar", cuerpo: "El informe volverá al último snapshot del historial." }))) return;
     try { const r = await api.deshacer(ref, "informe"); notificar({ texto: r.mensaje }); await cargar(); } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
   };
+  const refrescarHallazgos = async () => {
+    try { const r = await api.revisar(ref); setRevision((x) => x && { ...x, hallazgos: r.hallazgos }); } catch { /* se ve al volver a revisar */ }
+  };
+  const lanzarPropuestas = async () => {
+    setRevision((x) => x && { ...x, propuestas: null });
+    const j = await proponer.lanzar(() => api.proponerCorrecciones(ref));
+    if (j.estado !== "ok") notificar({ texto: j.mensaje, error: true });
+    setRevision((x) => x && { ...x, propuestas: j.estado === "ok" ? j.resultado?.propuestas ?? [] : [] });
+  };
+  const revisarVocabulario = async () => {
+    if (revision) { setRevision(null); return; }
+    setEditando(false);
+    if (vista !== "documento") irA?.("informe");
+    try {
+      const r = await api.revisar(ref);
+      setRevision({ hallazgos: r.hallazgos, propuestas: r.hallazgos.length ? null : [] });
+      setPestana("revision"); setDrawer(true);
+      if (r.hallazgos.length) await lanzarPropuestas();
+    } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
+  };
+  const aplicarPropuestas = async (lista: PropuestaCorreccion[]) => {
+    setAplicandoRevision(true);
+    let hechas = 0;
+    for (const p of lista) {
+      try { await api.aplicarCorreccion(ref, p.original, p.propuesta); hechas++; setRevision((x) => x && { ...x, propuestas: (x.propuestas ?? []).filter((q) => q !== p) }); }
+      catch (e) { notificar({ texto: (e as Error).message, error: true }); }
+    }
+    if (hechas) { notificar({ texto: hechas === 1 ? "Corrección aplicada al informe." : `${hechas} correcciones aplicadas al informe.` }); await cargar(); await refrescarHallazgos(); }
+    setAplicandoRevision(false);
+  };
+  const descartarPropuesta = (p: PropuestaCorreccion) => setRevision((x) => x && { ...x, propuestas: (x.propuestas ?? []).filter((q) => q !== p) });
+  const resaltesDe = (id: string): Resalte[] | undefined => revision?.hallazgos.filter((h) => h.apartado === id).map((h) => ({
+    texto: h.fragmento.replace(/…$/, ""), clase: `marca-revision marca-revision--${h.severidad}`, titulo: `${h.mensaje}${h.sugerencia ? ` → ${h.sugerencia}` : ""}` }));
   const verDiff = async () => { try { const r = await api.diff(ref, "informe"); setDiff(r.diff || ""); setDrawer(true); } catch (e) { notificar({ texto: (e as Error).message, error: true }); } };
 
   if (!inf) return <main className="main-layout"><div className="document-container">{cabecera}<EsqueletoDocumento bloques={4} /></div></main>;
@@ -104,7 +143,10 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
           {exp.instrucciones_pendientes && <span className="tag tag-info">Instrucciones pendientes</span>}
         </div>
         <div className="toolbar-actions">
-          {vista === "documento" && <button className="btn btn-ghost" onClick={guardar} disabled={modelo.activo || !hayInforme}>{editando ? <><Check strokeWidth={1.5} /> Guardar cambios</> : <><Pencil strokeWidth={1.5} /> Editar</>}</button>}
+          {vista === "documento" && <button className="btn btn-ghost" onClick={guardar} disabled={modelo.activo || !hayInforme || !!revision}>{editando ? <><Check strokeWidth={1.5} /> Guardar cambios</> : <><Pencil strokeWidth={1.5} /> Editar</>}</button>}
+          <button className={`btn ${revision ? "btn-secondary" : "btn-ghost"}`} onClick={revisarVocabulario} disabled={!hayInforme || modelo.activo || editando} aria-pressed={!!revision}
+            title="Resalta en el informe las palabras y frases que marcan las reglas de estilo y propone cómo cambiarlas">
+            <SpellCheck strokeWidth={1.5} /> {revision ? "Ocultar revisión" : "Revisar vocabulario"}{revision && revision.hallazgos.length > 0 && <span className="tag tag-warning" style={{ marginLeft: 4 }}>{revision.hallazgos.length}</span>}</button>
           {editando && <button className="btn btn-ghost" onClick={() => { setEditando(false); cargar(); }}>Cancelar</button>}
           <MenuFlotante etiqueta={<><Sparkles strokeWidth={1.5} /> Modelo</>}>
             <button className="btn btn-ghost" onClick={() => correrModelo(() => api.corregir(ref, false))} disabled={modelo.activo || !hayInforme}>Corregir errores de estilo</button>
@@ -148,13 +190,16 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
                 tools={(a.tipo === "conclusion" || a.tipo === "sugerencia") ? <><span className="tag tag-neutral">{a.tipo === "conclusion" ? "Recomendación" : "Sugerencia de mejora"}</span><RiesgoTag nivel={a.nivel_riesgo} /></> : <span className="editable-badge">Editable</span>}>
                 {editando && a.tipo === "introduccion" && <textarea className="textarea-doc" rows={16} value={edicion.introduccion} onChange={(e) => setEdicion({ ...edicion, introduccion: e.target.value })} aria-label="Introducción" />}
                 {editando && a.tipo === "resumen" && <textarea className="textarea-doc" rows={12} value={edicion.resumen_ejecutivo} onChange={(e) => setEdicion({ ...edicion, resumen_ejecutivo: e.target.value })} aria-label="Resumen ejecutivo" />}
-                {!(editando && (a.tipo === "introduccion" || a.tipo === "resumen")) && <Markdown texto={a.tipo === "conclusion" || a.tipo === "sugerencia" ? a.markdown.replace(/^###[^\n]*\n/, "") : a.markdown} />}
+                {!(editando && (a.tipo === "introduccion" || a.tipo === "resumen")) && <Markdown texto={a.tipo === "conclusion" || a.tipo === "sugerencia" ? a.markdown.replace(/^###[^\n]*\n/, "") : a.markdown} resaltar={resaltesDe(a.id)} />}
               </SlideCard>))}
             {editando && <p className="small muted">Aquí se editan la introducción, el resumen y la evaluación global. El texto de cada observación se cambia con el asistente, con «Editar Markdown completo» o en el paso Observaciones (y se vuelve a pasar al informe).</p>}
           </>}
           {pie}
         </div>
-        <Asistente refExp={ref} exp={exp} abierto={drawer} diff={diff} setDiff={setDiff} onCambio={cargar} verDiff={verDiff} deshacer={deshacer} verCambios={(desde) => verVista("cambios", desde)} irA={irA} />
+        <Asistente refExp={ref} exp={exp} abierto={drawer} diff={diff} setDiff={setDiff} onCambio={cargar} verDiff={verDiff} deshacer={deshacer} verCambios={(desde) => verVista("cambios", desde)} irA={irA}
+          pestana={pestana} setPestana={setPestana}
+          revision={<PanelRevision revision={revision} proponiendo={proponer.activo} progreso={proponer.job?.progreso} aplicando={aplicandoRevision}
+            apartados={inf.apartados} onRevisar={revisarVocabulario} onRepetir={lanzarPropuestas} onAplicar={aplicarPropuestas} onDescartar={descartarPropuesta} />} />
       </main>
 
       {md !== null && (
@@ -199,18 +244,72 @@ const Cambios = ({ c, contra, setContra }: { c: ComparacionInforme | null; contr
   );
 };
 
+// ---------------------------------------------------------------- revisión de vocabulario (pestaña del cajón)
+const PanelRevision = ({ revision, proponiendo, progreso, aplicando, apartados, onRevisar, onRepetir, onAplicar, onDescartar }: {
+  revision: { hallazgos: Hallazgo[]; propuestas: PropuestaCorreccion[] | null } | null; proponiendo: boolean; progreso?: string; aplicando: boolean;
+  apartados: Apartado[]; onRevisar: () => void; onRepetir: () => void; onAplicar: (p: PropuestaCorreccion[]) => void; onDescartar: (p: PropuestaCorreccion) => void;
+}) => {
+  const nombre = (id: string | null) => {
+    const a = apartados.find((x) => x.id === id);
+    return a ? (a.tipo === "conclusion" || a.tipo === "sugerencia" ? `Observación ${fmt.dos(a.numero)} · ${a.titulo}` : a.titulo) : "Informe";
+  };
+  if (!revision) return (<>
+    <div className="prompt-section-label">Revisión de vocabulario</div>
+    <p className="small muted">Resalta en el informe lo que marcan las reglas de estilo (vocabulario prohibido y primera persona: errores; tono, adjetivos y frases largas: avisos) y el modelo propone cómo quedaría cada párrafo. Nada se cambia hasta que lo apliques.</p>
+    <div><button className="btn btn-secondary" onClick={onRevisar}><SpellCheck strokeWidth={1.5} /> Revisar vocabulario</button></div>
+  </>);
+  const { hallazgos, propuestas } = revision;
+  const errores = hallazgos.filter((h) => h.severidad === "error").length;
+  const conPropuesta = new Set((propuestas ?? []).map((p) => p.original));
+  const sinPropuesta = propuestas ? hallazgos.filter((h) => !conPropuesta.has(h.parrafo ?? "")) : [];
+  return (<>
+    <div className="prompt-section-label">Revisión de vocabulario</div>
+    {hallazgos.length === 0
+      ? <p className="small">Sin hallazgos: el informe cumple las reglas de estilo.</p>
+      : <>
+        <div className="row"><span className="tag tag-error">{fmt.plural(errores, "error", "errores")}</span><span className="tag tag-warning">{fmt.plural(hallazgos.length - errores, "aviso", "avisos")}</span></div>
+        <p className="small muted">En el informe: <mark className="marca-revision marca-revision--error">rojo</mark> hay que cambiarlo; <mark className="marca-revision marca-revision--aviso">ámbar</mark> valorar según el contexto. Pasa el ratón por encima para ver el motivo.</p>
+      </>}
+    {proponiendo && <div className="small muted"><span className="spinner" /> {progreso || "El modelo está redactando las propuestas…"}</div>}
+    {propuestas && propuestas.length > 0 && (
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <span className="small muted">{fmt.plural(propuestas.length, "propuesta", "propuestas")} de cambio</span>
+        <button className="btn btn-primary" onClick={() => onAplicar(propuestas)} disabled={aplicando}>{aplicando ? <><span className="spinner" /> Aplicando…</> : `Aplicar todas (${propuestas.length})`}</button>
+      </div>)}
+    <div className="agreements-list">
+      {(propuestas ?? []).map((p) => (
+        <div key={`${p.linea}-${p.original.slice(0, 24)}`} className="agreement-card">
+          <div className="agreement-tag">{nombre(p.apartado)}</div>
+          <ul className="summary-bullets" style={{ margin: "4px 0 8px" }}>{p.hallazgos.map((h, i) => <li key={i} className="small"><SeveridadTag severidad={h.severidad} /> «{h.fragmento}» — {h.mensaje}</li>)}</ul>
+          <DiffDocumento lineas={p.lineas} />
+          {p.errores_restantes.length > 0 && <p className="small" style={{ color: "var(--c-warning-fg)", marginTop: 8 }}>La propuesta aún contiene: {p.errores_restantes.join(", ")}.</p>}
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="btn btn-secondary" onClick={() => onAplicar([p])} disabled={aplicando}>Aplicar</button>
+            <button className="btn btn-ghost" onClick={() => onDescartar(p)} disabled={aplicando}>Descartar</button>
+          </div>
+        </div>))}
+    </div>
+    {sinPropuesta.length > 0 && <>
+      <div className="prompt-section-label">Sin propuesta de cambio</div>
+      <p className="small muted">El modelo propone dejarlos como están (los avisos de tono se valoran según el contexto) o se descartó su propuesta.</p>
+      <div className="agreements-list">{sinPropuesta.map((h, i) => (
+        <div key={i} className="agreement-card" style={{ padding: 12 }}><div className="agreement-tag"><SeveridadTag severidad={h.severidad} /> {nombre(h.apartado ?? null)}</div><div className="small">«{h.fragmento}»</div><div className="agreement-meta">{h.mensaje}{h.sugerencia ? ` → ${h.sugerencia}` : ""}</div></div>))}</div>
+    </>}
+    {propuestas && hallazgos.length > 0 && !proponiendo && <div><button className="btn btn-ghost btn-ghost--inline small" onClick={onRepetir}>Proponer de nuevo</button></div>}
+  </>);
+};
+
 // ---------------------------------------------------------------- cajón del asistente
-const Asistente = ({ refExp, exp, abierto, diff, setDiff, onCambio, verDiff, deshacer, verCambios, irA }: {
+const Asistente = ({ refExp, exp, abierto, diff, setDiff, onCambio, verDiff, deshacer, verCambios, irA, pestana, setPestana, revision }: {
   refExp: string; exp: Expediente; abierto: boolean; diff: string; setDiff: (d: string) => void; onCambio: () => Promise<void>; verDiff: () => void; deshacer: () => void;
   verCambios: (desde?: string) => void; irA: PropsPestana["irA"];
+  pestana: PestanaDrawer; setPestana: (p: PestanaDrawer) => void; revision: React.ReactNode;
 }) => {
   const notificar = useNotificar();
-  const [pestana, setPestana] = useState<PestanaDrawer>("chat");
   const [texto, setTexto] = useState("");
   const [chat, setChat] = useState<Burbuja[]>([]);
   const [instr, setInstr] = useState("");
   const [instrGuardada, setInstrGuardada] = useState("");
-  const [hallazgos, setHallazgos] = useState<Hallazgo[] | null>(null);
   const [historial, setHistorial] = useState<Version[]>([]);
   const [resultado, setResultado] = useState<{ texto: string; error: boolean } | null>(null);
   const cambio = useJob<ResultadoCambios>();
@@ -243,7 +342,6 @@ const Asistente = ({ refExp, exp, abierto, diff, setDiff, onCambio, verDiff, des
     setResultado({ texto: j.mensaje, error: j.estado !== "ok" });
     if (j.estado === "ok") { if (j.resultado?.diff) setDiff(j.resultado.diff); if (!soloPlan) { setInstr(""); setInstrGuardada(""); } await onCambio(); }
   };
-  const revisar = async () => { try { const r = await api.revisar(refExp); setHallazgos(r.hallazgos); } catch (e) { notificar({ texto: (e as Error).message, error: true }); } };
   const plan = (r: ResultadoCambios | null | undefined) => r?.plan?.length ? (
     <ul className="summary-bullets" style={{ marginTop: 8 }}>{r.plan.map((p, k) => <li key={k}><PlanTag estado={p.estado} /> {p.seccion} — {p.motivo}{p.detalle ? ` (${p.detalle})` : ""}</li>)}</ul>) : null;
 
@@ -288,15 +386,7 @@ const Asistente = ({ refExp, exp, abierto, diff, setDiff, onCambio, verDiff, des
           {resultado && <ResultBox mensaje={resultado.texto} error={resultado.error} onClose={() => setResultado(null)} />}
           {plan(buzon.job?.resultado)}
         </>}
-        {pestana === "revision" && <>
-          <div className="prompt-section-label">Reglas deterministas de estilo.yaml</div>
-          <p className="small muted">Vocabulario prohibido y primera persona del singular (errores); tono, adjetivos y frases largas (avisos, se valoran según el contexto).</p>
-          <div><button className="btn btn-secondary" onClick={revisar}><SpellCheck strokeWidth={1.5} /> Revisar vocabulario</button></div>
-          {hallazgos !== null && (hallazgos.length === 0 ? <p className="small">Sin hallazgos.</p> : (
-            <div className="agreements-list">{hallazgos.map((h, i) => (
-              <div key={i} className="agreement-card" style={{ padding: 12 }}><div className="agreement-tag"><SeveridadTag severidad={h.severidad} /> línea {h.linea}</div><div className="small">«{h.fragmento}»</div><div className="agreement-meta">{h.mensaje}{h.sugerencia ? ` → ${h.sugerencia}` : ""}</div></div>))}</div>))}
-          {diff && <><div className="prompt-section-label">Último diff</div><DiffView diff={diff} /></>}
-        </>}
+        {pestana === "revision" && revision}
         {pestana === "historial" && <>
           <div className="row"><button className="btn btn-ghost btn-ghost--inline small" onClick={deshacer}><History strokeWidth={1.5} /> Deshacer última</button><button className="btn btn-ghost btn-ghost--inline small" onClick={verDiff}>Diff contra la anterior</button></div>
           {historial.length === 0 ? <p className="small muted">Sin versiones anteriores.</p> : (

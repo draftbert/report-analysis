@@ -34,7 +34,7 @@ from .esquemas import (AnalisisReunion, Conclusion, ConclusionExtraida, Contexto
                        ExtraccionConclusiones, PlanCambios, RecomendacionFormateada,
                        RecomendacionPropuesta)
 from .expediente import Expediente, ExpedienteError
-from .formato_md import (COLETILLA_RIESGO_PROPUESTO, normalizar_nivel, normalizar_tipo,
+from .formato_md import (COLETILLA_RIESGO_PROPUESTO, apartado_por_linea, normalizar_nivel, normalizar_tipo,
                          parrafos_con_lineas, parsear_conclusiones, parsear_informe,
                          render_conclusiones, render_informe, textos_informe)
 from .lectores import EXTENSIONES as EXT_ENTRADA, Documento, LecturaError, leer as leer_documento
@@ -813,39 +813,96 @@ def accion_revisar(ctx: Contexto) -> str:
     return detalle + resumen
 
 
-def accion_corregir(ctx: Contexto, incluir_avisos: bool = False) -> str:
-    exp = ctx.exp
-    texto, hall = _hallazgos_informe(ctx)
-    severidades = {"error", "aviso"} if incluir_avisos else {"error"}
+def _lote_correcciones(texto: str, hall: list[dict], severidades: set[str]) -> list[dict]:
+    """Párrafos del informe con hallazgos de las severidades pedidas: [{id, linea, texto, hallazgos}]."""
     por_parrafo: dict[int, list[dict]] = {}
     for h in hall:
         if h["severidad"] in severidades:
             por_parrafo.setdefault(h["parrafo_linea"], []).append(h)
-    if not por_parrafo:
-        return "No hay párrafos que corregir (usa --avisos para incluir también tono, adjetivos y frases largas)."
     parrafos = dict(parrafos_con_lineas(texto))
-    lote = []
-    for i, (linea, hs) in enumerate(sorted(por_parrafo.items()), 1):
-        lote.append({"id": i, "texto": parrafos[linea],
-                     "hallazgos": [f"«{h['fragmento']}»: {h['mensaje']} Sugerencia: {h.get('sugerencia', '')}"
-                                   for h in hs]})
+    return [{"id": i, "linea": linea, "texto": parrafos[linea], "hallazgos": hs}
+            for i, (linea, hs) in enumerate(sorted(por_parrafo.items()), 1)]
+
+
+def _pedir_correcciones(ctx: Contexto, lote: list[dict], accion: str = "corregir") -> dict[int, str]:
+    """El modelo reescribe cada párrafo del lote corrigiendo sus hallazgos: {id: párrafo reescrito}."""
+    peticion = [{"id": p["id"], "texto": p["texto"],
+                 "hallazgos": [f"«{h['fragmento']}»: {h['mensaje']} Sugerencia: {h.get('sugerencia', '')}" for h in p["hallazgos"]]}
+                for p in lote]
     user = ("Reescribe cada párrafo corrigiendo exactamente los hallazgos indicados. Conserva el formato "
             "Markdown (etiquetas en negrita, viñetas), todos los hechos y cifras, y el sentido. Los hallazgos de "
             "tono (expresiones negativas o rotundas, adjetivos, absolutos) se EVALÚAN según el contexto: reformula "
             "con la alternativa propuesta solo si es fiel al contenido y precisa el alcance real (casos, muestra, "
             "periodo); si la formulación directa es necesaria por precisión técnica, relevancia regulatoria o "
-            "severidad, déjala. Devuelve un párrafo por id.\n\n" + json.dumps(lote, ensure_ascii=False, indent=2))
-    res = ctx.llm.completar_estructurado("corregir", ctx.system, user, Correcciones, esfuerzo="low")
+            "severidad, déjala. Devuelve un párrafo por id.\n\n" + json.dumps(peticion, ensure_ascii=False, indent=2))
+    res = ctx.llm.completar_estructurado(accion, ctx.system, user, Correcciones, esfuerzo="low")
+    return {p.id: p.texto.strip() for p in res.parrafos}
+
+
+def _errores_de(ctx: Contexto, parrafo: str) -> list[str]:
+    verif = ctx.checker.revisar_texto(re.sub(r"\*\*[^*]+?:\*\*\s*", "", parrafo))
+    return [h.fragmento for h in verif.hallazgos if h.severidad == "error"]
+
+
+def accion_proponer_correcciones(ctx: Contexto, incluir_avisos: bool = True) -> str:
+    """Revisión de vocabulario de la web: el modelo propone cómo quedaría cada párrafo con hallazgos, SIN
+    escribir nada; el auditor aplica las que quiera (`accion_aplicar_correccion`). Deja en ULTIMO_RESULTADO
+    `propuestas` con el párrafo original, el propuesto y su diff por palabras."""
+    from .comparar import _lineas
+    texto, hall = _hallazgos_informe(ctx)
+    lote = _lote_correcciones(texto, hall, {"error", "aviso"} if incluir_avisos else {"error"})
+    ULTIMO_RESULTADO.clear()
+    ULTIMO_RESULTADO["propuestas"] = []
+    if not lote:
+        return "Sin hallazgos que corregir."
+    ctx.informar(f"Redactando propuestas para {len(lote)} párrafo(s)…", 30)
+    reescritos = _pedir_correcciones(ctx, lote, "proponer-correcciones")
+    ubicacion = apartado_por_linea(texto)
+    propuestas = []
+    for p in lote:
+        nuevo = reescritos.get(p["id"], "")
+        if not nuevo or nuevo == p["texto"].strip():
+            continue
+        propuestas.append({"linea": p["linea"], "apartado": ubicacion[p["linea"] - 1], "original": p["texto"], "propuesta": nuevo,
+                           "hallazgos": [{k: h[k] for k in ("tipo", "severidad", "fragmento", "mensaje", "sugerencia")} for h in p["hallazgos"]],
+                           "errores_restantes": _errores_de(ctx, nuevo), "lineas": _lineas(p["texto"], nuevo)})
+    ULTIMO_RESULTADO["propuestas"] = propuestas
+    sin = len(lote) - len(propuestas)
+    return (f"{len(propuestas)} propuesta(s) de corrección para revisar y aplicar"
+            + (f"; en {sin} párrafo(s) el modelo propone dejarlo como está" if sin else "") + ". El informe no se ha tocado.")
+
+
+def accion_aplicar_correccion(exp: Expediente, original: str, propuesta: str) -> str:
+    """Sustituye un párrafo del informe por su corrección aceptada por el auditor (determinista, con snapshot).
+    El párrafo tiene que seguir estando tal cual y una sola vez: si se ha editado después, no se aplica."""
+    texto = exp.leer("informe")
+    original, propuesta = original.strip(), propuesta.strip()
+    if not original or not propuesta:
+        raise ExpedienteError("Falta el párrafo original o la corrección.")
+    n = texto.count(original)
+    if n == 0:
+        raise ExpedienteError("Ese párrafo ya no está como se revisó (se ha cambiado después): vuelve a revisar el vocabulario.")
+    if n > 1:
+        raise ExpedienteError("Ese párrafo aparece varias veces en el informe: aplícalo a mano para elegir cuál.")
+    exp.escribir("informe", texto.replace(original, propuesta, 1), "revision")
+    return "Corrección aplicada al informe (la versión anterior queda en el historial)."
+
+
+def accion_corregir(ctx: Contexto, incluir_avisos: bool = False) -> str:
+    exp = ctx.exp
+    texto, hall = _hallazgos_informe(ctx)
+    lote = _lote_correcciones(texto, hall, {"error", "aviso"} if incluir_avisos else {"error"})
+    if not lote:
+        return "No hay párrafos que corregir (usa --avisos para incluir también tono, adjetivos y frases largas)."
+    reescritos = _pedir_correcciones(ctx, lote)
     originales = {p["id"]: p["texto"] for p in lote}
     nuevo, aplicados, pendientes = texto, [], []
-    for p in res.parrafos:
-        orig = originales.get(p.id)
+    for pid, reescrito in reescritos.items():
+        orig = originales.get(pid)
         if orig is None or orig not in nuevo:
             continue
-        verif = ctx.checker.revisar_texto(re.sub(r"\*\*[^*]+?:\*\*\s*", "", p.texto))
-        ok = not any(h.severidad == "error" for h in verif.hallazgos)
-        nuevo = nuevo.replace(orig, p.texto.strip(), 1)
-        (aplicados if ok else pendientes).append(p.id)
+        nuevo = nuevo.replace(orig, reescrito, 1)
+        (pendientes if _errores_de(ctx, reescrito) else aplicados).append(pid)
     snap = exp.escribir("informe", nuevo, "corregir")
     d = diff_texto(texto, nuevo, "02_informe.md")
     ULTIMO_RESULTADO.clear()

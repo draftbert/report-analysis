@@ -74,6 +74,14 @@ export interface Conclusion {
 
 export interface Hallazgo {
   id?: string; linea?: number; tipo: string; severidad: "error" | "aviso"; fragmento: string; mensaje: string; sugerencia?: string;
+  /** Solo en la revisión del informe: apartado (id de `Apartado`) y párrafo en el que cae, para resaltarlo. */
+  parrafo_linea?: number; apartado?: string | null; parrafo?: string;
+}
+/** Cómo quedaría un párrafo con hallazgos según el modelo (no se aplica hasta que el auditor lo acepta). */
+export interface PropuestaCorreccion {
+  linea: number; apartado: string | null; original: string; propuesta: string;
+  hallazgos: Pick<Hallazgo, "tipo" | "severidad" | "fragmento" | "mensaje" | "sugerencia">[];
+  errores_restantes: string[]; lineas: LineaDiff[];
 }
 
 export interface Apartado {
@@ -186,6 +194,10 @@ export interface Api {
   informe(ref: string): Promise<Informe>;
   guardarInforme(ref: string, d: InformeEdicion): Promise<Informe>;
   revisar(ref: string): Promise<{ hallazgos: Hallazgo[]; errores: number; avisos: number }>;
+  /** Job: propuestas de corrección por párrafo (resultado `{ propuestas }`); `soloErrores` deja fuera los avisos. */
+  proponerCorrecciones(ref: string, soloErrores?: boolean): Promise<{ job_id: string }>;
+  /** Aplica al informe la corrección aceptada de un párrafo (falla si el párrafo ha cambiado desde la revisión). */
+  aplicarCorreccion(ref: string, original: string, propuesta: string): Promise<{ mensaje: string }>;
   corregir(ref: string, avisos: boolean): Promise<{ job_id: string }>;
   condensar(ref: string, objetivo?: number): Promise<{ job_id: string }>;
   cambio(ref: string, mensaje: string, soloPlan?: boolean): Promise<{ job_id: string }>;

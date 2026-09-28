@@ -189,6 +189,33 @@ def test_aplicar_desde_un_acta_marca_los_enviados(cliente):
     assert c.put("/api/expedientes/T-7/reuniones/2026-09-28_1000_reunion.md/aplicados", json={"indices": [9]}).status_code == 400
 
 
+def test_revision_de_vocabulario_propone_y_aplica_por_parrafo(cliente):
+    from audit_agent.esquemas import Correcciones, ParrafoCorregido
+    c, falso = cliente
+    c.post("/api/expedientes", json={"referencia": "T-6", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
+    c.put("/api/expedientes/T-6/informe", json={"introduccion": "Se detectó un fallo en la conciliación mensual.", "resumen_ejecutivo": "Res."})
+    rev = c.post("/api/expedientes/T-6/acciones/revisar").json()
+    h = next(x for x in rev["hallazgos"] if x["fragmento"].lower() == "fallo")
+    assert h["apartado"] == "introduccion" and h["parrafo"] == "Se detectó un fallo en la conciliación mensual."
+    # el modelo propone; el informe no se toca
+    falso.respuestas["proponer-correcciones"] = lambda accion, user: Correcciones(parrafos=[
+        ParrafoCorregido(id=1, texto="Se detectó una debilidad en la conciliación mensual.")])
+    antes = c.get("/api/expedientes/T-6/informe").json()["markdown"]
+    j = _esperar(c, c.post("/api/expedientes/T-6/acciones/proponer-correcciones", json={}).json()["job_id"])
+    assert j["estado"] == "ok" and c.get("/api/expedientes/T-6/informe").json()["markdown"] == antes
+    prop = j["resultado"]["propuestas"][0]
+    assert prop["apartado"] == "introduccion" and prop["errores_restantes"] == []
+    assert [s["texto"] for l in prop["lineas"] if l["tipo"] == "add" for s in l["segmentos"] if s["cambio"]] == ["una", "debilidad"]
+    # el auditor aplica la propuesta
+    r = c.post("/api/expedientes/T-6/acciones/aplicar-correccion", json={"original": prop["original"], "propuesta": prop["propuesta"]})
+    assert r.status_code == 200
+    assert "una debilidad" in c.get("/api/expedientes/T-6/informe").json()["apartados"][0]["markdown"]
+    assert c.get("/api/expedientes/T-6/informe/comparacion").json()["contra"]["origen"] == "Revisión de vocabulario"
+    # otra vez la misma: el párrafo ya no está como se revisó
+    r = c.post("/api/expedientes/T-6/acciones/aplicar-correccion", json={"original": prop["original"], "propuesta": prop["propuesta"]})
+    assert r.status_code == 400 and "vuelve a revisar" in r.json()["error"]
+
+
 def test_condensar_api(cliente):
     c, falso = cliente
     c.post("/api/expedientes", json={"referencia": "T-9", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})

@@ -27,6 +27,7 @@ ORIGENES = {
     "redactar-contexto": "Redacción de introducción y resumen",
     "redactar-conclusiones": "Volcado de conclusiones",
     "antes-de-deshacer": "Deshacer",
+    "revision": "Revisión de vocabulario",
 }
 
 _TOKEN = re.compile(r"\w+|\s+|[^\w\s]")
