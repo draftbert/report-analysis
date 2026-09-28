@@ -1,13 +1,14 @@
 /* Informe en el espacio de trabajo (patrón 5 de la guía): toolbar sticky (estado y acciones), dos vistas
    —Documento (WYSIWYG, cada apartado es una diapositiva) y Últimos cambios (apartados cambiados en verde/rojo,
-   como un diff de GitHub)— y el cajón del asistente: chat de cambios, buzón de instrucciones, revisión e historial.
+   como un diff de GitHub)— y dos paneles propios a la derecha, cerrados por defecto y excluyentes (como en el
+   generador de actas): «Revisar vocabulario» (resaltado + propuestas) y «Modificar con el chat» (chat y buzón).
    Las reuniones y la exportación son pasos hermanos de la iteración (ver estudio.tsx). */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, History, Pencil, Send, Sparkles, SpellCheck } from "lucide-react";
+import { Check, History, MessageSquare, Pencil, Send, Sparkles, SpellCheck, X } from "lucide-react";
 
 import { api } from "@/api";
-import type { Apartado, ComparacionInforme, Expediente, Hallazgo, Informe as InformeT, PropuestaCorreccion, ResultadoCambios, Version } from "@/api";
-import { Aviso, CambioTag, DiffCuenta, DiffDocumento, DiffView, EsqueletoDocumento, Markdown, MenuFlotante, Modal, PlanTag, ResultBox, RiesgoTag, SeveridadTag, SlideCard, useConfirmar, useNotificar } from "@/components/ui";
+import type { Apartado, ComparacionInforme, Expediente, Hallazgo, Informe as InformeT, PropuestaCorreccion, ResultadoCambios } from "@/api";
+import { Aviso, CambioTag, DiffCuenta, DiffDocumento, EsqueletoDocumento, Markdown, MenuFlotante, Modal, PlanTag, ResultBox, RiesgoTag, SeveridadTag, SlideCard, useConfirmar, useNotificar } from "@/components/ui";
 import type { Resalte } from "@/components/ui";
 import { useJob } from "@/hooks/useJob";
 import { fmt } from "@/lib/formato";
@@ -21,7 +22,7 @@ const PROMPTS: [string, string][] = [
   ["Añadir un dato a los detalles", "Añade a los detalles descriptivos de la conclusión 2 el dato: "],
   ["Corregir un responsable", "Cambia el responsable del plan de acción 1.1 a "],
 ];
-type PestanaDrawer = "chat" | "instrucciones" | "revision" | "historial";
+type Panel = "" | "chat" | "revision";
 type Burbuja = { yo?: string; r?: ResultadoCambios | null; mensaje?: string; error?: boolean };
 type CabeceraApartado = Pick<Apartado, "numero" | "titulo" | "nivel_riesgo"> & { tipo: string };
 const kicker = (a: CabeceraApartado) => (a.tipo === "conclusion" ? `Detalle de conclusiones · Observación ${fmt.dos(a.numero)}` : a.tipo === "sugerencia" ? `Sugerencias de mejora · Observación ${fmt.dos(a.numero)}` : "Apartado");
@@ -38,13 +39,11 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
   const [editando, setEditando] = useState(false);
   const [edicion, setEdicion] = useState({ introduccion: "", resumen_ejecutivo: "", evaluacion_global: "" });
   const [md, setMd] = useState<string | null>(null);
-  const [drawer, setDrawer] = useState(false);
-  const [pestana, setPestana] = useState<PestanaDrawer>("chat");
+  const [panel, setPanel] = useState<Panel>("");   // un solo panel abierto a la vez
   // Revisión de vocabulario: hallazgos resaltados en el documento y propuestas del modelo en el cajón (no escriben nada).
   const [revision, setRevision] = useState<{ hallazgos: Hallazgo[]; propuestas: PropuestaCorreccion[] | null } | null>(null);
   const [aplicandoRevision, setAplicandoRevision] = useState(false);
   const proponer = useJob<{ propuestas?: PropuestaCorreccion[] }>();
-  const [diff, setDiff] = useState("");
   const [mensaje, setMensaje] = useState<{ texto: string; error: boolean } | null>(null);
   const [contra, setContra] = useState("");   // "" = el último cambio; si no, nombre del snapshot desde el que acumular
   const [cambios, setCambios] = useState<ComparacionInforme | null>(null);
@@ -91,7 +90,7 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
     setMensaje(null);
     const j = await modelo.lanzar(fn);
     setMensaje({ texto: j.mensaje, error: j.estado !== "ok" });
-    if (j.estado === "ok") { if (j.resultado?.diff) setDiff(j.resultado.diff); await cargar(); }
+    if (j.estado === "ok") await cargar();
   };
   const deshacer = async () => {
     if (!(await confirmar({ titulo: "Restaurar la versión anterior", accion: "Restaurar", cuerpo: "El informe volverá al último snapshot del historial." }))) return;
@@ -106,14 +105,16 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
     if (j.estado !== "ok") notificar({ texto: j.mensaje, error: true });
     setRevision((x) => x && { ...x, propuestas: j.estado === "ok" ? j.resultado?.propuestas ?? [] : [] });
   };
+  const cerrarRevision = () => { setRevision(null); setPanel(""); };
+  const abrirChat = () => { if (panel === "chat") { setPanel(""); return; } setRevision(null); setPanel("chat"); };
   const revisarVocabulario = async () => {
-    if (revision) { setRevision(null); return; }
+    if (panel === "revision") { cerrarRevision(); return; }
     setEditando(false);
     if (vista !== "documento") irA?.("informe");
     try {
       const r = await api.revisar(ref);
       setRevision({ hallazgos: r.hallazgos, propuestas: r.hallazgos.length ? null : [] });
-      setPestana("revision"); setDrawer(true);
+      setPanel("revision");
       if (r.hallazgos.length) await lanzarPropuestas();
     } catch (e) { notificar({ texto: (e as Error).message, error: true }); }
   };
@@ -130,7 +131,6 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
   const descartarPropuesta = (p: PropuestaCorreccion) => setRevision((x) => x && { ...x, propuestas: (x.propuestas ?? []).filter((q) => q !== p) });
   const resaltesDe = (id: string): Resalte[] | undefined => revision?.hallazgos.filter((h) => h.apartado === id).map((h) => ({
     texto: h.fragmento.replace(/…$/, ""), clase: `marca-revision marca-revision--${h.severidad}`, titulo: `${h.mensaje}${h.sugerencia ? ` → ${h.sugerencia}` : ""}` }));
-  const verDiff = async () => { try { const r = await api.diff(ref, "informe"); setDiff(r.diff || ""); setDrawer(true); } catch (e) { notificar({ texto: (e as Error).message, error: true }); } };
 
   if (!inf) return <main className="main-layout"><div className="document-container">{cabecera}<EsqueletoDocumento bloques={4} /></div></main>;
   const hayInforme = inf.apartados.some((a) => a.markdown);
@@ -144,9 +144,11 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
         </div>
         <div className="toolbar-actions">
           {vista === "documento" && <button className="btn btn-ghost" onClick={guardar} disabled={modelo.activo || !hayInforme || !!revision}>{editando ? <><Check strokeWidth={1.5} /> Guardar cambios</> : <><Pencil strokeWidth={1.5} /> Editar</>}</button>}
-          <button className={`btn ${revision ? "btn-secondary" : "btn-ghost"}`} onClick={revisarVocabulario} disabled={!hayInforme || modelo.activo || editando} aria-pressed={!!revision}
-            title="Resalta en el informe las palabras y frases que marcan las reglas de estilo y propone cómo cambiarlas">
-            <SpellCheck strokeWidth={1.5} /> {revision ? "Ocultar revisión" : "Revisar vocabulario"}{revision && revision.hallazgos.length > 0 && <span className="tag tag-warning" style={{ marginLeft: 4 }}>{revision.hallazgos.length}</span>}</button>
+          <button className={`btn ${panel === "revision" ? "btn-secondary" : "btn-ghost"}`} onClick={revisarVocabulario} disabled={!hayInforme || modelo.activo || editando} aria-pressed={panel === "revision"}
+            title="Abre el panel de revisión: resalta en el informe lo que marcan las reglas de estilo y propone cómo cambiarlo">
+            <SpellCheck strokeWidth={1.5} /> Revisar vocabulario{revision && revision.hallazgos.length > 0 && <span className="tag tag-warning" style={{ marginLeft: 4 }}>{revision.hallazgos.length}</span>}</button>
+          <button className={`btn ${panel === "chat" ? "btn-secondary" : "btn-ghost"}`} onClick={abrirChat} disabled={editando} aria-pressed={panel === "chat"}
+            title="Abre el chat para pedir cambios al informe (y el buzón de instrucciones)"><MessageSquare strokeWidth={1.5} /> Modificar con el chat</button>
           {editando && <button className="btn btn-ghost" onClick={() => { setEditando(false); cargar(); }}>Cancelar</button>}
           <MenuFlotante etiqueta={<><Sparkles strokeWidth={1.5} /> Modelo</>}>
             <button className="btn btn-ghost" onClick={() => correrModelo(() => api.corregir(ref, false))} disabled={modelo.activo || !hayInforme}>Corregir errores de estilo</button>
@@ -155,7 +157,6 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
             <button className="btn btn-ghost" onClick={() => setMd(inf.markdown)}>Editar Markdown completo</button>
           </MenuFlotante>
           <button className="btn btn-ghost" onClick={deshacer} disabled={!exp.informe?.versiones} title="Vuelve a la versión anterior del informe"><History strokeWidth={1.5} /> Versión anterior</button>
-          <button className="btn btn-ghost drawer-toggle" onClick={() => setDrawer(!drawer)}><Sparkles strokeWidth={1.5} /> Asistente</button>
         </div>
       </div>
 
@@ -196,10 +197,17 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
           </>}
           {pie}
         </div>
-        <Asistente refExp={ref} exp={exp} abierto={drawer} diff={diff} setDiff={setDiff} onCambio={cargar} verDiff={verDiff} deshacer={deshacer} verCambios={(desde) => verVista("cambios", desde)} irA={irA}
-          pestana={pestana} setPestana={setPestana}
-          revision={<PanelRevision revision={revision} proponiendo={proponer.activo} progreso={proponer.job?.progreso} aplicando={aplicandoRevision}
-            apartados={inf.apartados} onRevisar={revisarVocabulario} onRepetir={lanzarPropuestas} onAplicar={aplicarPropuestas} onDescartar={descartarPropuesta} />} />
+        <aside className={`ai-drawer ${panel === "revision" ? "abierto" : ""}`} aria-label="Revisar vocabulario" aria-hidden={panel !== "revision"}>
+          <div className="drawer-header">
+            <div className="drawer-title"><SpellCheck size={18} strokeWidth={1.5} /> Revisar vocabulario</div>
+            <div className="drawer-header__acciones"><button type="button" className="icon-btn" onClick={cerrarRevision} aria-label="Cerrar la revisión" title="Cerrar (quita el resaltado)"><X size={18} strokeWidth={1.5} /></button></div>
+          </div>
+          <div className="drawer-body">
+            <PanelRevision revision={revision} proponiendo={proponer.activo} progreso={proponer.job?.progreso} aplicando={aplicandoRevision}
+              apartados={inf.apartados} onRevisar={revisarVocabulario} onRepetir={lanzarPropuestas} onAplicar={aplicarPropuestas} onDescartar={descartarPropuesta} />
+          </div>
+        </aside>
+        <PanelChat refExp={ref} exp={exp} abierto={panel === "chat"} onCerrar={() => setPanel("")} onCambio={cargar} deshacer={deshacer} verCambios={() => verVista("cambios")} irA={irA} />
       </main>
 
       {md !== null && (
@@ -254,7 +262,6 @@ const PanelRevision = ({ revision, proponiendo, progreso, aplicando, apartados, 
     return a ? (a.tipo === "conclusion" || a.tipo === "sugerencia" ? `Observación ${fmt.dos(a.numero)} · ${a.titulo}` : a.titulo) : "Informe";
   };
   if (!revision) return (<>
-    <div className="prompt-section-label">Revisión de vocabulario</div>
     <p className="small muted">Resalta en el informe lo que marcan las reglas de estilo (vocabulario prohibido y primera persona: errores; tono, adjetivos y frases largas: avisos) y el modelo propone cómo quedaría cada párrafo. Nada se cambia hasta que lo apliques.</p>
     <div><button className="btn btn-secondary" onClick={onRevisar}><SpellCheck strokeWidth={1.5} /> Revisar vocabulario</button></div>
   </>);
@@ -263,7 +270,6 @@ const PanelRevision = ({ revision, proponiendo, progreso, aplicando, apartados, 
   const conPropuesta = new Set((propuestas ?? []).map((p) => p.original));
   const sinPropuesta = propuestas ? hallazgos.filter((h) => !conPropuesta.has(h.parrafo ?? "")) : [];
   return (<>
-    <div className="prompt-section-label">Revisión de vocabulario</div>
     {hallazgos.length === 0
       ? <p className="small">Sin hallazgos: el informe cumple las reglas de estilo.</p>
       : <>
@@ -299,31 +305,31 @@ const PanelRevision = ({ revision, proponiendo, progreso, aplicando, apartados, 
   </>);
 };
 
-// ---------------------------------------------------------------- cajón del asistente
-const Asistente = ({ refExp, exp, abierto, diff, setDiff, onCambio, verDiff, deshacer, verCambios, irA, pestana, setPestana, revision }: {
-  refExp: string; exp: Expediente; abierto: boolean; diff: string; setDiff: (d: string) => void; onCambio: () => Promise<void>; verDiff: () => void; deshacer: () => void;
-  verCambios: (desde?: string) => void; irA: PropsPestana["irA"];
-  pestana: PestanaDrawer; setPestana: (p: PestanaDrawer) => void; revision: React.ReactNode;
+// ---------------------------------------------------------------- «Modificar con el chat» (cajón propio, como en el generador de actas)
+const PanelChat = ({ refExp, exp, abierto, onCerrar, onCambio, deshacer, verCambios, irA }: {
+  refExp: string; exp: Expediente; abierto: boolean; onCerrar: () => void; onCambio: () => Promise<void>; deshacer: () => void;
+  verCambios: () => void; irA: PropsPestana["irA"];
 }) => {
   const notificar = useNotificar();
+  const [modo, setModo] = useState<"chat" | "buzon">("chat");
   const [texto, setTexto] = useState("");
   const [chat, setChat] = useState<Burbuja[]>([]);
   const [instr, setInstr] = useState("");
   const [instrGuardada, setInstrGuardada] = useState("");
-  const [historial, setHistorial] = useState<Version[]>([]);
   const [resultado, setResultado] = useState<{ texto: string; error: boolean } | null>(null);
   const cambio = useJob<ResultadoCambios>();
   const buzon = useJob<ResultadoCambios>();
   const fin = useRef<HTMLDivElement>(null);
+  const caja = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    api.instrucciones(refExp).then((r) => { setInstr(r.texto); setInstrGuardada(r.texto); }).catch(() => {});
-    api.historial(refExp).then(setHistorial).catch(() => setHistorial([]));
-  }, [refExp, exp]);
+  useEffect(() => { api.instrucciones(refExp).then((r) => { setInstr(r.texto); setInstrGuardada(r.texto); }).catch(() => {}); }, [refExp, exp]);
   useEffect(() => { fin.current?.scrollIntoView({ block: "end" }); }, [chat, cambio.activo]);
+  // la caja crece con el texto hasta 200 px (Intro envía, Mayús + Intro añade una línea)
+  useEffect(() => { const c = caja.current; if (c) { c.style.height = "auto"; c.style.height = `${Math.min(c.scrollHeight, 200)}px`; } }, [texto]);
+  useEffect(() => { if (abierto && modo === "chat") caja.current?.focus(); }, [abierto, modo]);
 
-  const enviar = async (ev: React.FormEvent) => {
-    ev.preventDefault();
+  const enviar = async (ev?: React.FormEvent) => {
+    ev?.preventDefault();
     const q = texto.trim();
     if (!q || cambio.activo) return;
     setChat((c) => [...c, { yo: q }]); setTexto("");
@@ -340,42 +346,53 @@ const Asistente = ({ refExp, exp, abierto, diff, setDiff, onCambio, verDiff, des
     try { if (instr !== instrGuardada) { const r = await api.guardarInstrucciones(refExp, instr); setInstrGuardada(r.texto); } } catch (e) { notificar({ texto: (e as Error).message, error: true }); return; }
     const j = await buzon.lanzar(() => api.aplicarCambios(refExp, soloPlan));
     setResultado({ texto: j.mensaje, error: j.estado !== "ok" });
-    if (j.estado === "ok") { if (j.resultado?.diff) setDiff(j.resultado.diff); if (!soloPlan) { setInstr(""); setInstrGuardada(""); } await onCambio(); }
+    if (j.estado === "ok") { if (!soloPlan) { setInstr(""); setInstrGuardada(""); } await onCambio(); }
+  };
+  // con plan, una línea de resumen (la lista va debajo); sin plan (error, nada que aplicar), el mensaje de la API
+  const resumenRespuesta = (m: Burbuja) => {
+    const pl = m.r?.plan ?? [];
+    if (m.error || !pl.length) return (m.mensaje ?? "").split("\n\n")[0];
+    const ok = pl.filter((x) => /^(aplicado|insertado|eliminado)/.test(x.estado)).length;
+    return `${ok} de ${fmt.plural(pl.length, "cambio aplicado", "cambios aplicados")} al informe.`;
   };
   const plan = (r: ResultadoCambios | null | undefined) => r?.plan?.length ? (
     <ul className="summary-bullets" style={{ marginTop: 8 }}>{r.plan.map((p, k) => <li key={k}><PlanTag estado={p.estado} /> {p.seccion} — {p.motivo}{p.detalle ? ` (${p.detalle})` : ""}</li>)}</ul>) : null;
 
   return (
-    <aside className={`ai-drawer ${abierto ? "abierto" : ""}`}>
+    <aside className={`ai-drawer ${abierto ? "abierto" : ""}`} aria-label="Modificar con el chat" aria-hidden={!abierto}>
       <div className="drawer-header">
-        <div className="drawer-title"><Sparkles size={18} strokeWidth={1.5} /> Asistente del informe</div>
-        <span className="tag tag-neutral">{exp.llm.split("(")[0].trim() || "modelo"}</span>
+        <div className="drawer-title"><Sparkles size={18} strokeWidth={1.5} /> Modificar con el chat</div>
+        <div className="drawer-header__acciones">
+          <span className="tag tag-neutral">{exp.llm.split("(")[0].trim() || "modelo"}</span>
+          <button type="button" className="icon-btn" onClick={onCerrar} aria-label="Cerrar el chat" title="Cerrar"><X size={18} strokeWidth={1.5} /></button>
+        </div>
       </div>
-      <div className="tab-row" role="tablist" style={{ marginBottom: 0, gap: 16 }}>
-        {([["chat", "Cambios"], ["instrucciones", "Buzón"], ["revision", "Revisión"], ["historial", "Historial"]] as [PestanaDrawer, string][]).map(([k, n]) => (
-          <button key={k} className={`tab-item ${pestana === k ? "active" : ""}`} role="tab" aria-selected={pestana === k} onClick={() => setPestana(k)}>{n}{k === "historial" && historial.length > 0 && <span className="count">{historial.length}</span>}</button>))}
+      <div className="tab-row" role="tablist" style={{ marginBottom: 0, gap: 24 }}>
+        {([["chat", "Pedir un cambio"], ["buzon", "Buzón de instrucciones"]] as ["chat" | "buzon", string][]).map(([k, n]) => (
+          <button key={k} type="button" className={`tab-item ${modo === k ? "active" : ""}`} role="tab" aria-selected={modo === k} onClick={() => setModo(k)}>{n}</button>))}
       </div>
       <div className="drawer-body">
-        {pestana === "chat" && <>
-          <div className="prompt-section-label">Cambios sencillos, uno por mensaje</div>
-          <div className="prompt-chips">{PROMPTS.map(([n, p]) => <button key={n} className="prompt-chip" onClick={() => setTexto(p)}>"{n}"</button>)}</div>
+        {modo === "chat" && <>
+          <div className="prompt-section-label">Prompts sugeridos</div>
+          <div className="prompt-chips">{PROMPTS.map(([n, p]) => <button key={n} type="button" className="prompt-chip" onClick={() => { setTexto(p); caja.current?.focus(); }}>"{n}"</button>)}</div>
+          <div className="prompt-section-label">Historial</div>
           <div className="chat-history">
-            {chat.length === 0 && !cambio.activo && <div className="small muted">Se aplican al momento sobre el informe, con snapshot en historial; puedes deshacerlos.</div>}
+            {chat.length === 0 && !cambio.activo && <div className="small muted">Un cambio por mensaje. Se aplica al momento sobre el informe y queda en el historial: puedes verlo en «Últimos cambios» y deshacerlo.</div>}
             {chat.map((m, i) => m.yo
-              ? <div key={i} className="chat-bubble chat-bubble-user">{m.yo}</div>
+              ? <div key={i} className="chat-bubble chat-bubble-user" style={{ whiteSpace: "pre-wrap" }}>{m.yo}</div>
               : <div key={i} className={`chat-bubble chat-bubble-ai ${m.error ? "error" : ""}`} style={m.error ? { borderLeftColor: "var(--c-error-fg)" } : undefined}>
-                  <span style={{ whiteSpace: "pre-wrap" }}>{m.mensaje}</span>{plan(m.r)}
+                  <span style={{ whiteSpace: "pre-wrap" }}>{resumenRespuesta(m)}</span>{plan(m.r)}
                   {m.r?.pendientes?.length ? <div className="small muted" style={{ marginTop: 8 }}>Pendientes: {m.r.pendientes.join(" · ")}</div> : null}
-                  {m.r?.diff && <DiffView diff={m.r.diff} abiertoInicial={false} />}
+                  {!m.error && i === chat.length - 1 && <div className="row" style={{ marginTop: 8 }}>
+                    <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={verCambios}>Ver en «Últimos cambios»</button>
+                    <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={deshacer}>Deshacer</button></div>}
                 </div>)}
             {cambio.activo && <div className="chat-bubble chat-bubble-ai"><span className="spinner" /> {cambio.job?.progreso || "Aplicando…"}</div>}
             <div ref={fin} />
           </div>
-          <div className="row"><button className="btn btn-ghost btn-ghost--inline small" onClick={deshacer}>Deshacer</button><button className="btn btn-ghost btn-ghost--inline small" onClick={() => verCambios()}>Ver en el informe</button><button className="btn btn-ghost btn-ghost--inline small" onClick={verDiff}>Ver diff</button></div>
         </>}
-        {pestana === "instrucciones" && <>
-          <div className="prompt-section-label">Buzón del auditor (03_instrucciones.md)</div>
-          <p className="small muted">Comentarios del Gerente, de la Directora o del área. Se revisan aquí y se aplican al informe; las reuniones nunca escriben en este buzón.</p>
+        {modo === "buzon" && <>
+          <p className="small muted">Pega aquí los comentarios del Gerente, de la Directora o del área y aplícalos de una vez. Las reuniones nunca escriben en este buzón.</p>
           <textarea className="textarea-notas" rows={12} value={instr} onChange={(e) => setInstr(e.target.value)} aria-label="Instrucciones pendientes" />
           <div className="row">
             <button className="btn btn-ghost" onClick={guardarInstr} disabled={instr === instrGuardada}>Guardar</button>
@@ -383,27 +400,20 @@ const Asistente = ({ refExp, exp, abierto, diff, setDiff, onCambio, verDiff, des
             <button className="btn btn-primary" onClick={() => aplicarBuzon(false)} disabled={buzon.activo || !instr.trim()}>{buzon.activo ? <><span className="spinner" /> Aplicando…</> : "Aplicar cambios"}</button>
           </div>
           {buzon.activo && <div className="small muted"><span className="spinner" /> {buzon.job?.progreso || "Aplicando…"}</div>}
-          {resultado && <ResultBox mensaje={resultado.texto} error={resultado.error} onClose={() => setResultado(null)} />}
+          {resultado && <ResultBox mensaje={resultado.texto.split("\n\n")[0]} error={resultado.error} onClose={() => setResultado(null)} />}
           {plan(buzon.job?.resultado)}
-        </>}
-        {pestana === "revision" && revision}
-        {pestana === "historial" && <>
-          <div className="row"><button className="btn btn-ghost btn-ghost--inline small" onClick={deshacer}><History strokeWidth={1.5} /> Deshacer última</button><button className="btn btn-ghost btn-ghost--inline small" onClick={verDiff}>Diff contra la anterior</button></div>
-          {historial.length === 0 ? <p className="small muted">Sin versiones anteriores.</p> : (
-            <div className="table-wrapper"><table className="ids-table ids-table--muted"><thead><tr><th>Fecha</th><th>Fichero</th><th>Cambio</th><th /></tr></thead>
-              <tbody>{historial.map((v) => <tr key={v.nombre}><td className="small">{v.fecha}</td><td className="small">{v.fichero}</td><td className="small">{v.origen}</td>
-                <td className="td-acciones">{v.fichero === "informe" && <button className="btn btn-ghost btn-ghost--inline small" onClick={() => verCambios(v.nombre)} title="Cambios del informe desde este punto hasta ahora">Ver desde aquí</button>}</td></tr>)}</tbody></table></div>)}
-          {diff && <DiffView diff={diff} />}
+          <p className="small muted">¿Cambios acordados en una reunión? <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("reuniones")}>Reuniones</button></p>
         </>}
       </div>
-      {pestana === "chat" && (
+      {modo === "chat" && (
         <div className="drawer-input-area">
           <form className="input-wrapper" onSubmit={enviar}>
-            <input className="ai-input" placeholder="Pide un cambio al informe…" value={texto} onChange={(e) => setTexto(e.target.value)} disabled={cambio.activo} autoComplete="off" aria-label="Cambio a aplicar" />
-            <button className="send-btn" type="submit" title="Aplicar cambio" aria-label="Aplicar cambio"><Send size={16} strokeWidth={1.5} /></button>
+            <textarea ref={caja} className="ai-input" rows={1} placeholder="Pide un cambio en el informe…" value={texto} onChange={(e) => setTexto(e.target.value)} disabled={cambio.activo} aria-label="Cambio a aplicar"
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void enviar(); } }} />
+            <button className="send-btn" type="submit" title="Enviar" aria-label="Enviar"><Send size={16} strokeWidth={1.5} /></button>
           </form>
+          <div className="ai-input-ayuda">Intro para enviar · Mayús + Intro para nueva línea</div>
         </div>)}
-      <p className="small muted" style={{ padding: "8px 0" }}>¿Cambios acordados en una reunión? <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("reuniones")}>Reuniones</button></p>
     </aside>
   );
 };
