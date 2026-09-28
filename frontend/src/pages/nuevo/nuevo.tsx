@@ -8,11 +8,11 @@ import { api } from "@/api";
 import type { Carpeta } from "@/api";
 import { Dropzone, useNotificar } from "@/components/ui";
 import { Cabecera } from "@/layout/layout";
-import { fmt } from "@/lib/formato";
+import { FORMATOS_DOCUMENTO, esDocumento, fmt, tipoMedio } from "@/lib/formato";
 
 import "./nuevo.css";
 
-const FORMATOS = ".md,.txt,.docx,.xlsx,.pdf,.pptx";
+const FORMATOS = FORMATOS_DOCUMENTO;
 const DESCRIPCION: Record<Carpeta, string> = {
   contexto: "Design thinking, memorando de planificación, motivo, riesgos a cubrir, alcance previsto y magnitudes. Opcional: alimenta la introducción y el resumen ejecutivo.",
   papeles_trabajo: "Un fichero por prueba (o el papel de trabajo final con todas): contexto, objetivo, pruebas realizadas y conclusiones. Es la fuente de las conclusiones. Las hojas de Excel se envían resumidas.",
@@ -31,8 +31,15 @@ export const Nuevo = () => {
   const [enviando, setEnviando] = useState(false);
   const [subida, setSubida] = useState<{ nombre: string; pct: number } | null>(null);
 
-  const anadir = (carpeta: Carpeta, fs: File[]) =>
+  // Se valida al añadir (al arrastrar, el navegador no aplica `accept`): nada se sube para fallar al final.
+  const anadir = (carpeta: Carpeta, todos: File[]) => {
+    const grab = todos.filter((f) => tipoMedio(f)).map((f) => f.name);
+    const otros = todos.filter((f) => !tipoMedio(f) && !esDocumento(f.name)).map((f) => f.name);
+    if (grab.length) notificar({ texto: `${grab.join(", ")}: es una grabación de reunión. Crea el informe y súbela después en el paso Informe → Reuniones con el área.`, error: true });
+    else if (otros.length) notificar({ texto: `${otros.join(", ")}: formato no admitido. Admitidos: ${FORMATOS.replace(/,/g, ", ")}.`, error: true });
+    const fs = todos.filter((f) => esDocumento(f.name));
     setFicheros((prev) => ({ ...prev, [carpeta]: [...prev[carpeta], ...fs.filter((f) => !prev[carpeta].some((p) => p.name === f.name && p.size === f.size))] }));
+  };
   const quitar = (carpeta: Carpeta, i: number) => setFicheros((prev) => ({ ...prev, [carpeta]: prev[carpeta].filter((_, j) => j !== i) }));
   const addDestinatario = () => { const v = destinatario.trim().replace(/,$/, ""); if (v && !distribucion.includes(v)) setDistribucion([...distribucion, v]); setDestinatario(""); };
   const total = ficheros.contexto.length + ficheros.papeles_trabajo.length;
@@ -70,7 +77,7 @@ export const Nuevo = () => {
             <Dropzone key={modo} titulo={modo === "contexto" ? "Contexto de la auditoría (opcional)" : "Papeles de trabajo"} accept={FORMATOS} onFicheros={(fs) => anadir(modo, fs)}
               descripcion={<>{DESCRIPCION[modo]}<br />Formatos: {FORMATOS.replace(/,/g, ", ")}.</>} />
             {lista(modo)}
-            <p className="small muted" style={{ marginTop: 24 }}>Los documentos se pueden añadir o quitar después, desde la pestaña Entrada del informe. Los papeles de trabajo son la fuente de las conclusiones; el contexto solo orienta la introducción y el resumen ejecutivo.</p>
+            <p className="small muted" style={{ marginTop: 24 }}>Los documentos se pueden añadir o quitar después, desde el paso Documentos del informe; las grabaciones de reuniones, en el paso Informe. Los papeles de trabajo son la fuente de las conclusiones; el contexto solo orienta la introducción y el resumen ejecutivo.</p>
           </section>
 
           <section>

@@ -58,3 +58,15 @@ export const planClase = (estado: string) =>
 export const esAudioOVideo = (nombre: string) => /\.(mp3|wav|m4a|webm|ogg|oga|flac|mp4|mpga|mov|mkv|avi|m4v|wmv|mpe?g)$/i.test(nombre);
 export const esVideo = (nombre: string) => /\.(mp4|webm|mov|mkv|avi|m4v|wmv|mpe?g)$/i.test(nombre);
 export const esTranscripcion = (nombre: string) => /\.(txt|docx|vtt|md)$/i.test(nombre);
+/** Documentos de entrada que sabe leer el backend (papeles de trabajo y contexto). */
+export const FORMATOS_DOCUMENTO = ".md,.txt,.docx,.xlsx,.pdf,.pptx";
+export const esDocumento = (nombre: string) => /\.(md|txt|docx|xlsx|pdf|pptx)$/i.test(nombre);
+/** Grabación de audio o vídeo por extensión o, si el nombre no la trae (descargas de Teams, móviles…), por tipo MIME. */
+export const tipoMedio = (f: File): "video" | "audio" | null =>
+  esVideo(f.name) || (!esAudioOVideo(f.name) && f.type.startsWith("video/")) ? "video" : esAudioOVideo(f.name) || f.type.startsWith("audio/") ? "audio" : null;
+/** Si el nombre no lleva la extensión de su tipo, se la añade (el backend decide por la extensión). */
+export const conExtension = (f: File): File => {
+  if (esAudioOVideo(f.name) || !tipoMedio(f)) return f;
+  const ext = (f.type.split("/")[1] || "").replace("quicktime", "mov").replace("x-matroska", "mkv").replace("mpeg", f.type.startsWith("audio") ? "mp3" : "mpeg");
+  return ext ? new File([f], `${f.name}.${ext}`, { type: f.type, lastModified: f.lastModified }) : f;
+};

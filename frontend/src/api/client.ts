@@ -81,7 +81,7 @@ export const clienteReal: Api = {
   borrarDocumento: (ref, carpeta, nombre) => req(`${e(ref)}/documentos/${carpeta}/${encodeURIComponent(nombre)}`, { method: "DELETE" }),
 
   redactarContexto: (ref, o) => req(acc(ref, "redactar-contexto"), json(o)),
-  extraer: (ref, forzar) => req(acc(ref, "extraer"), json({ forzar })),
+  extraer: (ref, forzar, soloNuevos = false) => req(acc(ref, "extraer"), json({ forzar, solo_nuevos: soloNuevos })),
   conclusiones: (ref) => req(`${e(ref)}/conclusiones`),
   guardarConclusion: (ref, id, campos) => req(`${e(ref)}/conclusiones/${encodeURIComponent(id)}`, json(campos, "PUT")),
   aprobar: (ref, ids, estado) => req(acc(ref, "aprobar"), json({ ids, estado })),
@@ -89,7 +89,8 @@ export const clienteReal: Api = {
   corregirConclusiones: (ref, ids) => req(acc(ref, "corregir-conclusiones"), json({ ids: ids ?? null })),
   regenerar: (ref, id, notas) => req(acc(ref, "regenerar"), json({ id, notas })),
   recomendar: (ref, o) => req(acc(ref, "recomendar"), json(o)),
-  redactarConclusiones: (ref) => req(acc(ref, "redactar-conclusiones"), { method: "POST" }),
+  redactarConclusiones: (ref, modo = "rehacer") => req(acc(ref, "redactar-conclusiones"), json({ modo })),
+  simularVolcado: (ref, modo) => req(acc(ref, "redactar-conclusiones"), json({ modo, simular: true })),
 
   informe: (ref) => req(`${e(ref)}/informe`),
   guardarInforme: (ref, d) => req(`${e(ref)}/informe`, json(d, "PUT")),

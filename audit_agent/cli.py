@@ -126,7 +126,7 @@ def cmd_redactar_contexto(args):
 
 def cmd_extraer(args):
     from .acciones import accion_extraer
-    return accion_extraer(_contexto(args), forzar=args.forzar)
+    return accion_extraer(_contexto(args), forzar=args.forzar, solo_nuevos=getattr(args, "solo_nuevos", False))
 
 
 def cmd_aprobar(args):
@@ -167,7 +167,7 @@ def cmd_recomendar(args):
 
 def cmd_redactar_conclusiones(args):
     from .acciones import accion_redactar_conclusiones
-    return accion_redactar_conclusiones(_contexto(args))
+    return accion_redactar_conclusiones(_contexto(args), modo="anadir" if getattr(args, "anadir", False) else "rehacer")
 
 
 def cmd_revisar(args):
@@ -388,9 +388,13 @@ def cmd_menu(args):
         nombre, _, fn, extra = MENU[int(eleccion) - 1]
         sub = argparse.Namespace(**vars(args), **extra)
         if nombre == "extraer" and _abrir(args).existe("conclusiones"):
-            sub.forzar = input("01_conclusiones.md ya existe. ¿Regenerar? (se guarda snapshot) [s/N] ").strip().lower() == "s"
-            if not sub.forzar:
-                continue
+            if _abrir(args).documentos_nuevos("papeles_trabajo") and input(
+                    "Hay papeles de trabajo nuevos. ¿Añadir solo sus conclusiones? [S/n] ").strip().lower() != "n":
+                sub.solo_nuevos = True
+            else:
+                sub.forzar = input("01_conclusiones.md ya existe. ¿Regenerar? (se guarda snapshot) [s/N] ").strip().lower() == "s"
+                if not sub.forzar:
+                    continue
         if nombre == "reunion":
             sub.transcripcion = input("Ruta de la transcripción (.txt/.docx/.vtt): ").strip()
             if not sub.transcripcion:
@@ -436,7 +440,8 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--forzar", action="store_true", help="Regenerar aunque ya existan")
     s.add_argument("--secciones", nargs="+", help="Rehacer solo: introduccion resumen")
     s = sub.add_parser("extraer", help="Conclusiones y sugerencias de mejora desde papeles_trabajo/ (LLM)"); s.set_defaults(fn=cmd_extraer)
-    s.add_argument("--forzar", action="store_true")
+    s.add_argument("--forzar", action="store_true", help="Regenerar 01_conclusiones.md entero")
+    s.add_argument("--solo-nuevos", action="store_true", help="Solo los papeles de trabajo aún no procesados; añade sus conclusiones a las existentes")
     s = sub.add_parser("aprobar", help="Marcar conclusiones como aprobadas (valida el nivel de riesgo)"); s.set_defaults(fn=cmd_aprobar, estado="aprobada")
     s.add_argument("ids", nargs="+", help="C-01 C-02 … o `todas`")
     s = sub.add_parser("descartar", help="Marcar conclusiones como descartadas"); s.set_defaults(fn=cmd_aprobar, estado="descartada")
@@ -453,7 +458,8 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--auto", action="store_true", help="No preguntar: proponer con el modelo las que falten")
     s.add_argument("--formatear", action="store_true", help="Dar formato (sin cambiar la base) a las aportadas por el auditor")
     s.add_argument("--todas", action="store_true", help="Incluir también las conclusiones en estado propuesta")
-    sub.add_parser("redactar-conclusiones", help="Volcar las conclusiones aprobadas al informe (sin modelo)").set_defaults(fn=cmd_redactar_conclusiones)
+    s = sub.add_parser("redactar-conclusiones", help="Volcar las conclusiones aprobadas al informe (sin modelo)"); s.set_defaults(fn=cmd_redactar_conclusiones)
+    s.add_argument("--anadir", action="store_true", help="Conservar el detalle actual del informe y añadir solo las aprobadas nuevas")
     sub.add_parser("revisar", help="Vocabulario prohibido y estilo del informe").set_defaults(fn=cmd_revisar)
     s = sub.add_parser("corregir", help="Reescribir con LLM los párrafos con errores"); s.set_defaults(fn=cmd_corregir)
     s.add_argument("--avisos", action="store_true", help="Incluir también avisos (tono, adjetivos, frases largas)")

@@ -134,6 +134,8 @@ def _estado_json(exp: Expediente) -> dict:
         "instrucciones_pendientes": e["instrucciones_pendientes"],
         "ppt": ({"nombre": e["ppt"]["ruta"].name, "desactualizado": bool(e["ppt"]["desactualizado"])} if e["ppt"] else None),
         "archivos": e["archivos"], "llm": llm,
+        "nuevos": e["nuevos"], "sin_volcar": e["sin_volcar"],
+        "pasos": e["pasos"], "paso_sugerido": e["paso_sugerido"], "sugerencia": e["sugerencia"],
         "modificado": datetime.fromtimestamp(max(f.stat().st_mtime for f in exp.ruta.glob("*") if f.is_file())).isoformat(timespec="seconds"),
     }
 
@@ -260,7 +262,9 @@ def detener_job(job_id: str):
 # ---------------------------------------------------------------- documentos
 def _docs(exp: Expediente) -> dict:
     from .lectores import LECTORES
-    return {carpeta: [{"nombre": p.name, "bytes": p.stat().st_size, "lector": LECTORES[p.suffix.lower()][0]}
+    nuevos = {carpeta: {p.name for p in exp.documentos_nuevos(carpeta)} for carpeta in ("contexto", "papeles_trabajo")}
+    return {carpeta: [{"nombre": p.name, "bytes": p.stat().st_size, "lector": LECTORES[p.suffix.lower()][0],
+                       "procesado": p.name not in nuevos[carpeta]}
                       for p in exp.ficheros(carpeta)] for carpeta in ("contexto", "papeles_trabajo")}
 
 
@@ -310,6 +314,7 @@ class Opciones(BaseModel):
     estado: str = "aprobada"
     fichero: str = "informe"
     objetivo: float = 0.85
+    solo_nuevos: bool = False   # extraer: solo de los papeles de trabajo aún no procesados, añadiendo
 
 
 @app.post("/api/expedientes/{ref}/acciones/redactar-contexto")
@@ -321,7 +326,7 @@ def redactar_contexto(ref: str, o: Opciones):
 @app.post("/api/expedientes/{ref}/acciones/extraer")
 def extraer(ref: str, o: Opciones):
     exp = _exp(ref); ctx = _ctx(exp)
-    return _job(ref, "extraer", lambda: acciones.accion_extraer(ctx, forzar=o.forzar))
+    return _job(ref, "extraer", lambda: acciones.accion_extraer(ctx, forzar=o.forzar, solo_nuevos=o.solo_nuevos))
 
 
 @app.post("/api/expedientes/{ref}/acciones/corregir-conclusiones")
@@ -533,10 +538,18 @@ def revisar_conclusiones(ref: str):
     return {"hallazgos": hallazgos}
 
 
+class Volcado(BaseModel):
+    modo: str = "rehacer"     # rehacer | anadir (conserva el detalle actual del informe y añade las nuevas)
+    simular: bool = False     # solo devuelve cómo quedaría el informe (comparación por apartados), sin escribir
+
+
 @app.post("/api/expedientes/{ref}/acciones/redactar-conclusiones")
-def redactar_conclusiones(ref: str):
+def redactar_conclusiones(ref: str, v: Volcado | None = None):
     exp = _exp(ref); ctx = _ctx(exp)
-    return {"mensaje": _sincrono(lambda: acciones.accion_redactar_conclusiones(ctx))}
+    v = v or Volcado()
+    if v.simular:
+        return _sincrono(lambda: acciones.simular_redactar_conclusiones(ctx, v.modo))
+    return {"mensaje": _sincrono(lambda: acciones.accion_redactar_conclusiones(ctx, v.modo))}
 
 
 @app.post("/api/expedientes/{ref}/acciones/revisar")

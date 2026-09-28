@@ -1,7 +1,7 @@
 /* Componentes compartidos (kit del front homogéneo, docs/GUIA_FRONT_HOMOGENEO.md § 4). */
 import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronUp, UploadCloud, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, UploadCloud, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -178,6 +178,50 @@ export const DiffDocumento = ({ lineas, contexto = 2 }: { lineas: LineaDiff[]; c
     </div>
   );
 };
+
+// ---------------------------------------------------------------- pasos de un flujo (siempre navegables)
+export interface PasoFlujo { id: string; titulo: string; hecho: boolean; actual: boolean; resumen: string; aviso: string }
+/** Barra de pasos con el aspecto de las pestañas (`tab-item`): número, título, estado en una línea (en color
+ *  de aviso si hay algo nuevo o pendiente) y la etiqueta «Siguiente» en el paso sugerido. Todos se pueden abrir
+ *  en cualquier momento: el trabajo no es lineal. */
+export const Pasos = ({ pasos, activo, onIr, extra }: { pasos: PasoFlujo[]; activo: string; onIr: (id: string) => void; extra?: React.ReactNode }) => (
+  <nav className="pasos" aria-label="Pasos del informe">
+    <ol className="pasos__lista">
+      {pasos.map((p, i) => (
+        <li key={p.id} className="pasos__li">
+          <button type="button" onClick={() => onIr(p.id)} aria-current={p.id === activo ? "step" : undefined}
+            className={`pasos__item ${p.id === activo ? "pasos__item--activo" : ""} ${p.hecho ? "pasos__item--hecho" : ""} ${p.aviso ? "pasos__item--aviso" : ""}`}>
+            <span className="pasos__titulo"><span className="pasos__num">{String(i + 1).padStart(2, "0")}</span>{p.titulo}{p.actual && <span className="tag tag-info pasos__siguiente">Siguiente</span>}</span>
+            <span className="pasos__resumen">{p.aviso || p.resumen}</span>
+          </button>
+        </li>))}
+    </ol>
+    {extra && <div className="pasos__extra">{extra}</div>}
+  </nav>
+);
+
+/** Cabecera de un paso: número y título, para qué sirve y, si es el paso sugerido, qué toca hacer ahora. */
+export const PasoCabecera = ({ numero, total, titulo, ayuda, sugerencia }: { numero?: number; total?: number; titulo: string; ayuda: React.ReactNode; sugerencia?: string }) => (
+  <header className="paso-cabecera">
+    <div className="paso-cabecera__kicker">{numero ? `Paso ${numero}${total ? ` de ${total}` : ""}` : "Consulta"}</div>
+    <h1 className="paso-cabecera__titulo">{titulo}</h1>
+    <p className="paso-cabecera__ayuda">{ayuda}</p>
+    {sugerencia && <Aviso tipo="info">{sugerencia}</Aviso>}
+  </header>
+);
+
+/** Franja de aviso dentro de un paso (info: qué toca; aviso: algo nuevo o pendiente), con acción opcional. */
+export const Aviso = ({ tipo = "info", children, accion }: { tipo?: "info" | "aviso"; children: React.ReactNode; accion?: React.ReactNode }) => (
+  <div className={`aviso-paso aviso-paso--${tipo}`} role="status"><span className="aviso-paso__texto">{children}</span>{accion && <span className="aviso-paso__accion">{accion}</span>}</div>
+);
+
+/** Pie de un paso: volver al anterior y continuar al siguiente. */
+export const PasoPie = ({ anterior, siguiente }: { anterior?: { titulo: string; ir: () => void }; siguiente?: { titulo: string; ir: () => void } }) => (
+  <footer className="paso-pie">
+    {anterior ? <button type="button" className="btn btn-ghost" onClick={anterior.ir}><ArrowLeft strokeWidth={1.5} /> {anterior.titulo}</button> : <span />}
+    {siguiente && <button type="button" className="btn btn-secondary" onClick={siguiente.ir}>Continuar: {siguiente.titulo} <ArrowRight strokeWidth={1.5} /></button>}
+  </footer>
+);
 
 // ---------------------------------------------------------------- tarjeta-diapositiva (banda vertical con el nombre del apartado, color por riesgo)
 export const SlideCard = ({ banda, nivel, kicker, titulo, tools, children }: { banda: string; nivel?: Riesgo | string; kicker?: string; titulo?: string; tools?: React.ReactNode; children: React.ReactNode }) => {

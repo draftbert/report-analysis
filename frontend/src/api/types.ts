@@ -28,12 +28,23 @@ export interface Expediente {
   archivos: string[];
   llm: string;
   modificado: string;
+  /** Documentos que aún no han pasado por el modelo (o han cambiado desde entonces). */
+  nuevos: { papeles_trabajo: string[]; contexto: string[] };
+  /** Observaciones aprobadas que todavía no están en el informe. */
+  sin_volcar: string[];
+  pasos: Paso[];
+  paso_sugerido: PasoId;
+  sugerencia: string;      // qué toca hacer ahora, en lenguaje del auditor
 }
+
+export type PasoId = "documentos" | "contexto" | "observaciones" | "informe" | "entrega";
+/** Paso del flujo de trabajo de un informe: siempre navegable (al informe se vuelve varias veces). */
+export interface Paso { id: PasoId; titulo: string; hecho: boolean; actual: boolean; resumen: string; aviso: string }
 
 export interface NuevoExpediente { referencia: string; nombre: string; fecha: string; distribucion: string[] }
 export interface Salud { estado: string; version: string; expedientes: number }
 
-export interface Documento { nombre: string; bytes: number; lector: string }
+export interface Documento { nombre: string; bytes: number; lector: string; procesado: boolean }
 export interface Documentos { contexto: Documento[]; papeles_trabajo: Documento[] }
 
 export interface Conclusion {
@@ -98,6 +109,9 @@ export interface ApartadoDiff {
   lineas: LineaDiff[]; lineas_nuevas: number; lineas_borradas: number;
 }
 /** El informe actual comparado apartado a apartado con un snapshot (`contra`; sin él, el último cambio). */
+export type ModoVolcado = "rehacer" | "anadir";
+/** Cómo quedaría el informe al pasar las observaciones aprobadas (no escribe nada). */
+export interface SimulacionVolcado { modo: ModoVolcado; entran: string[]; bloqueadas: string[]; apartados: ApartadoDiff[]; lineas_nuevas: number; lineas_borradas: number }
 export interface ComparacionInforme { contra: Version | null; versiones: Version[]; apartados: ApartadoDiff[]; lineas_nuevas: number; lineas_borradas: number }
 export interface Traza { nombre: string; fecha: string; accion: string; modelo: string; error?: string | null; tokens: { prompt: number | null; completion: number | null } }
 export interface ReunionActa { nombre: string; fecha: string; markdown: string; datos: (Acta & { transcripcion?: string | null }) | null }
@@ -150,7 +164,8 @@ export interface Api {
   borrarDocumento(ref: string, carpeta: Carpeta, nombre: string): Promise<Documentos>;
 
   redactarContexto(ref: string, o: { forzar?: boolean; secciones?: string[] }): Promise<{ job_id: string }>;
-  extraer(ref: string, forzar: boolean): Promise<{ job_id: string }>;
+  /** `soloNuevos`: solo los papeles de trabajo aún no procesados; sus observaciones se añaden a las existentes. */
+  extraer(ref: string, forzar: boolean, soloNuevos?: boolean): Promise<{ job_id: string }>;
   conclusiones(ref: string): Promise<{ markdown: string; conclusiones: Conclusion[] }>;
   guardarConclusion(ref: string, id: string, campos: Partial<Conclusion>): Promise<Conclusion>;
   aprobar(ref: string, ids: string[], estado: EstadoConclusion): Promise<{ mensaje: string }>;
@@ -158,7 +173,9 @@ export interface Api {
   corregirConclusiones(ref: string, ids?: string[]): Promise<{ job_id: string }>;
   regenerar(ref: string, id: string, notas: string): Promise<{ job_id: string }>;
   recomendar(ref: string, o: { ids?: string[]; respuestas: Record<string, string>; auto: boolean; formatear?: boolean }): Promise<{ job_id: string }>;
-  redactarConclusiones(ref: string): Promise<{ mensaje: string }>;
+  /** Pasa las aprobadas al informe: `anadir` conserva el detalle actual y suma las nuevas; `rehacer` lo reconstruye. */
+  redactarConclusiones(ref: string, modo?: ModoVolcado): Promise<{ mensaje: string }>;
+  simularVolcado(ref: string, modo: ModoVolcado): Promise<SimulacionVolcado>;
 
   informe(ref: string): Promise<Informe>;
   guardarInforme(ref: string, d: InformeEdicion): Promise<Informe>;

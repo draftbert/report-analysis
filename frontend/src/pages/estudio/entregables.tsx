@@ -1,4 +1,4 @@
-/* Pestaña Entregables: exportación del informe a PowerPoint y archivo de evidencia (zip con manifest). */
+/* Paso Entrega: exportación del informe a PowerPoint y archivo de evidencia (zip con manifest). */
 import { useState } from "react";
 import { Archive, Download, Presentation } from "lucide-react";
 
@@ -30,8 +30,6 @@ export const Entregables = ({ refExp, exp, recargar }: PropsPestana) => {
 
   return (
     <div>
-      <h2 className="section-header-sm">Entregables</h2>
-      <p className="small muted" style={{ marginBottom: 24 }}>Exportación del informe entero a PowerPoint y archivo de evidencia para cerrar el expediente en Pentana.</p>
       <div className="template-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))" }}>
         <div className="template-card">
           <div>
@@ -43,7 +41,7 @@ export const Entregables = ({ refExp, exp, recargar }: PropsPestana) => {
               {exp.informe && <span className="small muted">informe modificado {fmt.fechaHora(exp.informe.modificado)}</span>}
             </div>
             {exp.ppt && <p className="small"><a className="btn btn-ghost btn-ghost--inline" href={api.urlSalida(refExp, exp.ppt.nombre)}><Download strokeWidth={1.5} /> {exp.ppt.nombre}</a></p>}
-            {!listo && <p className="small muted">Vuelca al menos una observación aprobada al informe para poder exportar.</p>}
+            {!listo && <p className="small muted">Pasa al informe al menos una observación aprobada para poder exportar.</p>}
           </div>
           <div className="template-footer">
             <span className="template-meta">Sin modelo, determinista</span>

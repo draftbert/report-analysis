@@ -18,11 +18,13 @@ sobreescritura deja un snapshot en `historial/` (deshacer / diff).
       revision.md             último informe de vocabulario y estilo
       cambios_aplicados.md    registro de los cambios aplicados por el modelo
       historial/              snapshots automáticos antes de cada sobreescritura
+      .procesado.json         qué documentos ya procesó el modelo y qué observaciones están en el informe
       salidas/                entregables (PPT)
       trazas/                 cada llamada al LLM (prompt, respuesta, tokens)
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -197,6 +199,41 @@ class Expediente:
 
     def leer_entrada(self) -> list[Documento]:
         return self.leer_documentos("contexto") + self.leer_documentos("papeles_trabajo")
+
+    # ------------------------------------------------------------ qué se ha procesado ya
+    # Al informe se vuelve varias veces (un papel de trabajo o contexto nuevo, más observaciones):
+    # REGISTRO guarda qué documento (nombre + sha256) alimentó ya a `extraer`/`redactar-contexto`
+    # y qué observaciones se volcaron ya al informe, para ofrecer «solo lo nuevo» sin rehacer lo revisado.
+    REGISTRO = ".procesado.json"
+
+    def registro(self) -> dict:
+        p = self.ruta / self.REGISTRO
+        try:
+            return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        except (OSError, ValueError):
+            return {}
+
+    def registrar(self, clave: str, valor) -> None:
+        datos = self.registro()
+        datos[clave] = valor
+        (self.ruta / self.REGISTRO).write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def huella(p: Path) -> str:
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+
+    def registrar_procesados(self, carpeta: str, rutas: list[Path]) -> None:
+        previos = self.registro().get(carpeta) or {}
+        self.registrar(carpeta, {**previos, **{p.name: self.huella(p) for p in rutas}})
+
+    def documentos_nuevos(self, carpeta: str) -> list[Path]:
+        """Documentos de `carpeta` que aún no han pasado por el modelo (o que han cambiado
+        desde entonces). Expediente anterior al registro: lo ya trabajado cuenta como procesado."""
+        vistos = self.registro().get(carpeta)
+        if vistos is None:
+            ya = self.existe("conclusiones") if carpeta == "papeles_trabajo" else self.existe("informe")
+            return [] if ya else self.ficheros(carpeta)
+        return [p for p in self.ficheros(carpeta) if vistos.get(p.name) != self.huella(p)]
 
     # ------------------------------------------------------------ instrucciones
     def instrucciones_pendientes(self) -> str:

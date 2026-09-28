@@ -33,17 +33,17 @@ No hay mocks: el front se prueba contra la API real (`./revisor web`). En Docker
 | `/` | Portada | Hero y KPIs reales de la cartera (informes, en curso, emitidos, conclusiones aprobadas). | `GET /expedientes`, `GET /salud` |
 | `/informes` | Listado | Tabla con buscador y filtro de estado; abrir, ver informe, eliminar (con la referencia escrita). | `GET /expedientes`, `DELETE /expedientes/{ref}` |
 | `/nuevo` | Alta | Documentos de entrada (papeles de trabajo / contexto) + datos del informe; crea y sube con progreso. | `POST /expedientes`, `POST …/documentos/{carpeta}` |
-| `/informes/:ref?pestana=` | Estudio | Pestañas Entrada · Contexto · Conclusiones · Reunión · Entregables · Trazas (a una columna); el siguiente paso y «Ver informe» van en la barra del panel. | documentos, informe, conclusiones, acciones (jobs), reuniones, transcripción, trazas, ppt, archivar |
+| `/informes/:ref?paso=` | Espacio de trabajo por pasos | Una pantalla por informe con la barra de pasos Documentos → Contexto → Observaciones → Informe → Entrega, siempre navegables (se vuelve a añadir documentación). La API dice el estado de cada paso, el sugerido y qué toca (`pasos`, `paso_sugerido`, `sugerencia`); cada paso tiene cabecera con para qué sirve y pie «Continuar». Lo nuevo sin procesar se avisa y se incorpora sin rehacer lo revisado («Extraer sus observaciones»; «Pasar al informe…» con vista previa y modo añadir/rehacer). `?paso=trazas` para las trazas; `?pestana=` y `/informes/:ref/informe` antiguos redirigen. | estado, documentos, informe, conclusiones, acciones (jobs), `extraer {solo_nuevos}`, `redactar-conclusiones {modo, simular}`, reuniones, transcripción, trazas, ppt, archivar |
 | `/reglas` | Documento | Criterio de estilo (config/estilo.yaml) editable por secciones o como YAML, historial con restauración y cajón «Modificar usando el chat» (el modelo propone; el auditor carga la propuesta en el editor y guarda). | `GET/PUT /reglas`, `POST /reglas/restaurar`, `POST /reglas/chat` (job) |
-| `/informes/:ref/informe` | Documento | El informe apartado a apartado (cada uno es una diapositiva), edición de introducción/resumen/evaluación, Markdown completo, acciones del modelo, entregables, «Últimos cambios» (apartados añadidos/modificados/eliminados en verde/rojo, contra el último cambio o cualquier versión del historial) y cajón del asistente (cambios, buzón, revisión, historial). | informe, revisar, corregir, condensar, cambio, instrucciones, aplicar-cambios, historial, diff, `GET /informe/comparacion?contra=`, deshacer |
+| `…?paso=informe&vista=` | Documento (paso 4) | Tres vistas: Documento (apartado a apartado, cada uno una diapositiva; edición de introducción/resumen/evaluación, Markdown completo, acciones del modelo), Reuniones con el área (acta → aplicar cambios, que lleva a «Últimos cambios») y Últimos cambios (verde/rojo contra el último cambio o cualquier versión del historial); cajón del asistente (cambios, buzón, revisión, historial). | informe, revisar, corregir, condensar, cambio, instrucciones, aplicar-cambios, reunion, historial, diff, `GET /informe/comparacion?contra=`, deshacer |
 
 ## Estructura
 
 ```
 src/api/          types.ts (contrato: tipos + interface Api), client.ts (fetch a /api), index.ts (api, esperarJob)
-src/components/   ui.tsx: Logo, Loader, notificaciones, confirmaciones, Modal, etiquetas, Markdown, DiffView, ResultBox, Dropzone, Switch, MenuFlotante, Progreso
+src/components/   ui.tsx: Logo, Loader, notificaciones, confirmaciones, Modal, etiquetas, Markdown, DiffView, DiffDocumento, Pasos, PasoCabecera, PasoPie, Aviso, ResultBox, Dropzone, Switch, MenuFlotante, Progreso
 src/hooks/        useJob: lanzar / seguir / detener un trabajo largo con progreso
 src/layout/       Cabecera IDS (brand / normal, navegación central, buscador, cierre de sesión) + Layout (Outlet)
 src/lib/          formato: fechas, tamaños, fases, clases por valor (estado, riesgo, severidad, plan)
-src/pages/        inicio · informes · nuevo · reglas · estudio (entrada, contexto, conclusiones, reunion, entregables, trazas) · informe
+src/pages/        inicio · informes · nuevo · reglas · estudio (espacio de trabajo: entrada, contexto, conclusiones, informe + reunion, entregables, trazas)
 ```

@@ -1,10 +1,10 @@
-/* Pestaña Contexto del informe: introducción y resumen ejecutivo (Markdown con vista previa),
+/* Paso Contexto: introducción y resumen ejecutivo (Markdown con vista previa),
    evaluación global y redacción con el modelo (job con progreso). */
 import { useCallback, useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 
 import { api } from "@/api";
-import { Markdown, Progreso, ResultBox, useConfirmar, useNotificar } from "@/components/ui";
+import { Aviso, Markdown, Progreso, ResultBox, useConfirmar, useNotificar } from "@/components/ui";
 import { useJob } from "@/hooks/useJob";
 
 import type { PropsPestana } from "./estudio";
@@ -29,7 +29,7 @@ const Editor = ({ id, titulo, valor, onChange, filas }: { id: string; titulo: st
   );
 };
 
-export const Contexto = ({ refExp, exp, recargar }: PropsPestana) => {
+export const Contexto = ({ refExp, exp, recargar, irA }: PropsPestana) => {
   const notificar = useNotificar();
   const confirmar = useConfirmar();
   const job = useJob();
@@ -82,8 +82,9 @@ export const Contexto = ({ refExp, exp, recargar }: PropsPestana) => {
           <button className="btn btn-primary" onClick={redactar} disabled={job.activo || !exp.papeles.length}>
             {job.activo ? <><span className="spinner" /> Redactando…</> : <><Sparkles strokeWidth={1.5} /> {hayTexto ? "Redactar de nuevo" : "Redactar con el modelo"}</>}</button>
         </span></h2>
-      <p className="small muted" style={{ marginBottom: 24 }}>El modelo redacta la introducción y el resumen ejecutivo a partir del contexto y del papel de trabajo; el auditor los deja a su gusto. Ctrl/Cmd+S guarda.</p>
-      {!exp.papeles.length && <div className="empty" style={{ marginBottom: 24 }}>Sube el papel de trabajo en Entrada para poder redactar la introducción y el resumen.</div>}
+      <p className="small muted" style={{ marginBottom: 24 }}>Ctrl/Cmd+S guarda. Lo que cambies aquí se ve en el informe al momento.</p>
+      {hayTexto && exp.nuevos.contexto.length > 0 && <Aviso tipo="aviso">Hay contexto nuevo sin usar ({exp.nuevos.contexto.join(", ")}). Elige qué regenerar y pulsa «Redactar de nuevo»; el texto actual queda en el historial.</Aviso>}
+      {!exp.papeles.length && <div className="empty" style={{ marginBottom: 24 }}>Sube primero el papel de trabajo para poder redactar la introducción y el resumen. <button className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("documentos")}>Ir a Documentos</button></div>}
       {hayTexto && (
         <div className="config-group"><span className="config-group-title">Qué regenerar</span>
           <div className="row">{SECCIONES.map(([k, n]) => (

@@ -169,7 +169,7 @@ select.inline-edit { cursor: pointer; }
 .uploader-desc { font-size: 13px; color: var(--c-secondary); max-width: 460px; }
 .uploaded-file-preview { margin-top: 16px; padding: 16px; border: 0.5px solid var(--c-border-subtle); display: flex; align-items: center; justify-content: space-between; background: var(--c-surface-subtle); gap: 12px; }
 .file-info { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.file-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-name { font-size: 14px; font-weight: 500; }
 .file-size { font-size: 12px; color: var(--c-secondary); }
 .recorder-panel { border: 0.5px solid var(--c-border-subtle); padding: 32px; }
 .recorder-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
@@ -392,6 +392,18 @@ select.inline-edit { cursor: pointer; }
 .diff-resumen__texto { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; }
 .diff-resumen .select-input { width: auto; min-width: 260px; height: 32px; font-size: 13px; }
 
+/* ---------- alta / formulario (patrón 3): fuente a la izquierda, metadatos a la derecha ---------- */
+.workspace-grid { display: grid; grid-template-columns: 1fr 400px; gap: 64px; align-items: start; }
+
+/* ---------- nombres largos ----------
+   Un nombre de fichero sin espacios no puede partirse y, dentro de una rejilla o un flex, empuja el ancho de la
+   columna (se descuadraba el alta, la tabla de documentos y los modales). Se parte en cualquier punto y las
+   columnas pueden estrecharse por debajo de su contenido. */
+.workspace-grid > *, .main-container > *, .main-layout > *, .section-grid > *, .template-grid > * { min-width: 0; }
+.file-name, .td-title, .modal, .toast, .result-box, .aviso-paso__texto, .agreement-card, .option-desc, .chip, .cita { overflow-wrap: anywhere; }
+.aviso-paso__texto { flex: 1 1 320px; min-width: 0; }
+.file-info > svg, .td-title svg, .uploaded-file-preview > .icon-btn { flex: none; }   /* el icono no se encoge junto al nombre */
+
 /* ---------- variantes ---------- */
 .modal--ancho { width: min(960px, 100%); max-height: 90vh; overflow: auto; }
 .main-container--una-columna { grid-template-columns: 1fr; }
@@ -404,6 +416,35 @@ select.inline-edit { cursor: pointer; }
 .main-container--una-columna .extraction-panel { border-right: none; }
 .kpi-row--compact.kpi-row--sin-borde { border-bottom: none; margin-bottom: 0; padding: 0; }
 .mono-block { font: 12px/18px var(--mono); white-space: pre-wrap; word-break: break-word; background: var(--c-surface-subtle); padding: 12px 16px; max-height: 360px; overflow: auto; }
+
+/* ---------- pasos de un flujo (informe: documentos → contexto → observaciones → informe → entrega) ---------- */
+.pasos { display: flex; align-items: stretch; gap: 24px; padding: 0 64px; border-bottom: 0.5px solid var(--c-border-subtle); background: var(--c-neutral); }
+.pasos__lista { display: flex; flex: 1; list-style: none; margin: 0; padding: 0; overflow-x: auto; }
+.pasos__li { flex: 1 1 0; min-width: 150px; }
+.pasos__item { display: flex; flex-direction: column; gap: 4px; width: 100%; height: 100%; padding: 16px 16px 14px 0; border: none; background: none;
+  position: relative; cursor: pointer; text-align: left; font-family: var(--font); color: var(--c-secondary); }
+.pasos__item:focus-visible { outline: 1px solid var(--c-border-focus); }
+.pasos__item:hover .pasos__titulo, .pasos__item--hecho .pasos__titulo { color: var(--c-primary); }
+.pasos__item--activo .pasos__titulo { color: var(--c-primary); font-weight: 500; }
+.pasos__item--activo::after { content: ''; position: absolute; bottom: -0.5px; left: 0; right: 16px; height: 2px; background: var(--c-primary); }
+.pasos__titulo { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 4px; font-size: 13px; font-weight: 325; line-height: 20px; text-transform: uppercase; letter-spacing: 0.4px; }
+.pasos__num { font-family: var(--mono); font-size: 11px; color: var(--c-secondary); font-weight: 300; }
+.pasos__siguiente { font-size: 10px; line-height: 16px; padding: 0 6px; }
+.pasos__resumen { font-size: 12px; line-height: 18px; color: var(--c-secondary); text-transform: none; letter-spacing: 0; }
+.pasos__item--aviso .pasos__resumen { color: var(--c-warning-fg); }
+.pasos__extra { display: flex; align-items: center; }
+.paso-cabecera { margin-bottom: 32px; }
+.paso-cabecera__kicker { font-size: 11px; font-weight: 325; text-transform: uppercase; letter-spacing: 0.4px; color: var(--c-secondary); margin-bottom: 4px; }
+.paso-cabecera__titulo { font-size: 24px; font-weight: 325; line-height: 32px; text-transform: uppercase; margin: 0 0 8px; }
+.paso-cabecera__ayuda { font-size: 14px; line-height: 22px; color: var(--c-secondary); max-width: 760px; margin-bottom: 16px; }
+.aviso-paso { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; line-height: 20px; border-left: 2px solid; }
+.aviso-paso--info { background: var(--c-info-bg); border-left-color: var(--c-info-fg); }
+.aviso-paso--aviso { background: var(--c-warning-bg); border-left-color: var(--c-warning-fg); }
+.aviso-paso__accion { display: flex; gap: 8px; flex-wrap: wrap; }
+.paso-pie { display: flex; justify-content: space-between; gap: 16px; margin-top: 48px; padding-top: 24px; border-top: 0.5px solid var(--c-border-subtle); }
+@media (max-width: 1024px) { .pasos { padding: 0 32px; } }
+@media (max-width: 768px) { .pasos { padding: 0 16px; flex-direction: column; gap: 0; } .pasos__li { flex: none; min-width: 0; } .pasos__item { padding-right: 20px; }
+  .pasos__resumen, .pasos__siguiente { display: none; } .pasos__extra { padding-bottom: 8px; } }
 
 /* ---------- tarjeta-diapositiva (informe: un apartado = una diapositiva) ---------- */
 .slide-card { border: 0.5px solid var(--c-border-subtle); background: var(--c-neutral); display: grid; grid-template-columns: 28px 1fr; min-height: 200px; margin-bottom: 24px; transition: border-color .15s ease; }

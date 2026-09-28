@@ -1,4 +1,4 @@
-/* Pestaña Reunión: transcripción o audio → acta (el modelo separa texto / PPT / pendientes / acuerdos);
+/* Reuniones con el área (vista del paso Informe): transcripción o audio → acta (el modelo separa texto / PPT / pendientes / acuerdos);
    los cambios de texto se aplican DESDE el acta. Alternativa «Transcribir y nombrar» con clips por
    hablante. El buzón 03_instrucciones.md nunca se toca desde aquí. */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -8,12 +8,13 @@ import { api } from "@/api";
 import type { Acta, Asignaciones, Reunion as ReunionT, Transcripcion } from "@/api";
 import { Dropzone, Markdown, Modal, Progreso, ResultBox, Switch, useConfirmar, useNotificar } from "@/components/ui";
 import { useJob } from "@/hooks/useJob";
-import { esAudioOVideo, esTranscripcion, esVideo, fmt } from "@/lib/formato";
+import { conExtension, esTranscripcion, fmt, tipoMedio } from "@/lib/formato";
 
 import type { PropsPestana } from "./estudio";
+import { olvidarGrabacion, verGrabacion } from "./traspaso";
 
 const FORMATOS = ".txt,.docx,.vtt,.md,.mp3,.wav,.m4a,.flac,.ogg,.oga,.webm,.mp4,.mov,.mkv,.avi,.m4v,.wmv,.mpg,.mpeg";
-const tipoFichero = (f: File) => (esVideo(f.name) ? "Vídeo · se extrae solo el audio" : esAudioOVideo(f.name) ? "Audio" : esTranscripcion(f.name) ? "Transcripción" : "Formato no reconocido");
+const tipoFichero = (f: File) => (tipoMedio(f) === "video" ? "Vídeo · se extrae solo el audio" : tipoMedio(f) === "audio" ? "Audio" : esTranscripcion(f.name) ? "Transcripción" : "Formato no reconocido");
 const ACTUAL = "__transcripcion_actual__";
 type Modo = "analizar" | "transcribir";
 
@@ -49,7 +50,7 @@ const TranscriptView = ({ texto }: { texto: string }) => {
 };
 
 /** El acta: resumen + cambios de texto seleccionables (se aplican directos con aplicar-cambios), PPT, pendientes y acuerdos. */
-const ActaView = ({ refExp, acta, ocultarAplicar, recargar }: { refExp: string; acta: Acta; ocultarAplicar?: boolean; recargar: () => Promise<void> }) => {
+const ActaView = ({ refExp, acta, ocultarAplicar, recargar, alAplicar }: { refExp: string; acta: Acta; ocultarAplicar?: boolean; recargar: () => Promise<void>; alAplicar?: () => void }) => {
   const notificar = useNotificar();
   const job = useJob();
   const [sel, setSel] = useState<boolean[]>(acta.cambios_texto.map(() => true));
@@ -59,7 +60,7 @@ const ActaView = ({ refExp, acta, ocultarAplicar, recargar }: { refExp: string; 
     if (!instrucciones) { notificar({ texto: "No hay cambios seleccionados." }); return; }
     const j = await job.lanzar(() => api.aplicarCambios(refExp, false, instrucciones));
     setMensaje({ texto: j.mensaje, error: j.estado !== "ok" });
-    if (j.estado === "ok") await recargar();
+    if (j.estado === "ok") { await recargar(); alAplicar?.(); }
   };
   const bloque = (titulo: string, n: number) => <h2 className="section-header-sm" style={{ marginTop: 32 }}>{titulo} <span className="badge-status">{n}</span></h2>;
   return (
@@ -93,12 +94,16 @@ const ActaView = ({ refExp, acta, ocultarAplicar, recargar }: { refExp: string; 
   );
 };
 
-export const Reunion = ({ refExp, recargar }: PropsPestana) => {
+/** Reuniones con el área (vista del paso Informe). `alAplicar`: tras aplicar cambios de un acta, p. ej. ver «Últimos cambios». */
+export const Reunion = ({ refExp, recargar, alAplicar }: PropsPestana & { alAplicar?: () => void }) => {
   const notificar = useNotificar();
   const confirmar = useConfirmar();
   const job = useJob<Acta>();
   const [ayuda, setAyuda] = useState(false);
-  const [fichero, setFichero] = useState<File | null>(null);
+  // una grabación soltada en Documentos llega ya cargada; sin extensión en el nombre, se le pone la de su tipo
+  const [fichero, setFicheroCrudo] = useState<File | null>(() => { const f = verGrabacion(); return f ? conExtension(f) : null; });
+  useEffect(() => olvidarGrabacion(), []);
+  const setFichero = (f: File | null) => setFicheroCrudo(f ? conExtension(f) : null);
   const [subida, setSubida] = useState<number | null>(null);
   const [aplicar, setAplicar] = useState(false);
   const [acta, setActa] = useState<Acta | null>(null);
@@ -145,6 +150,7 @@ export const Reunion = ({ refExp, recargar }: PropsPestana) => {
       if (modo === "analizar" && j.resultado?.cambios_texto) setActa(j.resultado);
       if (modo === "transcribir") { setAbierta(null); cargarTrans(); }
       setFichero(null); await recargar(); cargarReuniones();
+      if (modo === "analizar" && aplicar) alAplicar?.();
     } else if (j.mensaje.includes("Reunión repetida") && !repetir) {
       setDupe({ modo, aviso: j.mensaje.split(/ (?:Si quieres|Transcribirla de nuevo)/)[0].replace(/^⚠\s*/, "") });
     } else setMensaje({ texto: j.mensaje, error: true });
@@ -209,7 +215,7 @@ export const Reunion = ({ refExp, recargar }: PropsPestana) => {
       <div className="row" style={{ marginBottom: 24 }}>
         <button className="btn btn-primary" disabled={!fichero || !conocido || !!procesando} onClick={() => procesar("analizar")} title="Transcribe el audio (o usa la transcripción) y extrae los cambios para el informe en un solo paso.">
           {procesando === "analizar" ? <><span className="spinner" /> Analizando…</> : <><Sparkles strokeWidth={1.5} /> Analizar reunión</>}</button>
-        <button className="btn btn-secondary" disabled={!fichero || !esAudioOVideo(fichero.name) || !!procesando} onClick={() => procesar("transcribir")} title="Solo transcribe e identifica las voces; tú les pones nombre y al etiquetar se genera el acta.">
+        <button className="btn btn-secondary" disabled={!fichero || !tipoMedio(fichero) || !!procesando} onClick={() => procesar("transcribir")} title="Solo transcribe e identifica las voces; tú les pones nombre y al etiquetar se genera el acta.">
           {procesando === "transcribir" ? <><span className="spinner" /> Transcribiendo…</> : <><Sparkles strokeWidth={1.5} /> Transcribir y nombrar</>}</button>
       </div>
       {subida !== null && <><div className="progress-bar"><div style={{ width: `${subida}%` }} /></div><p className="small muted">Subiendo {fichero?.name}… {subida} %</p></>}
@@ -218,7 +224,7 @@ export const Reunion = ({ refExp, recargar }: PropsPestana) => {
       {acta && (
         <section className="doc-section">
           <h2 className="section-header-sm">Resultado del análisis <button className="btn btn-ghost" onClick={() => setActa(null)}>Cerrar</button></h2>
-          <ActaView refExp={refExp} acta={acta} ocultarAplicar={aplicar} recargar={recargar} />
+          <ActaView refExp={refExp} acta={acta} ocultarAplicar={aplicar} recargar={recargar} alAplicar={alAplicar} />
         </section>)}
 
       {pendiente && trans && (
@@ -287,7 +293,7 @@ export const Reunion = ({ refExp, recargar }: PropsPestana) => {
           <h2 className="section-header-sm"><span className="row"><button className="btn btn-ghost" onClick={() => setAbierta(null)}><ArrowLeft strokeWidth={1.5} /> Todas las reuniones</button>{item.origen.replace(/_/g, " ")}</span><span className="small muted">{item.fecha}</span></h2>
           {item.actas.length === 0 && <p className="small muted" style={{ marginBottom: 16 }}>Esta reunión aún no tiene acta: solo transcripción. Para generar el acta, sube el fichero con «Analizar reunión».</p>}
           {item.actas[0] && (item.actas[0].datos
-            ? <ActaView key={item.actas[0].nombre} refExp={refExp} acta={item.actas[0].datos} recargar={recargar} />
+            ? <ActaView key={item.actas[0].nombre} refExp={refExp} acta={item.actas[0].datos} recargar={recargar} alAplicar={alAplicar} />
             : <div className="executive-summary-box"><Markdown texto={item.actas[0].markdown} /></div>)}
           {item.actas.slice(1).map((a) => (
             <div key={a.nombre} style={{ marginTop: 32 }}>

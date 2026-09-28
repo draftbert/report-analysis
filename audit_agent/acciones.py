@@ -24,6 +24,7 @@ import difflib
 import hashlib
 import json
 import re
+import unicodedata
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -114,14 +115,15 @@ def _contexto_proyecto(exp: Expediente) -> str:
 
 
 def _cargar_entrada(exp: Expediente, accion: str, carpetas: tuple[str, ...] = ("contexto", "papeles_trabajo"),
-                    requerir: str = "papeles_trabajo") -> list[Documento]:
+                    requerir: str = "papeles_trabajo", solo_papeles: set[str] | None = None) -> list[Documento]:
     """Lee las carpetas de documentos indicadas con la capa de lectores y deja
     en trazas/ qué lector se usó y el texto normalizado exacto que se envía al
     modelo (auditoría de la fidelidad de la lectura). `requerir` es la carpeta
-    que no puede estar vacía."""
+    que no puede estar vacía; `solo_papeles`, los papeles de trabajo a leer (None = todos)."""
     docs = []
     for carpeta in carpetas:
-        docs += exp.leer_documentos(carpeta)
+        docs += [d for d in exp.leer_documentos(carpeta)
+                 if solo_papeles is None or carpeta != "papeles_trabajo" or d.nombre in solo_papeles]
     if requerir and not any(d.carpeta == requerir for d in docs):
         raise ExpedienteError(f"No hay documentos en {exp.ruta / requerir} (formatos: {', '.join(EXT_ENTRADA)}).")
     cupo = _presupuesto(docs)
@@ -356,6 +358,7 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
     # La evaluación global (Deficiente … Adecuado) la selecciona el auditor: nunca la fija el modelo,
     # y en un informe nuevo queda vacía hasta que la elija.
     snap = exp.escribir("informe", render_informe(datos, exp.proyecto), "redactar-contexto")
+    exp.registrar_procesados("contexto", exp.ficheros("contexto"))
     hall = revisar_markdown(ctx.checker, exp.leer("informe"))
     errores = sum(h["severidad"] == "error" for h in hall)
     n_ctx = sum(d.carpeta == "contexto" for d in docs)
@@ -374,13 +377,27 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
 
 
 # ============================================================ 2. extraer conclusiones
-def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
+def accion_extraer(ctx: Contexto, forzar: bool = False, solo_nuevos: bool = False) -> str:
+    """Propone las conclusiones de los papeles de trabajo. Con `solo_nuevos`, solo lee los papeles
+    de trabajo que aún no se han procesado y AÑADE sus conclusiones a las existentes sin tocarlas
+    (se vuelve al informe con una prueba más)."""
     exp = ctx.exp
-    if exp.existe("conclusiones") and not forzar:
+    existentes: list[dict] = []
+    nuevos: set[str] | None = None
+    if solo_nuevos and exp.existe("conclusiones"):
+        nuevos = {p.name for p in exp.documentos_nuevos("papeles_trabajo")}
+        if not nuevos:
+            raise ExpedienteError("No hay papeles de trabajo nuevos: todos los de papeles_trabajo/ ya se han procesado.")
+        existentes = _leer_conclusiones(exp)
+    elif exp.existe("conclusiones") and not forzar:
         raise ExpedienteError("01_conclusiones.md ya existe y puede contener trabajo del auditor. "
-                              "Usa --forzar para regenerarlo (se guarda snapshot en historial/).")
+                              "Usa --solo-nuevos para añadir las de los papeles de trabajo nuevos, o --forzar para "
+                              "regenerarlo entero (se guarda snapshot en historial/).")
     campos = "\n".join(f"- {k}: {v.description}" for k, v in ConclusionExtraida.model_fields.items())
-    docs = _cargar_entrada(exp, "extraer")
+    docs = _cargar_entrada(exp, "extraer", solo_papeles=nuevos)
+    ya = ("\n\nEL INFORME YA TIENE ESTAS CONCLUSIONES de papeles de trabajo anteriores (no las repitas: extrae solo "
+          "las de los papeles de trabajo que se envían ahora; si una prueba nueva amplía una existente, dilo en `notas`):\n"
+          + "\n".join(f"- {c['id']} · {c['prueba']} · {c['titulo']}" for c in existentes)) if existentes else ""
     user = (f"{_contexto_proyecto(exp)}\n\n"
             "Los documentos de CONTEXTO DE LA AUDITORÍA (si los hay) solo sirven para entender el motivo y el alcance: "
             "NO generan conclusiones. El PAPEL DE TRABAJO contiene el papel de trabajo final de la auditoría: una o varias PRUEBAS "
@@ -420,13 +437,18 @@ def accion_extraer(ctx: Contexto, forzar: bool = False) -> str:
             "- Campo vacío antes que inventar hechos. Ordena de mayor a menor riesgo.\n"
             "- EXTENSIÓN: cada conclusión ocupa una diapositiva; respeta la extensión orientativa del sistema "
             "(prosa concreta, sin repetir en `consecuencias` lo ya dicho en `incidencia`, una viñeta por dato)."
-            f"{_ejemplo_conclusion()}\n\n"
+            f"{_ejemplo_conclusion()}{ya}\n\n"
             f"DOCUMENTOS DE ENTRADA:\n{_texto_entrada(docs)}")
     res = ctx.llm.completar_estructurado("extraer", ctx.system, user, ExtraccionConclusiones)
-    conclusiones = [_conc_a_dict(c, f"C-{i:02d}") for i, c in enumerate(res.conclusiones, 1)]
-    exp.escribir("conclusiones", render_conclusiones(conclusiones, exp.proyecto, res.notas, res.pruebas_sin_incidencia),
-                 "extraer")
-    lineas = [f"Se han propuesto {len(conclusiones)} conclusiones en {exp.archivo('conclusiones').name}:"]
+    primero = max((int(m.group(1)) for c in existentes if (m := re.search(r"(\d+)$", c["id"]))), default=0) + 1
+    conclusiones = [_conc_a_dict(c, f"C-{i:02d}") for i, c in enumerate(res.conclusiones, primero)]
+    exp.escribir("conclusiones", render_conclusiones(existentes + conclusiones, exp.proyecto, res.notas, res.pruebas_sin_incidencia),
+                 "extraer-nuevos" if existentes else "extraer")
+    exp.registrar_procesados("papeles_trabajo", [p for p in exp.ficheros("papeles_trabajo") if nuevos is None or p.name in nuevos])
+    lineas = [("Se ha añadido 1 conclusión nueva" if len(conclusiones) == 1 else f"Se han añadido {len(conclusiones)} conclusiones nuevas")
+              + f" (de {', '.join(sorted(nuevos or []))}) a las {len(existentes)} que ya había en {exp.archivo('conclusiones').name}:"
+              if existentes else
+              f"Se han propuesto {len(conclusiones)} conclusiones en {exp.archivo('conclusiones').name}:"]
     for c in conclusiones:
         r = ctx.checker.revisar_conclusion(_campos_conc(c))
         n_err = sum(h.severidad == "error" for h in r.hallazgos)
@@ -662,19 +684,55 @@ def accion_recomendar(ctx: Contexto, ids: list[str] | None = None, preguntar=Non
 
 
 # ============================================================ 5. redactar conclusiones (volcado al informe)
-def accion_redactar_conclusiones(ctx: Contexto) -> str:
-    """Vuelca las conclusiones y sugerencias aprobadas a 02_informe.md de forma
-    determinista (sin modelo): el texto validado por el auditor va tal cual.
-    Bloquea las que conserven el riesgo «propuesto» o carezcan de recomendación."""
-    exp = ctx.exp
+MODOS_VOLCADO = ("rehacer", "anadir")
+
+
+def _volcadas(exp: Expediente, conclusiones: list[dict], actual: dict) -> set[str]:
+    """Ids de las observaciones que ya están en el informe (registro; en expedientes anteriores
+    a él, las aprobadas cuyo título aparece en el detalle o en las sugerencias)."""
+    reg = exp.registro().get("volcadas")
+    if reg is not None:
+        return set(reg)
+    # Sin registro: cada apartado del informe se empareja con la aprobada que más se le parece (título o
+    # incidencia), porque en el informe el título puede haberse retocado después (chat, reunión, edición).
+    en_informe = actual.get("conclusiones", []) + actual.get("sugerencias", [])
+    libres = [c for c in conclusiones if c["estado"] == "aprobada"]
+    ya: set[str] = set()
+    for x in en_informe:
+        puntos = [(max(_parecido(x.get("titulo", ""), c["titulo"]), _parecido(x.get("incidencia", ""), c.get("incidencia", ""))), c)
+                  for c in libres]
+        mejor = max(puntos, key=lambda pc: pc[0], default=(0.0, None))
+        if mejor[1] is not None and mejor[0] >= 0.6:
+            ya.add(mejor[1]["id"])
+            libres.remove(mejor[1])
+    return ya
+
+
+def _parecido(a: str, b: str) -> float:
+    pa, pb = _norm_titulo(a).split(), _norm_titulo(b).split()
+    return difflib.SequenceMatcher(None, pa, pb, autojunk=False).ratio() if pa and pb else 0.0
+
+
+def _norm_titulo(t: str) -> str:
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFKD", t or "").encode("ascii", "ignore").decode().lower()).strip()
+
+
+def _preparar_volcado(exp: Expediente, modo: str) -> tuple[dict, list[tuple[dict, list[str]]], list[dict], set[str]]:
+    """(datos del informe resultante, bloqueadas con motivo, observaciones que entran, ids volcados tras el volcado).
+    `rehacer`: el detalle se reconstruye entero desde las aprobadas (pisa lo editado después en el informe).
+    `anadir`: se conserva el detalle actual del informe tal cual y se añaden al final las aprobadas que aún no están."""
+    if modo not in MODOS_VOLCADO:
+        raise ExpedienteError(f"Modo de volcado no válido: {modo} ({' | '.join(MODOS_VOLCADO)}).")
     conclusiones = _leer_conclusiones(exp)
     aprobadas = [c for c in conclusiones if c["estado"] == "aprobada"]
     if not aprobadas:
         raise ExpedienteError("No hay conclusiones con `Estado: aprobada`. Aprueba al menos una "
                               "(edita el fichero o usa `aprobar C-01 ...` / `aprobar todas`).")
+    actual = parsear_informe(exp.leer("informe")) if exp.existe("informe") else {}
+    ya = _volcadas(exp, conclusiones, actual) if modo == "anadir" else set()
     bloqueadas = []
     listas = []
-    for c in aprobadas:
+    for c in (c for c in aprobadas if c["id"] not in ya):
         motivos = []
         if c.get("riesgo_propuesto"):
             motivos.append("nivel de riesgo aún «propuesto por el modelo» (valídalo con `aprobar`)")
@@ -684,18 +742,46 @@ def accion_redactar_conclusiones(ctx: Contexto) -> str:
             motivos.append("sin propuesta de mejora")
         (bloqueadas if motivos else listas).append((c, motivos))
     if not listas:
+        if modo == "anadir" and not bloqueadas:
+            raise ExpedienteError("No hay observaciones aprobadas nuevas: todas las aprobadas ya están en el informe.")
         raise ExpedienteError("Ninguna conclusión aprobada está lista para el informe:\n"
                               + "\n".join(f"  {c['id']}: {'; '.join(m)}" for c, m in bloqueadas))
-    actual = parsear_informe(exp.leer("informe")) if exp.existe("informe") else {}
+    entran = [c for c, _ in listas]
+    base = ([x for x in actual.get("conclusiones", [])], [x for x in actual.get("sugerencias", [])]) if modo == "anadir" else ([], [])
     datos = {"introduccion": actual.get("introduccion", ""), "resumen_ejecutivo": actual.get("resumen_ejecutivo", ""),
              "evaluacion_global": actual.get("evaluacion_global", ""),
-             "conclusiones": [c for c, _ in listas if c["tipo"] == "recomendacion"],
-             "sugerencias": [c for c, _ in listas if c["tipo"] == "sugerencia"]}
+             "conclusiones": base[0] + [c for c in entran if c["tipo"] == "recomendacion"],
+             "sugerencias": base[1] + [c for c in entran if c["tipo"] == "sugerencia"]}
+    return datos, bloqueadas, entran, ya | {c["id"] for c in entran}
+
+
+def simular_redactar_conclusiones(ctx: Contexto, modo: str = "rehacer") -> dict:
+    """Lo que haría `redactar-conclusiones` sin escribir nada: el informe comparado por apartados."""
+    from .comparar import comparar_informes
+    exp = ctx.exp
+    datos, bloqueadas, entran, _ = _preparar_volcado(exp, modo)
+    return {"modo": modo, "entran": [f"{c['id']} · {c['titulo']}" for c in entran],
+            "bloqueadas": [f"{c['id']} · {c['titulo']}: {'; '.join(m)}" for c, m in bloqueadas],
+            **comparar_informes(exp.leer("informe"), render_informe(datos, exp.proyecto))}
+
+
+def accion_redactar_conclusiones(ctx: Contexto, modo: str = "rehacer") -> str:
+    """Vuelca las conclusiones y sugerencias aprobadas a 02_informe.md de forma
+    determinista (sin modelo): el texto validado por el auditor va tal cual.
+    Bloquea las que conserven el riesgo «propuesto» o carezcan de recomendación.
+    `modo="anadir"` conserva el detalle actual del informe y añade solo las nuevas."""
+    exp = ctx.exp
+    datos, bloqueadas, entran, volcadas = _preparar_volcado(exp, modo)
     snap = exp.escribir("informe", render_informe(datos, exp.proyecto), "redactar-conclusiones")
+    exp.registrar("volcadas", sorted(volcadas))
     hall = revisar_markdown(ctx.checker, exp.leer("informe"))
     errores = sum(h["severidad"] == "error" for h in hall)
-    msg = [f"Detalle de conclusiones ({len(datos['conclusiones'])}) y sugerencias de mejora ({len(datos['sugerencias'])}) "
-           f"volcados a {exp.archivo('informe').name} tal cual fueron aprobados (sin modelo)."]
+    msg = ([(f"Añadida al informe 1 observación nueva" if len(entran) == 1 else f"Añadidas al informe {len(entran)} observaciones nuevas")
+            + f" ({', '.join(c['id'] for c in entran)}) tal cual se aprobaron (sin modelo); el resto del detalle se conserva "
+            f"como estaba en {exp.archivo('informe').name}."]
+           if modo == "anadir" else
+           [f"Detalle de conclusiones ({len(datos['conclusiones'])}) y sugerencias de mejora ({len(datos['sugerencias'])}) "
+            f"volcados a {exp.archivo('informe').name} tal cual fueron aprobados (sin modelo)."])
     if bloqueadas:
         msg.append("⚠ NO incluidas: " + "; ".join(f"{c['id']} ({', '.join(m)})" for c, m in bloqueadas))
     if not datos["introduccion"] or not datos["resumen_ejecutivo"]:
@@ -1498,7 +1584,9 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
                "contexto": [p.name for p in exp.ficheros("contexto")],
                "papeles": [p.name for p in exp.ficheros("papeles_trabajo")],
                "conclusiones": None, "informe": None, "instrucciones_pendientes": bool(exp.instrucciones_pendientes()),
-               "ppt": None, "siguiente": ""}
+               "ppt": None, "siguiente": "",
+               "nuevos": {k: [p.name for p in exp.documentos_nuevos(k)] for k in ("papeles_trabajo", "contexto")},
+               "sin_volcar": []}
     if exp.existe("conclusiones"):
         cs = parsear_conclusiones(exp.leer("conclusiones"))
         e["conclusiones"] = {k: sum(c["estado"] == k for c in cs) for k in ("propuesta", "aprobada", "descartada")}
@@ -1510,6 +1598,9 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
             "riesgo_pendiente": [c["id"] for c in cs if c["estado"] == "aprobada" and c.get("riesgo_propuesto")],
         })
     informe = parsear_informe(exp.leer("informe")) if exp.existe("informe") else None
+    if e["conclusiones"] is not None:
+        ya = _volcadas(exp, cs, informe or {})
+        e["sin_volcar"] = [c["id"] for c in cs if c["estado"] == "aprobada" and c["id"] not in ya]
     if informe is not None:
         texto = exp.leer("informe")
         hall = revisar_markdown(checker, texto) if checker else []
@@ -1577,7 +1668,83 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
                               if archivo_actual else
                               "`archivar`: generar el zip de evidencia (trazas, historial, informe, PPT + manifest sha256) "
                               "para adjuntarlo al expediente al cerrarlo en Pentana")
+    if c is not None and e["nuevos"]["papeles_trabajo"]:
+        e["siguiente"] = (f"`extraer --solo-nuevos`: hay papeles de trabajo nuevos ({', '.join(e['nuevos']['papeles_trabajo'])}); "
+                          "sus conclusiones se añaden a las existentes sin tocarlas")
+    e.update(_pasos(exp, e))
     return e
+
+
+PASOS = (("documentos", "Documentos"), ("contexto", "Contexto"), ("observaciones", "Observaciones"),
+         ("informe", "Informe"), ("entrega", "Entrega"))
+
+
+def _pasos(exp: Expediente, e: dict) -> dict:
+    """Pasos de la web (siempre navegables: al informe se vuelve varias veces): estado de cada uno
+    y el paso sugerido con lo que toca hacer, en lenguaje del auditor (sin comandos del CLI)."""
+    c, inf, nuevos = e["conclusiones"], e["informe"], e["nuevos"]
+    n_pt, n_ctx = len(e["papeles"]), len(e["contexto"])
+    en_informe = inf["n_conclusiones"] + inf["n_sugerencias"] if inf else 0
+    pt_nuevos = nuevos["papeles_trabajo"] if c is not None else []
+    ctx_nuevos = nuevos["contexto"] if inf and inf["contexto"] else []
+    ppt = e["ppt"]
+    ultimo = e["archivos"][-1] if e["archivos"] else None
+    archivado = bool(ultimo and exp.existe("informe")
+                     and (exp.ruta / ultimo).stat().st_mtime >= exp.archivo("informe").stat().st_mtime)
+
+    def plural(n: int, uno: str, varios: str) -> str:
+        return f"{n} {uno if n == 1 else varios}"
+
+    pasos = {
+        "documentos": {"hecho": n_pt > 0,
+                       "resumen": (f"{plural(n_pt, 'papel de trabajo', 'papeles de trabajo')} · {n_ctx} de contexto"
+                                   if n_pt or n_ctx else "Sin documentos"),
+                       "aviso": plural(len(pt_nuevos) + len(ctx_nuevos), "documento nuevo sin procesar", "documentos nuevos sin procesar")
+                       if pt_nuevos or ctx_nuevos else ""},
+        "contexto": {"hecho": bool(inf and inf["contexto"]),
+                     "resumen": "Introducción y resumen redactados" if inf and inf["contexto"] else "Sin redactar",
+                     "aviso": "Hay contexto nuevo sin usar" if ctx_nuevos else ""},
+        "observaciones": {"hecho": bool(c and c["total"] and not c["propuesta"] and not e["sin_volcar"] and not pt_nuevos),
+                          "resumen": (f"{c['aprobada']} aprobadas · {c['propuesta']} por revisar" if c else "Sin extraer"),
+                          "aviso": ("Papel de trabajo nuevo sin extraer" if pt_nuevos else
+                                    plural(len(e["sin_volcar"]), "aprobada sin pasar al informe", "aprobadas sin pasar al informe")
+                                    if e["sin_volcar"] else "")},
+        "informe": {"hecho": bool(en_informe and not inf["errores"] and not e["instrucciones_pendientes"]),
+                    "resumen": (plural(en_informe, "observación", "observaciones") + f" · {plural(inf['versiones'], 'versión anterior', 'versiones anteriores')}"
+                                if inf else "Sin informe"),
+                    "aviso": (plural(inf["errores"], "error de estilo", "errores de estilo") if inf and inf["errores"] else
+                              "Instrucciones pendientes en el buzón" if e["instrucciones_pendientes"] else "")},
+        "entrega": {"hecho": bool(ppt and not ppt["desactualizado"] and archivado),
+                    "resumen": ("Sin PowerPoint" if not ppt else "PowerPoint desactualizado" if ppt["desactualizado"]
+                                else "Archivado" if archivado else "PowerPoint al día"),
+                    "aviso": "PowerPoint desactualizado" if ppt and ppt["desactualizado"] else ""},
+    }
+    if not n_pt:
+        sug = ("documentos", "Sube el papel de trabajo final y, si lo tienes, el contexto de la auditoría (design thinking, planificación).")
+    elif pt_nuevos:
+        sug = ("observaciones", f"Hay papeles de trabajo nuevos ({', '.join(pt_nuevos)}): extrae sus observaciones; se añaden a las que ya tienes sin tocarlas.")
+    elif not (inf and inf["contexto"]):
+        sug = ("contexto", "Redacta con el modelo la introducción y el resumen ejecutivo, y revísalos.")
+    elif c is None:
+        sug = ("observaciones", "Extrae las observaciones de los papeles de trabajo.")
+    elif c["propuesta"]:
+        sug = ("observaciones", f"Revisa las {plural(c['propuesta'], 'observación propuesta', 'observaciones propuestas')}: completa lo que falte y apruébalas o descártalas.")
+    elif c["riesgo_pendiente"] or c["sin_recomendacion"]:
+        sug = ("observaciones", "Hay observaciones aprobadas sin recomendación o con el riesgo por validar.")
+    elif e["sin_volcar"] or not en_informe:
+        sug = ("observaciones", "Pasa al informe las observaciones aprobadas.")
+    elif e["instrucciones_pendientes"]:
+        sug = ("informe", "Hay instrucciones en el buzón: aplícalas al informe.")
+    elif inf["errores"]:
+        sug = ("informe", f"El informe tiene {plural(inf['errores'], 'error', 'errores')} de estilo: revísalos o corrígelos con el modelo.")
+    elif not ppt or ppt["desactualizado"]:
+        sug = ("entrega", "Genera el PowerPoint del informe." if not ppt else "El informe ha cambiado: regenera el PowerPoint.")
+    elif not archivado:
+        sug = ("entrega", "Archiva la evidencia para cerrar el expediente en Pentana.")
+    else:
+        sug = ("informe", "Informe emitido y archivado. Si sigues editando, regenera el PowerPoint y vuelve a archivar.")
+    return {"pasos": [{"id": k, "titulo": t, "actual": k == sug[0], **pasos[k]} for k, t in PASOS],
+            "paso_sugerido": sug[0], "sugerencia": sug[1]}
 
 
 def accion_estado(exp: Expediente, checker: StyleChecker | None = None, llm_desc: str = "") -> str:

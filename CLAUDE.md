@@ -41,6 +41,10 @@ el motivo del snapshot dice el origen del cambio: `cambio`=chat, `reunion`=acta,
   (fuente de las conclusiones). `entrada/` antiguo se lee como papeles_trabajo.
 - Flujo: redactar-contexto (intro+resumen) → extraer (conclusiones) → aprobar → recomendar →
   redactar-conclusiones → aplicar-cambios/reunion/cambio/chat/revisar/corregir → ppt → archivar.
+  No es lineal: se vuelve con documentación nueva. `.procesado.json` (Expediente.registro) guarda qué documentos
+  (nombre + sha256) ya pasaron por el modelo y qué observaciones están en el informe; `extraer --solo-nuevos` AÑADE
+  las conclusiones de los papeles nuevos sin tocar las existentes y `redactar-conclusiones --anadir` conserva el
+  detalle del informe (lo editado allí) y suma solo las aprobadas nuevas; la web simula antes (`simular`). Casos en `tests/test_volver.py`.
 - Audio: `transcribir` (KAIA /transcribe/upload, diarización; genéricos = «lo que no está entre los nombres
   enviados», ver Fase 0 en `transcripcion.py`) → hablantes.md → `etiquetar-transcript` (guarda la transcripción
   etiquetada en reuniones/ y la pasa por el MISMO análisis de `reunion` → acta; sin modelo o sin 02_informe.md
@@ -62,8 +66,9 @@ el motivo del snapshot dice el origen del cambio: `cambio`=chat, `reunion`=acta,
   `formato.ts` + `client.ts`; solo clases del catálogo § 3 y componentes de § 4; clases nuevas con nombre BEM
   y documentadas en la guía). Contrato: `src/api/types.ts` (mismos nombres que el JSON de `api.py`), todo
   endpoint es un método de `interface Api` en `client.ts`; nada llama a `fetch` fuera. Pantallas: portada `/`,
-  listado `/informes`, alta `/nuevo`, estudio `/informes/:ref?pestana=` (entrada · contexto · conclusiones ·
-  reunión · entregables · trazas, a una columna), informe `/informes/:ref/informe` y reglas `/reglas`. Los tokens `--ids-*` de `tokens.css` se sustituyen por
+  listado `/informes`, alta `/nuevo`, espacio de trabajo `/informes/:ref?paso=` (documentos → contexto → observaciones →
+  informe → entrega, siempre navegables; el estado de cada paso y el sugerido los calcula `_pasos` en `acciones.py`; el paso
+  informe lleva las vistas documento · reuniones · últimos cambios) y reglas `/reglas`. Los tokens `--ids-*` de `tokens.css` se sustituyen por
   `@inditex/sewingiopdsweb-styles` en el entorno corporativo.
 
 ## Pruebas rápidas

@@ -70,7 +70,7 @@ export const Informes = () => {
                     <td>{fmt.relativa(e.modificado)}</td>
                     <td className="col-right td-acciones">
                       <Link className="btn btn-ghost" to={`/informes/${encodeURIComponent(e.referencia)}`}>Abrir</Link>
-                      {e.informe && e.informe.n_conclusiones + e.informe.n_sugerencias > 0 && <Link className="btn btn-ghost" to={`/informes/${encodeURIComponent(e.referencia)}/informe`}>Ver informe</Link>}
+                      {e.informe && e.informe.n_conclusiones + e.informe.n_sugerencias > 0 && <Link className="btn btn-ghost" to={`/informes/${encodeURIComponent(e.referencia)}?paso=informe`}>Ver informe</Link>}
                       <button className="icon-btn" onClick={() => { setConfirmacion(""); setBorrar(e); }} title="Eliminar informe" aria-label={`Eliminar ${e.referencia}`}><Trash2 size={18} strokeWidth={1.5} /></button>
                     </td>
                   </tr>))}

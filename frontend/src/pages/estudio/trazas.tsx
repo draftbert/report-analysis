@@ -18,8 +18,6 @@ export const Trazas = ({ refExp }: PropsPestana) => {
 
   return (
     <div>
-      <h2 className="section-header-sm">Trazas del modelo</h2>
-      <p className="small muted" style={{ marginBottom: 24 }}>Toda salida del modelo queda ligada a su entrada: prompt, respuesta estructurada y tokens de cada llamada.</p>
       <div className="table-wrapper">
         <table className="ids-table">
           <thead><tr><th>Fecha</th><th>Acción</th><th>Modelo</th><th className="col-right">Tokens entrada / salida</th><th className="col-right" /></tr></thead>

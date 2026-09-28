@@ -125,6 +125,9 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 #     Cómo se ha llegado (viñetas con datos) / Consecuencias / Recomendación (varias = varios párrafos).
 #   Si el PT no habla de severidad, el riesgo lleva "(propuesto por el modelo, sin evidencia en PT)":
 #   `aprobar` quita la coletilla (el auditor lo ha validado).
+#   ¿Vuelves con un papel de trabajo nuevo? `extraer --solo-nuevos` lee solo los que aún no se han
+#   procesado (registro en .procesado.json: nombre + sha256) y AÑADE sus conclusiones a las existentes
+#   sin tocar lo ya revisado. `--forzar` rehace el fichero entero.
 ./revisor aprobar C-01 C-03          # o `aprobar todas`, `descartar C-04`
 ./revisor recomendar                 # por cada aprobada sin recomendación pregunta al auditor:
 #   si la tiene, se registra tal cual (100 % respetada; `--formatear` solo le da formato y se verifica
@@ -135,6 +138,9 @@ cómo se ha llegado a ella (datos, tablas), consecuencias y recomendación.
 ./revisor regenerar C-02             # rehace una según «Notas del auditor»
 ./revisor redactar-conclusiones      # vuelca las aprobadas al informe TAL CUAL (sin modelo), ya como apartados
 #   con la lectura de la diapositiva: prosa, «detalles descriptivos» en viñetas, consecuencias, Recomendación N.1…
+#   Por defecto REHACE el detalle desde 01_conclusiones.md (pisa lo cambiado después en el informe; queda en historial/).
+#   `--anadir` conserva el detalle actual del informe y añade solo las aprobadas que aún no están (la web lo
+#   propone por defecto y enseña antes cómo quedará el informe).
 ./revisor redactar-contexto --secciones resumen   # opcional: resumen ejecutivo con las conclusiones validadas
 
 # 3. Cambios durante la revisión (Gerente, Directora, reunión con el área)

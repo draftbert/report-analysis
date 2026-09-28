@@ -6,8 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCheck, ChevronDown, ChevronUp, FileOutput, RotateCcw, SpellCheck, Sparkles, XCircle } from "lucide-react";
 
 import { api } from "@/api";
-import type { Conclusion, EstadoConclusion, Hallazgo, Riesgo, TipoConclusion } from "@/api";
-import { EstadoTag, Modal, Progreso, ResultBox, RiesgoTag, SeveridadTag, useConfirmar, useNotificar } from "@/components/ui";
+import type { Conclusion, EstadoConclusion, Hallazgo, ModoVolcado, Riesgo, SimulacionVolcado, TipoConclusion } from "@/api";
+import { Aviso, CambioTag, DiffCuenta, DiffDocumento, EstadoTag, Modal, MenuFlotante, Progreso, ResultBox, RiesgoTag, SeveridadTag, useConfirmar, useNotificar } from "@/components/ui";
 import { useJob } from "@/hooks/useJob";
 
 import type { PropsPestana } from "./estudio";
@@ -81,13 +81,16 @@ const Tarjeta = ({ c, hallazgos, onGuardar, onEstado, onRegenerar, ocupado }: {
   );
 };
 
-export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
+type Volcado = { modo: ModoVolcado; sim: SimulacionVolcado | null; error: string; enviando: boolean };
+
+export const Conclusiones = ({ refExp, exp, recargar, irA }: PropsPestana) => {
   const notificar = useNotificar();
   const confirmar = useConfirmar();
   const job = useJob();
   const [lista, setLista] = useState<Conclusion[]>([]);
   const [hallazgos, setHallazgos] = useState<Hallazgo[]>([]);
   const [mensaje, setMensaje] = useState<Mensaje>(null);
+  const [volcado, setVolcado] = useState<Volcado | null>(null);
   const [asistente, setAsistente] = useState<{ pendientes: Conclusion[]; idx: number; respuestas: Record<string, string>; auto: string[]; texto: string } | null>(null);
 
   const cargar = useCallback(async () => {
@@ -102,9 +105,11 @@ export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
     if (j.estado === "ok") { await cargar(); await recargar(); }
   };
   const extraer = async () => {
-    if (lista.length && !(await confirmar({ titulo: "Extraer de nuevo", accion: "Extraer", cuerpo: "Se regenerarán todas las observaciones a partir del papel de trabajo. El fichero actual queda en el historial." }))) return;
+    if (lista.length && !(await confirmar({ titulo: "Rehacer todas las observaciones", accion: "Rehacer todas", peligro: true,
+      cuerpo: "Se regeneran TODAS las observaciones desde los papeles de trabajo y se pierden tus cambios, aprobaciones y recomendaciones (el fichero actual queda en el historial).\n\nPara incorporar solo un papel de trabajo nuevo, usa «Extraer sus observaciones»: se añaden sin tocar las que ya tienes." }))) return;
     await correr(() => api.extraer(refExp, true));
   };
+  const extraerNuevos = () => correr(() => api.extraer(refExp, false, true));
   const guardar = async (id: string, campos: Partial<Conclusion>) => {
     try { await api.guardarConclusion(refExp, id, campos); notificar({ texto: "Observación guardada." }); await cargar(); await recargar(); }
     catch (e) { notificar({ texto: (e as Error).message, error: true }); }
@@ -122,9 +127,22 @@ export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
     try { const r = await api.revisarConclusiones(refExp); setHallazgos(r.hallazgos); notificar({ texto: `${r.hallazgos.filter((h) => h.severidad === "error").length} errores, ${r.hallazgos.filter((h) => h.severidad === "aviso").length} avisos.` }); }
     catch (e) { notificar({ texto: (e as Error).message, error: true }); }
   };
+  // Pasar al informe: primero se simula (qué entra y cómo queda el informe) y el auditor confirma.
+  const simular = async (modo: ModoVolcado) => {
+    setVolcado({ modo, sim: null, error: "", enviando: false });
+    try { const sim = await api.simularVolcado(refExp, modo); setVolcado({ modo, sim, error: "", enviando: false }); }
+    catch (e) { setVolcado({ modo, sim: null, error: (e as Error).message, enviando: false }); }
+  };
+  const informeConObservaciones = !!exp.informe && exp.informe.n_conclusiones + exp.informe.n_sugerencias > 0;
+  const abrirVolcado = () => simular(informeConObservaciones ? "anadir" : "rehacer");
   const volcar = async () => {
-    try { const r = await api.redactarConclusiones(refExp); setMensaje({ texto: r.mensaje, error: false }); await recargar(); }
-    catch (e) { setMensaje({ texto: (e as Error).message, error: true }); }
+    if (!volcado) return;
+    setVolcado({ ...volcado, enviando: true });
+    try {
+      const r = await api.redactarConclusiones(refExp, volcado.modo);
+      setVolcado(null); notificar({ texto: r.mensaje.split("\n")[0] }); await recargar();
+      irA?.("informe", "cambios");
+    } catch (e) { setVolcado({ ...volcado, enviando: false, error: (e as Error).message }); }
   };
 
   const abrirAsistente = () => {
@@ -142,18 +160,27 @@ export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
   };
 
   const c = exp.conclusiones;
+  const nuevos = lista.length ? exp.nuevos.papeles_trabajo : [];
   return (
     <div>
+      {nuevos.length > 0 && (
+        <Aviso tipo="aviso" accion={<button className="btn btn-primary" onClick={extraerNuevos} disabled={job.activo}><Sparkles strokeWidth={1.5} /> Extraer sus observaciones</button>}>
+          {nuevos.length === 1 ? "Hay un papel de trabajo nuevo sin procesar" : `Hay ${nuevos.length} papeles de trabajo nuevos sin procesar`}: {nuevos.join(", ")}. Sus observaciones se añaden como propuestas a las que ya tienes, sin tocarlas.</Aviso>)}
+      {!nuevos.length && exp.sin_volcar.length > 0 && (
+        <Aviso accion={<button className="btn btn-primary" onClick={abrirVolcado}><FileOutput strokeWidth={1.5} /> Pasar al informe…</button>}>
+          {exp.sin_volcar.length === 1 ? "1 observación aprobada todavía no está en el informe" : `${exp.sin_volcar.length} observaciones aprobadas todavía no están en el informe`} ({exp.sin_volcar.join(", ")}).</Aviso>)}
       <h2 className="section-header-sm">Observaciones
         <span className="row">
-          <button className="btn btn-ghost" onClick={extraer} disabled={job.activo || !exp.papeles.length}><Sparkles strokeWidth={1.5} /> {lista.length ? "Extraer de nuevo" : "Extraer del papel de trabajo"}</button>
+          {!lista.length && <button className="btn btn-primary" onClick={extraer} disabled={job.activo || !exp.papeles.length}><Sparkles strokeWidth={1.5} /> Extraer del papel de trabajo</button>}
           <button className="btn btn-ghost" onClick={aprobarTodas} disabled={!lista.length}><CheckCheck strokeWidth={1.5} /> Aprobar todas</button>
-          <button className="btn btn-ghost" onClick={revisar} disabled={!lista.length}><SpellCheck strokeWidth={1.5} /> Revisar vocabulario</button>
-          <button className="btn btn-ghost" onClick={() => correr(() => api.corregirConclusiones(refExp))} disabled={job.activo || !lista.length}><Sparkles strokeWidth={1.5} /> Corregir con el modelo</button>
           <button className="btn btn-secondary" onClick={abrirAsistente} disabled={job.activo || !lista.length}>Recomendar…</button>
-          <button className="btn btn-primary" onClick={volcar} disabled={!c?.aprobada}><FileOutput strokeWidth={1.5} /> Volcar aprobadas al informe</button>
+          {lista.length > 0 && <MenuFlotante etiqueta="Más acciones">
+            <button className="btn btn-ghost" onClick={revisar}><SpellCheck strokeWidth={1.5} /> Revisar vocabulario</button>
+            <button className="btn btn-ghost" onClick={() => correr(() => api.corregirConclusiones(refExp))} disabled={job.activo}><Sparkles strokeWidth={1.5} /> Corregir con el modelo</button>
+            <button className="btn btn-ghost" onClick={extraer} disabled={job.activo || !exp.papeles.length}><RotateCcw strokeWidth={1.5} /> Rehacer todas desde cero</button>
+          </MenuFlotante>}
+          <button className="btn btn-primary" onClick={abrirVolcado} disabled={!c?.aprobada} title="Vista previa de cómo queda el informe antes de confirmar"><FileOutput strokeWidth={1.5} /> Pasar al informe…</button>
         </span></h2>
-      <p className="small muted" style={{ marginBottom: 16 }}>Una observación por incidencia del papel de trabajo: incidencia, causa raíz, detalles y consecuencias. El riesgo es de la observación, y cada una lleva vinculada una recomendación (con plan de acción) o una sugerencia de mejora. Aquí manda el auditor.</p>
       {c && (
         <div className="kpi-row kpi-row--compact">
           <div className="kpi-item" style={{ marginRight: 48 }}><span className="kpi-label">Observaciones</span><span className="kpi-value">{c.total}</span></div>
@@ -163,10 +190,34 @@ export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
         </div>)}
       {job.activo && <Progreso texto={job.job?.progreso || "Trabajando con el modelo…"} pct={job.job?.progreso_pct} partes={job.job?.progreso_partes} onDetener={job.detener} />}
       {mensaje && <div style={{ marginBottom: 24 }}><ResultBox mensaje={mensaje.texto} error={mensaje.error} onClose={() => setMensaje(null)} /></div>}
-      {!lista.length && <div className="empty">{exp.papeles.length ? "Aún no hay observaciones: extráelas del papel de trabajo." : "Sube el papel de trabajo en Entrada para poder extraer las observaciones."}</div>}
+      {!lista.length && <div className="empty">{exp.papeles.length ? "Aún no hay observaciones: extráelas del papel de trabajo." : <>Sube primero el papel de trabajo. <button className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("documentos")}>Ir a Documentos</button></>}</div>}
       <div className="agreements-list">
         {lista.map((x) => <Tarjeta key={x.id + x.estado + x.recomendacion.length} c={x} hallazgos={hallazgos} ocupado={job.activo} onGuardar={guardar} onEstado={cambiarEstado} onRegenerar={(id, notas) => correr(() => api.regenerar(refExp, id, notas))} />)}
       </div>
+      {volcado && (
+        <Modal ancho titulo="Pasar las observaciones aprobadas al informe" onClose={() => setVolcado(null)}
+          acciones={<><button className="btn btn-secondary" onClick={() => setVolcado(null)}>Cancelar</button>
+            <button className="btn btn-primary" onClick={volcar} disabled={!volcado.sim || volcado.enviando}>{volcado.enviando ? <><span className="spinner" /> Pasando…</> : "Pasar al informe"}</button></>}>
+          {informeConObservaciones && (
+            <div className="options-grid" style={{ marginBottom: 16 }}>
+              {([["anadir", "Añadir solo las nuevas (recomendado)", "Conserva el detalle del informe tal como está, con lo cambiado allí (chat, reuniones, edición), y añade al final las aprobadas que aún no están."],
+                 ["rehacer", "Rehacer el detalle desde aquí", "Reconstruye el detalle con todas las aprobadas tal como están en este paso. Se pierde lo cambiado después en el informe (queda en el historial)."]] as [ModoVolcado, string, string][]).map(([m, n, d]) => (
+                <button type="button" key={m} className={`option-card radio ${volcado.modo === m ? "selected" : ""}`} onClick={() => simular(m)} aria-pressed={volcado.modo === m}>
+                  <div className="option-info"><span className="option-name">{n}</span><span className="option-desc">{d}</span></div><div className="check-box" /></button>))}
+            </div>)}
+          {volcado.error && <ResultBox mensaje={volcado.error} error />}
+          {!volcado.sim && !volcado.error && <p className="small muted"><span className="spinner" /> Preparando la vista previa…</p>}
+          {volcado.sim && <>
+            <p className="small" style={{ marginBottom: 8 }}><strong>Entran:</strong> {volcado.sim.entran.join(" · ")}</p>
+            {volcado.sim.bloqueadas.length > 0 && <Aviso tipo="aviso">No entran (les falta algo): {volcado.sim.bloqueadas.join(" · ")}</Aviso>}
+            <div className="diff-resumen"><span className="diff-resumen__texto"><strong>Cómo cambia el informe</strong><DiffCuenta nuevas={volcado.sim.lineas_nuevas} borradas={volcado.sim.lineas_borradas} /></span></div>
+            {volcado.sim.apartados.filter((a) => a.estado !== "igual").map((a) => (
+              <section key={a.id} className="doc-section">
+                <div className="section-label section-label--muted">{a.titulo} <span className="row"><CambioTag estado={a.estado} /><DiffCuenta nuevas={a.lineas_nuevas} borradas={a.lineas_borradas} /></span></div>
+                <DiffDocumento lineas={a.lineas} />
+              </section>))}
+          </>}
+        </Modal>)}
       {asistente && (() => {
         const actual = asistente.pendientes[asistente.idx];
         return (
