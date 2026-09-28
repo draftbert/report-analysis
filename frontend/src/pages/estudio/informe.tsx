@@ -1,7 +1,7 @@
-/* Paso Informe del espacio de trabajo (patrón 5 de la guía): toolbar sticky (estado y acciones), tres vistas
-   —Documento (WYSIWYG, cada apartado es una diapositiva), Reuniones con el área (acta → aplicar cambios) y
-   Últimos cambios (apartados cambiados en verde/rojo, como un diff de GitHub)— y el cajón del asistente:
-   chat de cambios, buzón de instrucciones, revisión e historial. Todo lo que cambia el informe está aquí. */
+/* Informe en el espacio de trabajo (patrón 5 de la guía): toolbar sticky (estado y acciones), dos vistas
+   —Documento (WYSIWYG, cada apartado es una diapositiva) y Últimos cambios (apartados cambiados en verde/rojo,
+   como un diff de GitHub)— y el cajón del asistente: chat de cambios, buzón de instrucciones, revisión e historial.
+   Las reuniones con el área y la exportación son pasos hermanos de la iteración (ver estudio.tsx). */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, History, Pencil, Send, Sparkles, SpellCheck } from "lucide-react";
 
@@ -12,7 +12,6 @@ import { useJob } from "@/hooks/useJob";
 import { fmt } from "@/lib/formato";
 
 import type { PropsPestana } from "./estudio";
-import { Reunion } from "./reunion";
 
 const ESCALA = ["Deficiente", "Insuficiente", "Mejorable", "Razonable", "Adecuado"];
 const PROMPTS: [string, string][] = [
@@ -28,8 +27,8 @@ const kicker = (a: CabeceraApartado) => (a.tipo === "conclusion" ? `Detalle de c
 /** Texto de la banda vertical: el riesgo es de la OBSERVACIÓN (cada una lleva vinculada una recomendación o una sugerencia de mejora). */
 const banda = (a: CabeceraApartado) => (a.tipo === "conclusion" || a.tipo === "sugerencia" ? `Observación ${fmt.dos(a.numero)}${a.nivel_riesgo ? ` · Riesgo ${a.nivel_riesgo}` : ""}` : a.titulo);
 
-export type Vista = "documento" | "reuniones" | "cambios";
-const VISTAS: [Vista, string][] = [["documento", "Documento"], ["reuniones", "Reuniones con el área"], ["cambios", "Últimos cambios"]];
+export type Vista = "documento" | "cambios";
+const VISTAS: [Vista, string][] = [["documento", "Documento"], ["cambios", "Últimos cambios"]];
 
 export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, pie }: PropsPestana & { vista: Vista; cabecera: React.ReactNode; pie: React.ReactNode }) => {
   const notificar = useNotificar();
@@ -100,7 +99,7 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
     <>
       <div className="toolbar">
         <div className="toolbar-title">
-          <span>{exp.informe ? `${exp.informe.n_conclusiones + exp.informe.n_sugerencias} observaciones · ${exp.informe.n_conclusiones} recomendaciones · ${exp.informe.n_sugerencias} sugerencias de mejora · v${exp.informe.versiones}` : "Sin informe"}</span>
+          <span>{exp.informe ? `${fmt.plural(exp.informe.n_conclusiones + exp.informe.n_sugerencias, "observación", "observaciones")} · ${fmt.plural(exp.informe.n_conclusiones, "recomendación", "recomendaciones")} · ${fmt.plural(exp.informe.n_sugerencias, "sugerencia de mejora", "sugerencias de mejora")} · v${exp.informe.versiones}` : "Sin informe"}</span>
           {exp.informe && <span className={`tag ${exp.informe.errores ? "tag-error" : "tag-success"}`}>{exp.informe.errores} errores · {exp.informe.avisos} avisos</span>}
           {exp.instrucciones_pendientes && <span className="tag tag-info">Instrucciones pendientes</span>}
         </div>
@@ -121,13 +120,12 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
       <main className="main-layout aparece">
         <div className={`document-container ${editando ? "editing" : ""}`}>
           {cabecera}
-          {exp.ppt?.desactualizado && <Aviso tipo="aviso" accion={<button className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("entrega")}>Ir a Entrega</button>}>El informe ha cambiado desde el último PowerPoint.</Aviso>}
+          {exp.ppt?.desactualizado && <Aviso tipo="aviso" accion={<button className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("entrega")}>Ir a Exportación</button>}>El informe ha cambiado desde el último PowerPoint.</Aviso>}
           <div className="tab-row" role="tablist" aria-label="Vistas del informe">
             {VISTAS.map(([k, n]) => <button key={k} type="button" role="tab" className={`tab-item ${vista === k ? "active" : ""}`} aria-selected={vista === k} onClick={() => verVista(k)}>{n}</button>)}
           </div>
           {modelo.activo && <div className="result-box" style={{ marginBottom: 24 }}><span className="spinner" /> {modelo.job?.progreso || "Trabajando con el modelo…"} <button className="btn btn-ghost btn-ghost--inline small" style={{ marginLeft: 16 }} onClick={modelo.detener}>Detener</button></div>}
           {mensaje && <div style={{ marginBottom: 24 }}><ResultBox mensaje={mensaje.texto} error={mensaje.error} onClose={() => setMensaje(null)} /></div>}
-          {vista === "reuniones" && <Reunion refExp={ref} exp={exp} recargar={cargar} alAplicar={() => verVista("cambios")} />}
           {vista === "cambios" && <Cambios c={cambios} contra={contra} setContra={(v) => { setCambios(null); setContra(v); }} />}
           {vista === "documento" && <>
             <div className="doc-header">
@@ -315,7 +313,7 @@ const Asistente = ({ refExp, exp, abierto, diff, setDiff, onCambio, verDiff, des
             <button className="send-btn" type="submit" title="Aplicar cambio" aria-label="Aplicar cambio"><Send size={16} strokeWidth={1.5} /></button>
           </form>
         </div>)}
-      <p className="small muted" style={{ padding: "8px 0" }}>¿Cambios acordados en una reunión? <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("informe", "reuniones")}>Reuniones con el área</button></p>
+      <p className="small muted" style={{ padding: "8px 0" }}>¿Cambios acordados en una reunión? <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("reuniones")}>Reuniones con el área</button></p>
     </aside>
   );
 };

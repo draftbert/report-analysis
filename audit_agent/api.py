@@ -136,6 +136,7 @@ def _estado_json(exp: Expediente) -> dict:
         "archivos": e["archivos"], "llm": llm,
         "nuevos": e["nuevos"], "sin_volcar": e["sin_volcar"],
         "pasos": e["pasos"], "paso_sugerido": e["paso_sugerido"], "sugerencia": e["sugerencia"],
+        "modo": e["modo"], "preparacion_pendiente": e["preparacion_pendiente"],
         "modificado": datetime.fromtimestamp(max(f.stat().st_mtime for f in exp.ruta.glob("*") if f.is_file())).isoformat(timespec="seconds"),
     }
 

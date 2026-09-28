@@ -32,6 +32,8 @@ export const fmt = {
   bytes: (b: number) => (b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`),
   n: (x: number | undefined | null) => (x ?? 0).toLocaleString("es-ES"),
   dos: (x: number) => String(x).padStart(2, "0"),
+  /** «1 observación», «3 observaciones». */
+  plural: (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`,
 };
 
 /** Número de fase de `expediente.fase` («2 · Conclusiones» → 2). */

@@ -200,13 +200,15 @@ export const Pasos = ({ pasos, activo, onIr, extra }: { pasos: PasoFlujo[]; acti
   </nav>
 );
 
-/** Cabecera de un paso: número y título, para qué sirve y, si es el paso sugerido, qué toca hacer ahora. */
-export const PasoCabecera = ({ numero, total, titulo, ayuda, sugerencia }: { numero?: number; total?: number; titulo: string; ayuda: React.ReactNode; sugerencia?: string }) => (
+/** Cabecera de un paso: dónde estás (`kicker`, p. ej. «Paso 2 de 4»), título, para qué sirve y, si es el paso
+ *  sugerido, qué toca hacer ahora; `aviso` para una franja con acción (p. ej. lo pendiente en otro paso). */
+export const PasoCabecera = ({ kicker, titulo, ayuda, sugerencia, aviso }: { kicker: string; titulo: string; ayuda: React.ReactNode; sugerencia?: string; aviso?: React.ReactNode }) => (
   <header className="paso-cabecera">
-    <div className="paso-cabecera__kicker">{numero ? `Paso ${numero}${total ? ` de ${total}` : ""}` : "Consulta"}</div>
+    <div className="paso-cabecera__kicker">{kicker}</div>
     <h1 className="paso-cabecera__titulo">{titulo}</h1>
     <p className="paso-cabecera__ayuda">{ayuda}</p>
     {sugerencia && <Aviso tipo="info">{sugerencia}</Aviso>}
+    {aviso}
   </header>
 );
 

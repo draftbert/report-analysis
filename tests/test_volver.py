@@ -80,6 +80,8 @@ def test_anadir_al_informe_conserva_lo_editado_y_solo_suma_las_nuevas(contexto):
     accion_aprobar(exp, ["C-02"])
     e, pasos = _pasos(exp)
     assert e["sin_volcar"] == ["C-02"] and pasos["observaciones"]["aviso"] == "1 aprobada sin pasar al informe"
+    # el informe ya tiene observaciones: se itera sobre él y lo pendiente va al botón «Añadir más contexto»
+    assert e["modo"] == "iteracion" and e["preparacion_pendiente"] == "1 aprobada sin pasar al informe"
     # la simulación enseña qué cambiaría y no escribe
     antes = exp.leer("informe")
     sim = simular_redactar_conclusiones(contexto, "anadir")
@@ -129,7 +131,8 @@ def test_volcadas_sin_registro_aunque_el_titulo_se_cambiara_en_el_informe(contex
 def test_pasos_guian_de_principio_a_fin(contexto):
     exp = contexto.exp
     e, pasos = _pasos(exp)
-    assert [p["id"] for p in e["pasos"]] == ["documentos", "contexto", "observaciones", "informe", "entrega"]
+    assert [p["id"] for p in e["pasos"]] == ["documentos", "contexto", "observaciones", "informe", "reuniones", "entrega"]
+    assert e["modo"] == "preparacion" and e["preparacion_pendiente"] == ""
     assert e["paso_sugerido"] == "contexto" and pasos["documentos"]["hecho"] and not pasos["contexto"]["hecho"]
     assert "`" not in e["sugerencia"]                                     # lenguaje del auditor, no comandos del CLI
     assert sum(p["actual"] for p in e["pasos"]) == 1

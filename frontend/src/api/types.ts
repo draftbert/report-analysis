@@ -35,9 +35,13 @@ export interface Expediente {
   pasos: Paso[];
   paso_sugerido: PasoId;
   sugerencia: string;      // qué toca hacer ahora, en lenguaje del auditor
+  /** preparacion: primera pasada hasta tener observaciones en el informe; iteracion: se trabaja sobre el informe. */
+  modo: "preparacion" | "iteracion";
+  /** En iteración: lo pendiente en documentos/contexto/observaciones (se avisa en «Añadir más contexto»). */
+  preparacion_pendiente: string;
 }
 
-export type PasoId = "documentos" | "contexto" | "observaciones" | "informe" | "entrega";
+export type PasoId = "documentos" | "contexto" | "observaciones" | "informe" | "reuniones" | "entrega";
 /** Paso del flujo de trabajo de un informe: siempre navegable (al informe se vuelve varias veces). */
 export interface Paso { id: PasoId; titulo: string; hecho: boolean; actual: boolean; resumen: string; aviso: string }
 

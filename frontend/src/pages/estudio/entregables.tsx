@@ -1,4 +1,4 @@
-/* Paso Entrega: exportación del informe a PowerPoint y archivo de evidencia (zip con manifest). */
+/* Paso Exportación: exportación del informe a PowerPoint y archivo de evidencia (zip con manifest). */
 import { useState } from "react";
 import { Archive, Download, Presentation } from "lucide-react";
 

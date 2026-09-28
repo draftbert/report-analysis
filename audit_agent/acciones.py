@@ -1676,7 +1676,10 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
 
 
 PASOS = (("documentos", "Documentos"), ("contexto", "Contexto"), ("observaciones", "Observaciones"),
-         ("informe", "Informe"), ("entrega", "Entrega"))
+         ("informe", "Informe"), ("reuniones", "Reuniones con el área"), ("entrega", "Exportación"))
+# Primera pasada: documentos → contexto → observaciones → informe. En cuanto el informe tiene observaciones se
+# ITERA sobre él (informe · reuniones · exportación) y los tres primeros pasos quedan tras «Añadir más contexto».
+PASOS_PREPARACION = ("documentos", "contexto", "observaciones")
 
 
 def _pasos(exp: Expediente, e: dict) -> dict:
@@ -1694,6 +1697,9 @@ def _pasos(exp: Expediente, e: dict) -> dict:
 
     def plural(n: int, uno: str, varios: str) -> str:
         return f"{n} {uno if n == 1 else varios}"
+
+    actas = len(list((exp.ruta / "reuniones").glob("*.md")))
+    sin_nombrar = bool(e.get("audio", {}).get("cruda_sin_etiquetar"))
 
     pasos = {
         "documentos": {"hecho": n_pt > 0,
@@ -1714,6 +1720,9 @@ def _pasos(exp: Expediente, e: dict) -> dict:
                                 if inf else "Sin informe"),
                     "aviso": (plural(inf["errores"], "error de estilo", "errores de estilo") if inf and inf["errores"] else
                               "Instrucciones pendientes en el buzón" if e["instrucciones_pendientes"] else "")},
+        "reuniones": {"hecho": actas > 0 and not sin_nombrar,
+                      "resumen": plural(actas, "acta", "actas") if actas else "Sin reuniones",
+                      "aviso": "Transcripción pendiente de nombrar hablantes" if sin_nombrar else ""},
         "entrega": {"hecho": bool(ppt and not ppt["desactualizado"] and archivado),
                     "resumen": ("Sin PowerPoint" if not ppt else "PowerPoint desactualizado" if ppt["desactualizado"]
                                 else "Archivado" if archivado else "PowerPoint al día"),
@@ -1733,6 +1742,8 @@ def _pasos(exp: Expediente, e: dict) -> dict:
         sug = ("observaciones", "Hay observaciones aprobadas sin recomendación o con el riesgo por validar.")
     elif e["sin_volcar"] or not en_informe:
         sug = ("observaciones", "Pasa al informe las observaciones aprobadas.")
+    elif sin_nombrar:
+        sug = ("reuniones", "Hay una reunión transcrita pendiente de nombrar a los hablantes para generar su acta.")
     elif e["instrucciones_pendientes"]:
         sug = ("informe", "Hay instrucciones en el buzón: aplícalas al informe.")
     elif inf["errores"]:
@@ -1743,8 +1754,12 @@ def _pasos(exp: Expediente, e: dict) -> dict:
         sug = ("entrega", "Archiva la evidencia para cerrar el expediente en Pentana.")
     else:
         sug = ("informe", "Informe emitido y archivado. Si sigues editando, regenera el PowerPoint y vuelve a archivar.")
+    modo = "iteracion" if en_informe else "preparacion"
+    pendiente = [pasos[k]["aviso"] for k in PASOS_PREPARACION if pasos[k]["aviso"]]
     return {"pasos": [{"id": k, "titulo": t, "actual": k == sug[0], **pasos[k]} for k, t in PASOS],
-            "paso_sugerido": sug[0], "sugerencia": sug[1]}
+            "paso_sugerido": sug[0], "sugerencia": sug[1], "modo": modo,
+            # en iteración, lo pendiente de los pasos previos se avisa en el botón «Añadir más contexto»
+            "preparacion_pendiente": " · ".join(pendiente) if modo == "iteracion" else ""}
 
 
 def accion_estado(exp: Expediente, checker: StyleChecker | None = None, llm_desc: str = "") -> str:

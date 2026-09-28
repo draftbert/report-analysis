@@ -66,9 +66,9 @@ el motivo del snapshot dice el origen del cambio: `cambio`=chat, `reunion`=acta,
   `formato.ts` + `client.ts`; solo clases del catálogo § 3 y componentes de § 4; clases nuevas con nombre BEM
   y documentadas en la guía). Contrato: `src/api/types.ts` (mismos nombres que el JSON de `api.py`), todo
   endpoint es un método de `interface Api` en `client.ts`; nada llama a `fetch` fuera. Pantallas: portada `/`,
-  listado `/informes`, alta `/nuevo`, espacio de trabajo `/informes/:ref?paso=` (documentos → contexto → observaciones →
-  informe → entrega, siempre navegables; el estado de cada paso y el sugerido los calcula `_pasos` en `acciones.py`; el paso
-  informe lleva las vistas documento · reuniones · últimos cambios) y reglas `/reglas`. Los tokens `--ids-*` de `tokens.css` se sustituyen por
+  listado `/informes`, alta `/nuevo`, espacio de trabajo `/informes/:ref?paso=` (primera pasada documentos → contexto →
+  observaciones → informe; con observaciones en el informe, `modo` = iteración: informe · reuniones · exportación y «Añadir
+  más contexto» → los tres pasos previos; estado, paso sugerido y modo los calcula `_pasos` en `acciones.py`) y reglas `/reglas`. Los tokens `--ids-*` de `tokens.css` se sustituyen por
   `@inditex/sewingiopdsweb-styles` en el entorno corporativo.
 
 ## Pruebas rápidas
