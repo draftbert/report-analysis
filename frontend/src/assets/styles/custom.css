@@ -215,6 +215,7 @@ select.inline-edit { cursor: pointer; }
 .summary-bullets li::before { content: '—'; position: absolute; left: 0; color: var(--c-secondary); }
 .agreements-list { display: flex; flex-direction: column; gap: 16px; }
 .agreement-card { padding: 16px; border-left: 2px solid var(--c-primary); background: var(--c-surface-subtle); }
+.agreement-card--hecho { border-left-color: var(--c-success-fg); }
 .agreement-tag { font-size: 11px; font-weight: 500; text-transform: uppercase; color: var(--c-secondary); margin-bottom: 4px; letter-spacing: 0.4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .agreement-title { font-size: 14px; font-weight: 325; margin-bottom: 6px; }
 .agreement-meta { font-size: 12px; color: var(--c-secondary); }

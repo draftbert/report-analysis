@@ -316,6 +316,8 @@ class Opciones(BaseModel):
     fichero: str = "informe"
     objetivo: float = 0.85
     solo_nuevos: bool = False   # extraer: solo de los papeles de trabajo aún no procesados, añadiendo
+    acta: str | None = None     # aplicar-cambios desde un acta: su nombre en reuniones/ …
+    indices: list[int] | None = None   # … y qué cambios de texto se envían (quedan marcados como aplicados)
 
 
 @app.post("/api/expedientes/{ref}/acciones/redactar-contexto")
@@ -384,9 +386,28 @@ def aplicar_cambios(ref: str, o: Opciones):
     """Sin `texto`, aplica el buzón 03_instrucciones.md (y lo vacía). Con `texto` (los
     cambios seleccionados de un acta), se aplican directos SIN tocar el buzón."""
     exp = _exp(ref); ctx = _ctx(exp)
-    return _job(ref, "aplicar-cambios", lambda: acciones.accion_aplicar_cambios(
-        ctx, solo_plan=o.solo_plan, instrucciones=o.texto or None,
-        origen="acta de reunión (web)" if o.texto else "03_instrucciones.md"))
+
+    def tarea():
+        msg = acciones.accion_aplicar_cambios(ctx, solo_plan=o.solo_plan, instrucciones=o.texto or None,
+                                              origen=f"acta {o.acta}" if o.acta else "acta de reunión (web)" if o.texto else "03_instrucciones.md")
+        if o.acta and o.indices and not o.solo_plan:   # los enviados dejan de estar pendientes en el acta
+            acciones.marcar_cambios_acta(exp, o.acta, o.indices, resumen=acciones.resumen_aplicacion())
+        return msg
+
+    return _job(ref, "aplicar-cambios", tarea)
+
+
+class MarcaActa(BaseModel):
+    indices: list[int]
+    aplicado: bool = False
+
+
+@app.put("/api/expedientes/{ref}/reuniones/{nombre}/aplicados")
+def marcar_aplicados(ref: str, nombre: str, m: MarcaActa):
+    """Devuelve a pendientes (o marca como aplicados a mano) cambios de texto de un acta."""
+    exp = _exp(ref)
+    return _sincrono(lambda: acciones.marcar_cambios_acta(exp, nombre, m.indices, aplicado=m.aplicado,
+                                                           resumen="" if not m.aplicado else "Marcado a mano como aplicado"))
 
 
 @app.post("/api/expedientes/{ref}/acciones/reunion")

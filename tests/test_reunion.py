@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from audit_agent.acciones import accion_aplicar_cambios, accion_reunion
+from audit_agent.acciones import accion_aplicar_cambios, accion_reunion, marcar_cambios_acta
 from audit_agent.esquemas import (AnalisisReunion, Cambio, CambioPPTDetectado, CambioTextoDetectado,
                                   PlanCambios)
 from audit_agent.expediente import ExpedienteError
@@ -68,6 +68,25 @@ def test_reunion_aplicar_encadena_aplicar_cambios(con_informe):
     assert inf["conclusiones"][0]["nivel_riesgo"] == "Alto" and "PackPro" not in inf["conclusiones"][0]["como_se_ha_llegado"]
     assert ctx.exp.instrucciones_pendientes() == ""  # el buzón se vacía al aplicar
     assert "aplicar-cambios" in ctx.llm.llamadas[-1][0]
+    # aplicado directo: todos los cambios del acta quedan marcados como aplicados (dejan de estar pendientes)
+    import json
+    datos = json.loads(next((ctx.exp.ruta / "reuniones").glob("*.md")).with_suffix(".json").read_text(encoding="utf-8"))
+    assert sorted(datos["aplicados"]) == ["0", "1"] and datos["aplicados"]["0"]["resumen"] == "Aplicados 2 de 2 cambios en el informe"
+
+
+def test_cambios_del_acta_se_marcan_y_vuelven_a_pendientes(con_informe):
+    ctx = con_informe
+    ctx.llm.respuestas["reunion"] = ANALISIS
+    accion_reunion(ctx, RAIZ / "ejemplos" / "transcript_reunion_teams.txt")
+    acta = next((ctx.exp.ruta / "reuniones").glob("*.md")).name
+    assert "aplicados" not in __import__("json").loads((ctx.exp.ruta / "reuniones" / acta).with_suffix(".json").read_text(encoding="utf-8"))
+    datos = marcar_cambios_acta(ctx.exp, acta, [1], resumen="Aplicados 1 de 1 cambios en el informe")
+    assert list(datos["aplicados"]) == ["1"]
+    assert list(marcar_cambios_acta(ctx.exp, acta, [1], aplicado=False)["aplicados"]) == []
+    with pytest.raises(ExpedienteError, match="índices no válidos"):
+        marcar_cambios_acta(ctx.exp, acta, [5])
+    with pytest.raises(ExpedienteError, match="No existe la estructura"):
+        marcar_cambios_acta(ctx.exp, "no-existe.md", [0])
 
 
 def test_reunion_sin_informe_o_sin_fichero(contexto):

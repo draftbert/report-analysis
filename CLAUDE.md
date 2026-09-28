@@ -52,7 +52,8 @@ el motivo del snapshot dice el origen del cambio: `cambio`=chat, `reunion`=acta,
   global, sin uso entre expedientes, y `archivar` destruye voces/clips/audios (constancia en el manifiesto).
 - `reunion`: la transcripción NO se aplica directamente; el modelo la separa en texto / PPT (informativo) /
   pendientes / acuerdos dentro del ACTA. Los cambios de texto se aplican DESDE el acta (selección en la web o
-  `reunion --aplicar`), que los pasa directos a `aplicar-cambios` (param `instrucciones=`); el buzón
+  `reunion --aplicar`), que los pasa directos a `aplicar-cambios` (param `instrucciones=`) y los marca en el `.json` del
+  acta (`aplicados`, `marcar_cambios_acta`): dejan de salir como pendientes y pueden volver a pendientes; el buzón
   03_instrucciones.md es del auditor y el flujo de reuniones NUNCA lo escribe.
   Duplicados: huella SHA-256 por contenido en `reuniones/.huellas.json` (`reunion` y `transcribir`); repetir
   el mismo fichero avisa y bloquea salvo `--repetir` o borrando los ficheros del ítem (la web limpia la huella).

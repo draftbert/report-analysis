@@ -49,38 +49,69 @@ const TranscriptView = ({ texto }: { texto: string }) => {
   );
 };
 
-/** El acta: resumen + cambios de texto seleccionables (se aplican directos con aplicar-cambios), PPT, pendientes y acuerdos. */
-const ActaView = ({ refExp, acta, ocultarAplicar, recargar, alAplicar }: { refExp: string; acta: Acta; ocultarAplicar?: boolean; recargar: () => Promise<void>; alAplicar?: () => void }) => {
+/** El acta: resumen + cambios de texto pendientes (seleccionables; se aplican directos con aplicar-cambios) y los ya
+ *  aplicados al informe en su propio apartado (con «Volver a pendientes»), PPT, pendientes de dato y acuerdos. */
+const ActaView = ({ refExp, acta, nombre, ocultarAplicar, recargar, alAplicar }: { refExp: string; acta: Acta; nombre: string; ocultarAplicar?: boolean; recargar: () => Promise<void>; alAplicar?: () => void }) => {
   const notificar = useNotificar();
   const job = useJob();
-  const [sel, setSel] = useState<boolean[]>(acta.cambios_texto.map(() => true));
+  const [aplicados, setAplicados] = useState(acta.aplicados ?? {});
+  const pendientes = acta.cambios_texto.map((c, i) => ({ c, i })).filter(({ i }) => !aplicados[String(i)]);
+  const hechos = acta.cambios_texto.map((c, i) => ({ c, i })).filter(({ i }) => aplicados[String(i)]);
+  const [sel, setSel] = useState<Set<number>>(new Set(pendientes.map(({ i }) => i)));
   const [mensaje, setMensaje] = useState<{ texto: string; error: boolean } | null>(null);
   const aplicar = async () => {
-    const instrucciones = acta.cambios_texto.filter((_, i) => sel[i]).map((c) => `- ${c.instruccion}${c.solicitado_por ? ` [${c.solicitado_por}]` : ""}`).join("\n");
+    const indices = pendientes.filter(({ i }) => sel.has(i)).map(({ i }) => i);
+    const instrucciones = indices.map((i) => acta.cambios_texto[i]).map((c) => `- ${c.instruccion}${c.solicitado_por ? ` [${c.solicitado_por}]` : ""}`).join("\n");
     if (!instrucciones) { notificar({ texto: "No hay cambios seleccionados." }); return; }
-    const j = await job.lanzar(() => api.aplicarCambios(refExp, false, instrucciones));
+    const j = await job.lanzar(() => api.aplicarCambios(refExp, false, instrucciones, { acta: nombre, indices }));
     setMensaje({ texto: j.mensaje, error: j.estado !== "ok" });
-    if (j.estado === "ok") { await recargar(); alAplicar?.(); }
+    if (j.estado === "ok") {
+      const fecha = new Date().toISOString();
+      setAplicados((a) => ({ ...a, ...Object.fromEntries(indices.map((i) => [String(i), { fecha, resumen: "" }])) }));
+      await recargar(); alAplicar?.();
+    }
+  };
+  const devolver = async (i: number) => {
+    try { const r = await api.marcarCambiosActa(refExp, nombre, [i], false); setAplicados(r.aplicados ?? {}); setSel((s) => new Set(s).add(i)); }
+    catch (e) { notificar({ texto: (e as Error).message, error: true }); }
   };
   const bloque = (titulo: string, n: number) => <h2 className="section-header-sm" style={{ marginTop: 32 }}>{titulo} <span className="badge-status">{n}</span></h2>;
   return (
     <div>
       <div className="executive-summary-box">{acta.resumen}</div>
-      {bloque("Cambios en el texto del informe", acta.cambios_texto.length)}
+      {bloque("Cambios en el texto del informe pendientes", pendientes.length)}
       <div className="options-grid">
-        {acta.cambios_texto.length === 0 && <p className="small muted">Ninguno.</p>}
-        {acta.cambios_texto.map((c, i) => (
-          <button type="button" key={i} className={`option-card ${sel[i] ? "selected" : ""}`} style={{ alignItems: "flex-start" }} onClick={() => setSel(sel.map((s, k) => (k === i ? !s : s)))} aria-pressed={!!sel[i]}>
+        {pendientes.length === 0 && <p className="small muted">{acta.cambios_texto.length ? "Ninguno: todos los cambios de esta acta ya están aplicados al informe." : "Ninguno."}</p>}
+        {pendientes.map(({ c, i }) => (
+          <button type="button" key={i} className={`option-card ${sel.has(i) ? "selected" : ""}`} style={{ alignItems: "flex-start" }} onClick={() => setSel((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })} aria-pressed={sel.has(i)}>
             <div className="option-info"><span className="agreement-tag">{c.seccion}{c.solicitado_por ? ` · pide: ${c.solicitado_por}` : ""}</span><span className="option-name">{c.que_cambiar}</span><span className="option-desc">Instrucción: {c.instruccion}</span>{c.cita && <span className="cita">«{c.cita}»</span>}</div>
             <div className="check-box" /></button>))}
       </div>
-      {!ocultarAplicar && acta.cambios_texto.length > 0 && (
+      {!ocultarAplicar && pendientes.length > 0 && (
         <div className="row" style={{ justifyContent: "space-between", marginTop: 16 }}>
           <span className="small muted">Se aplican solo los cambios marcados, directamente sobre el informe (con snapshot en historial).</span>
           <button className="btn btn-primary" onClick={aplicar} disabled={job.activo}>{job.activo ? <><span className="spinner" /> Aplicando…</> : "Aplicar los seleccionados"}</button>
         </div>)}
       {job.activo && <Progreso texto={job.job?.progreso || "Aplicando cambios…"} pct={job.job?.progreso_pct} onDetener={job.detener} />}
       {mensaje && <div style={{ marginTop: 16 }}><ResultBox mensaje={mensaje.texto} error={mensaje.error} onClose={() => setMensaje(null)} /></div>}
+      {hechos.length > 0 && <>
+        {bloque("Aplicados al informe", hechos.length)}
+        <div className="agreements-list">
+          {hechos.map(({ c, i }) => {
+            const a = aplicados[String(i)];
+            return (
+              <div key={i} className="agreement-card agreement-card--hecho">
+                <div className="agreement-tag"><span className="tag tag-success">Aplicado</span>{c.seccion}{c.solicitado_por ? ` · pide: ${c.solicitado_por}` : ""}</div>
+                <div className="agreement-title">{c.que_cambiar}</div>
+                <div className="agreement-meta">{fmt.fechaHora(a.fecha)}{a.resumen ? ` · ${a.resumen}` : ""}</div>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => alAplicar?.()}>Ver en Últimos cambios</button>
+                  <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => devolver(i)} title="Si no quedó como querías, vuelve a la lista de pendientes para aplicarlo de nuevo">Volver a pendientes</button>
+                </div>
+              </div>);
+          })}
+        </div>
+      </>}
       {bloque("Cambios en la presentación (PPT) — informativo", acta.cambios_ppt.length)}
       <div className="agreements-list">
         {acta.cambios_ppt.length === 0 && <p className="small muted">Ninguno.</p>}
@@ -224,7 +255,7 @@ export const Reunion = ({ refExp, recargar, alAplicar }: PropsPestana & { alApli
       {acta && (
         <section className="doc-section">
           <h2 className="section-header-sm">Resultado del análisis <button className="btn btn-ghost" onClick={() => setActa(null)}>Cerrar</button></h2>
-          <ActaView refExp={refExp} acta={acta} ocultarAplicar={aplicar} recargar={recargar} alAplicar={alAplicar} />
+          <ActaView refExp={refExp} acta={acta} nombre={(acta.acta ?? "").split("/").pop() ?? ""} ocultarAplicar={aplicar} recargar={async () => { await recargar(); cargarReuniones(); }} alAplicar={alAplicar} />
         </section>)}
 
       {pendiente && trans && (
@@ -274,7 +305,12 @@ export const Reunion = ({ refExp, recargar, alAplicar }: PropsPestana & { alApli
                   <td><span className="row">
                     {r.actas.length > 0 && <span className="tag tag-success">Acta{r.actas.length > 1 ? ` ×${r.actas.length}` : ""}</span>}
                     {r.transcripciones.length > 0 && <span className="tag tag-neutral">Transcripción{r.transcripciones.length > 1 ? ` ×${r.transcripciones.length}` : ""}</span>}
-                    {r.actas[0]?.datos && <span className="small muted">{r.actas[0].datos.cambios_texto.length} cambio(s) de texto · {r.actas[0].datos.pendientes.length} pendiente(s)</span>}</span></td>
+                    {r.actas[0]?.datos && (() => {
+                      const d = r.actas[0].datos; const hechos = Object.keys(d.aplicados ?? {}).length; const porAplicar = d.cambios_texto.length - hechos;
+                      return <>{porAplicar > 0 ? <span className="tag tag-warning">{fmt.plural(porAplicar, "cambio por aplicar", "cambios por aplicar")}</span>
+                        : d.cambios_texto.length > 0 && <span className="tag tag-success">Cambios aplicados</span>}
+                        <span className="small muted">{d.cambios_texto.length} de texto{hechos ? ` · ${hechos} aplicado(s)` : ""} · {d.pendientes.length} pendiente(s) de dato</span></>;
+                    })()}</span></td>
                   <td className="col-right td-acciones">
                     <button className="btn btn-ghost" onClick={() => setAbierta(r.origen)}>Ver</button>
                     <button className="icon-btn" aria-label={`Eliminar la reunión ${r.origen}`} title="Eliminar" onClick={() => eliminarFicheros([...r.actas.map((a) => a.nombre), ...r.transcripciones.map((t) => t.nombre)], `la reunión «${r.origen.replace(/_/g, " ")}» (acta y transcripciones)`)}><Trash2 size={16} strokeWidth={1.5} /></button>
@@ -293,7 +329,7 @@ export const Reunion = ({ refExp, recargar, alAplicar }: PropsPestana & { alApli
           <h2 className="section-header-sm"><span className="row"><button className="btn btn-ghost" onClick={() => setAbierta(null)}><ArrowLeft strokeWidth={1.5} /> Todas las reuniones</button>{item.origen.replace(/_/g, " ")}</span><span className="small muted">{item.fecha}</span></h2>
           {item.actas.length === 0 && <p className="small muted" style={{ marginBottom: 16 }}>Esta reunión aún no tiene acta: solo transcripción. Para generar el acta, sube el fichero con «Analizar reunión».</p>}
           {item.actas[0] && (item.actas[0].datos
-            ? <ActaView key={item.actas[0].nombre} refExp={refExp} acta={item.actas[0].datos} recargar={recargar} alAplicar={alAplicar} />
+            ? <ActaView key={item.actas[0].nombre} refExp={refExp} acta={item.actas[0].datos} nombre={item.actas[0].nombre} recargar={async () => { await recargar(); cargarReuniones(); }} alAplicar={alAplicar} />
             : <div className="executive-summary-box"><Markdown texto={item.actas[0].markdown} /></div>)}
           {item.actas.slice(1).map((a) => (
             <div key={a.nombre} style={{ marginTop: 32 }}>

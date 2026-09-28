@@ -1448,10 +1448,43 @@ def accion_reunion(ctx: Contexto, ruta_transcript: str | Path, aplicar: bool = F
         if aplicar:
             out += ["", "=== aplicar-cambios ===",
                     accion_aplicar_cambios(ctx, instrucciones=instrucciones_acta, origen=f"acta {acta.name}")]
+            marcar_cambios_acta(exp, acta.name, list(range(len(res.cambios_texto))), resumen=resumen_aplicacion())
         else:
             out.append("\nAplica los cambios desde el propio acta (web: Reunión → abre la reunión → «Aplicar los "
                        "seleccionados») o repite con `reunion --aplicar`. El buzón de Instrucciones no se toca.")
     return "\n".join(out)
+
+
+def resumen_aplicacion() -> str:
+    """«Aplicados 2 de 3 cambios» a partir del plan de la última `aplicar-cambios` (ULTIMO_RESULTADO)."""
+    plan = ULTIMO_RESULTADO.get("plan") or []
+    ok = sum(str(f.get("estado", "")).startswith(("aplicado", "insertado", "eliminado")) for f in plan)
+    return f"Aplicados {ok} de {len(plan)} cambios en el informe" if plan else ""
+
+
+def marcar_cambios_acta(exp: Expediente, acta: str, indices: list[int], aplicado: bool = True, resumen: str = "") -> dict:
+    """Registra en la estructura del acta (reuniones/<acta>.json, clave `aplicados`) qué cambios de texto se han
+    aplicado ya al informe, para que dejen de salir como pendientes; `aplicado=False` los devuelve a pendientes.
+    Los de un mismo envío comparten el resumen del envío (el modelo puede agrupar o partir instrucciones, así que
+    no hay correspondencia uno a uno con las líneas del plan). Devuelve la estructura actualizada."""
+    ruta = exp.ruta / "reuniones" / Path(acta).with_suffix(".json").name
+    if not ruta.exists():
+        raise ExpedienteError(f"No existe la estructura del acta {Path(acta).name} en reuniones/.")
+    datos = json.loads(ruta.read_text(encoding="utf-8"))
+    n = len(datos.get("cambios_texto") or [])
+    fuera = [i for i in indices if not 0 <= i < n]
+    if fuera:
+        raise ExpedienteError(f"El acta tiene {n} cambios de texto: índices no válidos {fuera}.")
+    aplicados = datos.get("aplicados") or {}
+    marca = datetime.now().isoformat(timespec="seconds")
+    for i in indices:
+        if aplicado:
+            aplicados[str(i)] = {"fecha": marca, "resumen": resumen}
+        else:
+            aplicados.pop(str(i), None)
+    datos["aplicados"] = aplicados
+    ruta.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
+    return datos
 
 
 # ============================================================ 6. entregables

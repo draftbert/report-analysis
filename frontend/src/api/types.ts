@@ -96,6 +96,8 @@ export interface CambioTexto { seccion: string; que_cambiar: string; instruccion
 export interface CambioPPT { que_cambiar: string; solicitado_por: string; cita: string }
 export interface Acta {
   acta?: string; resumen: string; cambios_texto: CambioTexto[]; cambios_ppt: CambioPPT[]; pendientes: string[]; acuerdos_sin_cambio: string[];
+  /** Cambios de texto ya aplicados al informe, por índice en `cambios_texto` (dejan de salir como pendientes). */
+  aplicados?: Record<string, { fecha: string; resumen: string }>;
 }
 
 export interface Job<T = unknown> {
@@ -190,7 +192,9 @@ export interface Api {
   instrucciones(ref: string): Promise<{ texto: string }>;
   guardarInstrucciones(ref: string, texto: string): Promise<{ texto: string }>;
   /** Sin `texto`, aplica el buzón 03_instrucciones.md; con `texto` (cambios de un acta), directo y sin tocar el buzón. */
-  aplicarCambios(ref: string, soloPlan?: boolean, texto?: string): Promise<{ job_id: string }>;
+  aplicarCambios(ref: string, soloPlan?: boolean, texto?: string, desdeActa?: { acta: string; indices: number[] }): Promise<{ job_id: string }>;
+  /** Devuelve a pendientes (`aplicado=false`) cambios de texto de un acta; responde la estructura del acta. */
+  marcarCambiosActa(ref: string, acta: string, indices: number[], aplicado: boolean): Promise<Acta>;
   historial(ref: string): Promise<Version[]>;
   deshacer(ref: string, fichero: string): Promise<{ mensaje: string }>;
   diff(ref: string, fichero: string): Promise<{ diff: string; contra: string | null }>;

@@ -165,6 +165,30 @@ def test_comparacion_del_informe_con_el_ultimo_cambio(cliente):
     assert c.get("/api/expedientes/T-8/informe/comparacion?contra=no-existe.md").status_code == 404
 
 
+def test_aplicar_desde_un_acta_marca_los_enviados(cliente):
+    import json
+    from audit_agent.esquemas import Cambio, PlanCambios
+    c, falso = cliente
+    c.post("/api/expedientes", json={"referencia": "T-7", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
+    c.put("/api/expedientes/T-7/informe", json={"introduccion": "Intro con 12 casos.", "resumen_ejecutivo": "Res."})
+    reuniones = api_mod.DIR_EXPEDIENTES / "T-7" / "reuniones"
+    (reuniones / "2026-09-28_1000_reunion.md").write_text("# Acta", encoding="utf-8")
+    (reuniones / "2026-09-28_1000_reunion.json").write_text(json.dumps({"resumen": "r", "cambios_texto": [
+        {"seccion": "Introducción", "que_cambiar": "a", "instruccion": "Son 16 casos.", "solicitado_por": "", "cita": ""},
+        {"seccion": "Resumen", "que_cambiar": "b", "instruccion": "Otro.", "solicitado_por": "", "cita": ""}],
+        "cambios_ppt": [], "pendientes": [], "acuerdos_sin_cambio": []}), encoding="utf-8")
+    falso.respuestas["aplicar-cambios"] = PlanCambios(cambios=[Cambio(
+        seccion="## Introducción", motivo="acta", texto_original="12 casos", texto_nuevo="16 casos", insertar_tras="")], pendientes=[])
+    j = _esperar(c, c.post("/api/expedientes/T-7/acciones/aplicar-cambios",
+                           json={"texto": "- Son 16 casos.", "acta": "2026-09-28_1000_reunion.md", "indices": [0]}).json()["job_id"])
+    assert j["estado"] == "ok"
+    datos = c.get("/api/expedientes/T-7/reuniones").json()[0]["actas"][0]["datos"]
+    assert list(datos["aplicados"]) == ["0"] and datos["aplicados"]["0"]["resumen"] == "Aplicados 1 de 1 cambios en el informe"
+    r = c.put("/api/expedientes/T-7/reuniones/2026-09-28_1000_reunion.md/aplicados", json={"indices": [0], "aplicado": False})
+    assert r.status_code == 200 and r.json()["aplicados"] == {}
+    assert c.put("/api/expedientes/T-7/reuniones/2026-09-28_1000_reunion.md/aplicados", json={"indices": [9]}).status_code == 400
+
+
 def test_condensar_api(cliente):
     c, falso = cliente
     c.post("/api/expedientes", json={"referencia": "T-9", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
