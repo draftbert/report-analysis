@@ -1,5 +1,5 @@
 /* Informe en el espacio de trabajo (patrón 5 de la guía): toolbar sticky (estado y acciones), dos vistas
-   —Documento (WYSIWYG, cada apartado es una diapositiva) y Últimos cambios (apartados cambiados en verde/rojo,
+   —Documento (WYSIWYG, cada apartado es una diapositiva) y Últimos cambios (el informe entero con lo cambiado en verde/rojo,
    como un diff de GitHub)— y dos paneles propios a la derecha, cerrados por defecto y excluyentes (como en el
    generador de actas): «Revisar vocabulario» (resaltado + propuestas) y «Modificar con el chat» (chat y buzón).
    Las reuniones y la exportación son pasos hermanos de la iteración (ver estudio.tsx). */
@@ -224,18 +224,18 @@ const Cambios = ({ c, contra, hayPpt, setContra }: { c: ComparacionInforme | nul
               <span className="tag tag-neutral">{c.contra.origen}</span>
               <span className="small muted">{c.contra.fecha.slice(0, 16)}</span></>}
           <DiffCuenta nuevas={c.lineas_nuevas} borradas={c.lineas_borradas} />
-          <span className="small muted">{cambiados.length} {cambiados.length === 1 ? "apartado cambiado" : "apartados cambiados"}{iguales ? ` · ${iguales} sin cambios (ocultos)` : ""}</span>
+          <span className="small muted">{cambiados.length} {cambiados.length === 1 ? "apartado cambiado" : "apartados cambiados"}{iguales ? ` · ${iguales} sin cambios` : ""}</span>
         </div>
         {selector}
       </div>
-      {cambiados.length === 0
-        ? <div className="empty">Sin diferencias con esa versión.</div>
-        : cambiados.map((a) => (
-          <SlideCard key={a.id} banda={a.tipo === "documento" ? "Documento" : banda(a)} nivel={a.tipo === "conclusion" || a.tipo === "sugerencia" ? a.nivel_riesgo : undefined}
-            kicker={a.tipo === "documento" ? "Cambios fuera de los apartados" : kicker(a)} titulo={a.titulo}
-            tools={<><CambioTag estado={a.estado} /><DiffCuenta nuevas={a.lineas_nuevas} borradas={a.lineas_borradas} /></>}>
-            <DiffDocumento lineas={a.lineas} />
-          </SlideCard>))}
+      {cambiados.length === 0 && <div className="empty" style={{ marginBottom: 24 }}>Sin diferencias con esa versión.</div>}
+      {/* el informe entero, en su orden: lo cambiado con sus marcas y el resto tal cual, para leerlo completo */}
+      {c.apartados.map((a) => (
+        <SlideCard key={a.id} banda={a.tipo === "documento" ? "Documento" : banda(a)} nivel={a.tipo === "conclusion" || a.tipo === "sugerencia" ? a.nivel_riesgo : undefined}
+          kicker={a.tipo === "documento" ? "Cambios fuera de los apartados" : kicker(a)} titulo={a.titulo}
+          tools={<><CambioTag estado={a.estado} />{a.estado !== "igual" && <DiffCuenta nuevas={a.lineas_nuevas} borradas={a.lineas_borradas} />}</>}>
+          <DiffDocumento lineas={a.lineas} plegar={false} />
+        </SlideCard>))}
     </div>
   );
 };

@@ -172,8 +172,9 @@ export const DiffCuenta = ({ nuevas, borradas }: { nuevas: number; borradas: num
 
 type TramoDiff = { lineas: LineaDiff[]; plegado: boolean };
 /** Una fila por párrafo o viñeta: verde lo añadido, rojo lo eliminado y, en las líneas modificadas, las palabras
- *  que cambian más marcadas. Las tiradas largas sin cambios se pliegan dejando `contexto` líneas a cada lado. */
-export const DiffDocumento = ({ lineas, contexto = 2 }: { lineas: LineaDiff[]; contexto?: number }) => {
+ *  que cambian más marcadas. Las tiradas largas sin cambios se pliegan dejando `contexto` líneas a cada lado,
+ *  salvo con `plegar={false}` (p. ej. para leer el documento entero con los cambios marcados). */
+export const DiffDocumento = ({ lineas, contexto = 2, plegar = true }: { lineas: LineaDiff[]; contexto?: number; plegar?: boolean }) => {
   const [abiertos, setAbiertos] = useState<Set<number>>(new Set());
   const tramos: TramoDiff[] = [];
   for (let i = 0; i < lineas.length;) {
@@ -181,7 +182,7 @@ export const DiffDocumento = ({ lineas, contexto = 2 }: { lineas: LineaDiff[]; c
     while (j < lineas.length && lineas[j].tipo === "igual") j++;
     const iguales = lineas.slice(i, j);
     const ini = i === 0 ? 0 : contexto, fin = j === lineas.length ? 0 : contexto;
-    if (iguales.length > ini + fin + 1) {
+    if (plegar && iguales.length > ini + fin + 1) {
       if (ini) tramos.push({ lineas: iguales.slice(0, ini), plegado: false });
       tramos.push({ lineas: iguales.slice(ini, iguales.length - fin), plegado: true });
       if (fin) tramos.push({ lineas: iguales.slice(iguales.length - fin), plegado: false });

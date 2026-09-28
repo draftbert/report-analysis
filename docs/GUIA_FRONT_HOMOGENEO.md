@@ -109,7 +109,7 @@ Responsive: 1180 px (estudio a una columna, cajón del asistente como panel fijo
 | `SlideCard` | tarjeta-diapositiva: `banda` (texto vertical), `nivel` (color por riesgo), `kicker`, `titulo`, `tools`. |
 | `DiffView` | diff unificado coloreado y plegable (`abiertoInicial`); toda salida con `diff` del backend se muestra con él. |
 | `Pasos`, `PasoCabecera`, `PasoPie`, `Aviso` | flujo de trabajo por pasos en una sola pantalla: barra con el estado de cada paso en texto (aviso en su color, «Siguiente» en el sugerido; todos navegables), cabecera del paso (para qué sirve + qué toca ahora), pie «← anterior / Continuar: siguiente →» y franjas de aviso con acción. El estado lo calcula la API. |
-| `DiffDocumento`, `DiffCuenta`, `CambioTag` | cambios estructurados del backend sobre el documento (líneas `igual/add/del` con `segmentos` de palabra; pliega lo que no cambia), recuento +/− y estado del apartado (añadido / modificado / eliminado). |
+| `DiffDocumento`, `DiffCuenta`, `CambioTag` | cambios estructurados del backend sobre el documento (líneas `igual/add/del` con `segmentos` de palabra; pliega lo que no cambia salvo con `plegar={false}`, como en «Últimos cambios», que enseña el documento entero), recuento +/− y estado del apartado (añadido / modificado / eliminado). |
 | `ResultBox` | mensaje multilínea de un trabajo (error en rojo). |
 | `Dropzone` | un fichero (`onFichero`) o varios (`onFicheros`), arrastrar o clic, `accept`. |
 | `Switch`, `MenuFlotante`, `Progreso` | interruptor IDS, menú desplegable de acciones, panel de progreso de un job con «Detener». |
