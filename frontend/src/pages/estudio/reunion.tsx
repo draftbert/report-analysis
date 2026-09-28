@@ -71,6 +71,13 @@ const ActaView = ({ refExp, acta, nombre, ocultarAplicar, recargar, alAplicar }:
       await recargar(); alAplicar?.();
     }
   };
+  // Para lo que ya está en el informe sin haber pasado por aquí (aplicado a mano, con el chat o antes de que el acta lo registrara).
+  const marcarHechos = async () => {
+    const indices = pendientes.filter(({ i }) => sel.has(i)).map(({ i }) => i);
+    if (!indices.length) { notificar({ texto: "No hay cambios seleccionados." }); return; }
+    try { const r = await api.marcarCambiosActa(refExp, nombre, indices, true); setAplicados(r.aplicados ?? {}); await recargar(); notificar({ texto: `${fmt.plural(indices.length, "cambio marcado", "cambios marcados")} como ya aplicado${indices.length === 1 ? "" : "s"}.` }); }
+    catch (e) { notificar({ texto: (e as Error).message, error: true }); }
+  };
   const devolver = async (i: number) => {
     try { const r = await api.marcarCambiosActa(refExp, nombre, [i], false); setAplicados(r.aplicados ?? {}); setSel((s) => new Set(s).add(i)); }
     catch (e) { notificar({ texto: (e as Error).message, error: true }); }
@@ -89,8 +96,11 @@ const ActaView = ({ refExp, acta, nombre, ocultarAplicar, recargar, alAplicar }:
       </div>
       {!ocultarAplicar && pendientes.length > 0 && (
         <div className="row" style={{ justifyContent: "space-between", marginTop: 16 }}>
-          <span className="small muted">Se aplican solo los cambios marcados, directamente sobre el informe (con snapshot en historial).</span>
-          <button className="btn btn-primary" onClick={aplicar} disabled={job.activo}>{job.activo ? <><span className="spinner" /> Aplicando…</> : "Aplicar los seleccionados"}</button>
+          <span className="small muted">Se aplican solo los cambios marcados, directamente sobre el informe (con snapshot en historial). Si ya están en el informe, márcalos como aplicados sin volver a enviarlos.</span>
+          <span className="row">
+            <button className="btn btn-ghost" onClick={marcarHechos} disabled={job.activo} title="Pasan a «Aplicados al informe» sin tocar el informe">Marcar como ya aplicados</button>
+            <button className="btn btn-primary" onClick={aplicar} disabled={job.activo}>{job.activo ? <><span className="spinner" /> Aplicando…</> : "Aplicar los seleccionados"}</button>
+          </span>
         </div>)}
       {job.activo && <Progreso texto={job.job?.progreso || "Aplicando cambios…"} pct={job.job?.progreso_pct} onDetener={job.detener} />}
       {mensaje && <div style={{ marginTop: 16 }}><ResultBox mensaje={mensaje.texto} error={mensaje.error} onClose={() => setMensaje(null)} /></div>}
