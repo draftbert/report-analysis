@@ -308,13 +308,11 @@ class Opciones(BaseModel):
     respuestas: dict[str, str] = {}
     auto: bool = False
     formatear: bool = False
-    avisos: bool = False
     mensaje: str | None = None
     solo_plan: bool = False
     texto: str | None = None   # aplicar-cambios: instrucciones directas (acta) sin tocar el buzón
     estado: str = "aprobada"
     fichero: str = "informe"
-    objetivo: float = 0.85
     solo_nuevos: bool = False   # extraer: solo de los papeles de trabajo aún no procesados, añadiendo
     acta: str | None = None     # aplicar-cambios desde un acta: su nombre en reuniones/ …
     indices: list[int] | None = None   # … y qué cambios de texto se envían (quedan marcados como aplicados)
@@ -359,18 +357,6 @@ def recomendar(ref: str, o: Opciones):
         return None if o.auto else False
 
     return _job(ref, "recomendar", lambda: acciones.accion_recomendar(ctx, ids=o.ids or None, preguntar=preguntar, formatear=o.formatear))
-
-
-@app.post("/api/expedientes/{ref}/acciones/corregir")
-def corregir(ref: str, o: Opciones):
-    exp = _exp(ref); ctx = _ctx(exp)
-    return _job(ref, "corregir", lambda: acciones.accion_corregir(ctx, incluir_avisos=o.avisos))
-
-
-@app.post("/api/expedientes/{ref}/acciones/condensar")
-def condensar(ref: str, o: Opciones):
-    exp = _exp(ref); ctx = _ctx(exp)
-    return _job(ref, "condensar", lambda: acciones.accion_condensar(ctx, objetivo=o.objetivo))
 
 
 @app.post("/api/expedientes/{ref}/acciones/cambio")

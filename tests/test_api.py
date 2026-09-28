@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from audit_agent import api as api_mod
-from audit_agent.esquemas import ApartadoCondensado, ConclusionExtraida, ContextoInforme, ExtraccionConclusiones, InformeCondensado
+from audit_agent.esquemas import ConclusionExtraida, ContextoInforme, ExtraccionConclusiones
 from tests.conftest import LLMFalso
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -214,23 +214,6 @@ def test_revision_de_vocabulario_propone_y_aplica_por_parrafo(cliente):
     # otra vez la misma: el párrafo ya no está como se revisó
     r = c.post("/api/expedientes/T-6/acciones/aplicar-correccion", json={"original": prop["original"], "propuesta": prop["propuesta"]})
     assert r.status_code == 400 and "vuelve a revisar" in r.json()["error"]
-
-
-def test_condensar_api(cliente):
-    c, falso = cliente
-    c.post("/api/expedientes", json={"referencia": "T-9", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
-    exp_dir = api_mod.DIR_EXPEDIENTES / "T-9"
-    (exp_dir / "02_informe.md").write_text(
-        "# Informe\n\n## Introducción\n\nIntro con 12 casos y bastantes palabras de más.\n\n## Resumen ejecutivo\n\nRes.\n\n"
-        "## Detalle de conclusiones\n\n### 1. T\n\n- Nivel de riesgo: Medio\n\nCuerpo con 3 sistemas y texto redundante que sobra.\n\n"
-        "**Recomendación 1.1.** Implantar.\n\n## Sugerencias de mejora\n\n_(ninguna)_\n", encoding="utf-8")
-    falso.respuestas["condensar"] = InformeCondensado(introduccion="Intro con 12 casos.", resumen_ejecutivo="Res.",
-                                                      conclusiones=[ApartadoCondensado(numero=1, incidencia="Cuerpo con 3 sistemas.")])
-    j = _esperar(c, c.post("/api/expedientes/T-9/acciones/condensar", json={"objetivo": 0.8}).json()["job_id"])
-    assert j["estado"] == "ok" and "Informe condensado" in j["mensaje"]
-    assert j["resultado"]["aplicados"] == ["introducción", "conclusión 1 · incidencia"] and j["resultado"]["diff"]
-    assert "Cuerpo con 3 sistemas." in (exp_dir / "02_informe.md").read_text(encoding="utf-8")
-    assert "**Recomendación 1.1.** Implantar." in (exp_dir / "02_informe.md").read_text(encoding="utf-8")
 
 
 def test_reunion_api_con_audio_y_hablantes(cliente, monkeypatch):

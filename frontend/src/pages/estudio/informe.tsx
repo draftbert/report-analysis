@@ -8,7 +8,7 @@ import { Check, History, MessageSquare, Pencil, Send, Sparkles, SpellCheck, X } 
 
 import { api } from "@/api";
 import type { Apartado, ComparacionInforme, Expediente, Hallazgo, Informe as InformeT, PropuestaCorreccion, ResultadoCambios } from "@/api";
-import { Aviso, CambioTag, DiffCuenta, DiffDocumento, EsqueletoDocumento, Markdown, MenuFlotante, Modal, PlanTag, ResultBox, RiesgoTag, SeveridadTag, SlideCard, useConfirmar, useNotificar } from "@/components/ui";
+import { Aviso, CambioTag, DiffCuenta, DiffDocumento, EsqueletoDocumento, Markdown, PlanTag, ResultBox, RiesgoTag, SeveridadTag, SlideCard, useConfirmar, useNotificar } from "@/components/ui";
 import type { Resalte } from "@/components/ui";
 import { useJob } from "@/hooks/useJob";
 import { fmt } from "@/lib/formato";
@@ -38,16 +38,13 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
   const [inf, setInf] = useState<InformeT | null>(null);
   const [editando, setEditando] = useState(false);
   const [edicion, setEdicion] = useState({ introduccion: "", resumen_ejecutivo: "", evaluacion_global: "" });
-  const [md, setMd] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>("");   // un solo panel abierto a la vez
   // Revisión de vocabulario: hallazgos resaltados en el documento y propuestas del modelo en el cajón (no escriben nada).
   const [revision, setRevision] = useState<{ hallazgos: Hallazgo[]; propuestas: PropuestaCorreccion[] | null } | null>(null);
   const [aplicandoRevision, setAplicandoRevision] = useState(false);
   const proponer = useJob<{ propuestas?: PropuestaCorreccion[] }>();
-  const [mensaje, setMensaje] = useState<{ texto: string; error: boolean } | null>(null);
   const [contra, setContra] = useState("");   // "" = el último cambio; si no, nombre del snapshot desde el que acumular
   const [cambios, setCambios] = useState<ComparacionInforme | null>(null);
-  const modelo = useJob<{ diff?: string }>();
 
   const cargar = useCallback(async () => {
     try {
@@ -80,17 +77,6 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
     if (!editando) { setEditando(true); return; }
     try { await api.guardarInforme(ref, edicion); setEditando(false); notificar({ texto: "Informe guardado (snapshot en historial)." }); await cargar(); }
     catch (e) { notificar({ texto: (e as Error).message, error: true }); }
-  };
-  const guardarMd = async () => {
-    if (md === null) return;
-    try { await api.guardarInforme(ref, { markdown: md }); setMd(null); notificar({ texto: "Informe guardado." }); await cargar(); }
-    catch (e) { notificar({ texto: (e as Error).message, error: true }); }
-  };
-  const correrModelo = async (fn: () => Promise<{ job_id: string }>) => {
-    setMensaje(null);
-    const j = await modelo.lanzar(fn);
-    setMensaje({ texto: j.mensaje, error: j.estado !== "ok" });
-    if (j.estado === "ok") await cargar();
   };
   const deshacer = async () => {
     if (!(await confirmar({ titulo: "Restaurar la versión anterior", accion: "Restaurar", cuerpo: "El informe volverá al último snapshot del historial." }))) return;
@@ -143,19 +129,13 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
           {exp.instrucciones_pendientes && <span className="tag tag-info">Instrucciones pendientes</span>}
         </div>
         <div className="toolbar-actions">
-          {vista === "documento" && <button className="btn btn-ghost" onClick={guardar} disabled={modelo.activo || !hayInforme || !!revision}>{editando ? <><Check strokeWidth={1.5} /> Guardar cambios</> : <><Pencil strokeWidth={1.5} /> Editar</>}</button>}
-          <button className={`btn ${panel === "revision" ? "btn-secondary" : "btn-ghost"}`} onClick={revisarVocabulario} disabled={!hayInforme || modelo.activo || editando} aria-pressed={panel === "revision"}
+          {vista === "documento" && <button className="btn btn-ghost" onClick={guardar} disabled={!hayInforme || !!revision}>{editando ? <><Check strokeWidth={1.5} /> Guardar cambios</> : <><Pencil strokeWidth={1.5} /> Editar</>}</button>}
+          <button className={`btn ${panel === "revision" ? "btn-secondary" : "btn-ghost"}`} onClick={revisarVocabulario} disabled={!hayInforme || editando} aria-pressed={panel === "revision"}
             title="Abre el panel de revisión: resalta en el informe lo que marcan las reglas de estilo y propone cómo cambiarlo">
             <SpellCheck strokeWidth={1.5} /> Revisar vocabulario{revision && revision.hallazgos.length > 0 && <span className="tag tag-warning" style={{ marginLeft: 4 }}>{revision.hallazgos.length}</span>}</button>
           <button className={`btn ${panel === "chat" ? "btn-secondary" : "btn-ghost"}`} onClick={abrirChat} disabled={editando} aria-pressed={panel === "chat"}
             title="Abre el chat para pedir cambios al informe (y el buzón de instrucciones)"><MessageSquare strokeWidth={1.5} /> Modificar con el chat</button>
           {editando && <button className="btn btn-ghost" onClick={() => { setEditando(false); cargar(); }}>Cancelar</button>}
-          <MenuFlotante etiqueta={<><Sparkles strokeWidth={1.5} /> Modelo</>}>
-            <button className="btn btn-ghost" onClick={() => correrModelo(() => api.corregir(ref, false))} disabled={modelo.activo || !hayInforme}>Corregir errores de estilo</button>
-            <button className="btn btn-ghost" onClick={() => correrModelo(() => api.corregir(ref, true))} disabled={modelo.activo || !hayInforme}>Corregir también tono (avisos)</button>
-            <button className="btn btn-ghost" onClick={() => correrModelo(() => api.condensar(ref, 0.85))} disabled={modelo.activo || !hayInforme}>Condensar un 15 %</button>
-            <button className="btn btn-ghost" onClick={() => setMd(inf.markdown)}>Editar Markdown completo</button>
-          </MenuFlotante>
           <button className="btn btn-ghost" onClick={deshacer} disabled={!exp.informe?.versiones} title="Vuelve a la versión anterior del informe"><History strokeWidth={1.5} /> Versión anterior</button>
         </div>
       </div>
@@ -167,8 +147,6 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
           <div className="tab-row" role="tablist" aria-label="Vistas del informe">
             {VISTAS.map(([k, n]) => <button key={k} type="button" role="tab" className={`tab-item ${vista === k ? "active" : ""}`} aria-selected={vista === k} onClick={() => verVista(k)}>{n}</button>)}
           </div>
-          {modelo.activo && <div className="result-box" style={{ marginBottom: 24 }}><span className="spinner" /> {modelo.job?.progreso || "Trabajando con el modelo…"} <button className="btn btn-ghost btn-ghost--inline small" style={{ marginLeft: 16 }} onClick={modelo.detener}>Detener</button></div>}
-          {mensaje && <div style={{ marginBottom: 24 }}><ResultBox mensaje={mensaje.texto} error={mensaje.error} onClose={() => setMensaje(null)} /></div>}
           {vista === "cambios" && <Cambios c={cambios} contra={contra} setContra={(v) => { setCambios(null); setContra(v); }} />}
           {vista === "documento" && <>
             <div className="doc-header">
@@ -193,7 +171,7 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
                 {editando && a.tipo === "resumen" && <textarea className="textarea-doc" rows={12} value={edicion.resumen_ejecutivo} onChange={(e) => setEdicion({ ...edicion, resumen_ejecutivo: e.target.value })} aria-label="Resumen ejecutivo" />}
                 {!(editando && (a.tipo === "introduccion" || a.tipo === "resumen")) && <Markdown texto={a.tipo === "conclusion" || a.tipo === "sugerencia" ? a.markdown.replace(/^###[^\n]*\n/, "") : a.markdown} resaltar={resaltesDe(a.id)} />}
               </SlideCard>))}
-            {editando && <p className="small muted">Aquí se editan la introducción, el resumen y la evaluación global. El texto de cada observación se cambia con el asistente, con «Editar Markdown completo» o en el paso Observaciones (y se vuelve a pasar al informe).</p>}
+            {editando && <p className="small muted">Aquí se editan la introducción, el resumen y la evaluación global. El texto de cada observación se cambia con «Modificar con el chat» o en el paso Observaciones (y se vuelve a pasar al informe).</p>}
           </>}
           {pie}
         </div>
@@ -210,11 +188,6 @@ export const InformePaso = ({ refExp: ref, exp, recargar, irA, vista, cabecera, 
         <PanelChat refExp={ref} exp={exp} abierto={panel === "chat"} onCerrar={() => setPanel("")} onCambio={cargar} deshacer={deshacer} verCambios={() => verVista("cambios")} irA={irA} />
       </main>
 
-      {md !== null && (
-        <Modal ancho titulo="Editar informe (Markdown completo)" onClose={() => setMd(null)} acciones={<><button className="btn btn-secondary" onClick={() => setMd(null)}>Cancelar</button><button className="btn btn-primary" onClick={guardarMd}>Guardar</button></>}>
-          <p className="small muted">Respeta los títulos ##/###, la línea «A continuación, se muestran los detalles descriptivos…» y los párrafos **Recomendación N.1.**: es lo que permite exportar cada apartado como diapositiva.</p>
-          <textarea className="textarea-notas" rows={28} value={md} onChange={(e) => setMd(e.target.value)} spellCheck={false} aria-label="Markdown del informe" />
-        </Modal>)}
     </>
   );
 };

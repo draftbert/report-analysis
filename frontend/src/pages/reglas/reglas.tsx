@@ -197,7 +197,7 @@ export const Reglas = () => {
             <ListaTexto valores={r.tono.tiempos_verbales} onChange={(v) => setTono({ tiempos_verbales: v })} largo placeholder="regla" />
           </Seccion>
 
-          <Seccion titulo="Extensión orientativa (palabras)" ayuda="El informe se lee en diapositivas y la letra debe caber. Se inyecta en los prompts; «Condensar» acorta un informe ya escrito.">
+          <Seccion titulo="Extensión orientativa (palabras)" ayuda="El informe se lee en diapositivas y la letra debe caber. Se inyecta en los prompts del modelo.">
             <div className="metadata-grid" style={{ marginTop: 0 }}>
               {EXTENSION.map(([k, n]) => (
                 <div className="meta-item" key={k}><label className="meta-key" htmlFor={`ext-${k}`}>{n}</label>

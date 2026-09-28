@@ -1837,7 +1837,7 @@ def _pasos(exp: Expediente, e: dict) -> dict:
     elif e["instrucciones_pendientes"]:
         sug = ("informe", "Hay instrucciones en el buzón: aplícalas al informe.")
     elif inf["errores"]:
-        sug = ("informe", f"El informe tiene {plural(inf['errores'], 'error', 'errores')} de estilo: revísalos o corrígelos con el modelo.")
+        sug = ("informe", f"El informe tiene {plural(inf['errores'], 'error', 'errores')} de estilo: ábrelos con «Revisar vocabulario» y aplica las propuestas.")
     elif not ppt or ppt["desactualizado"]:
         sug = ("entrega", "Genera el PowerPoint del informe." if not ppt else "El informe ha cambiado: regenera el PowerPoint.")
     elif not archivado:

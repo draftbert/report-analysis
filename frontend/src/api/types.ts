@@ -198,8 +198,6 @@ export interface Api {
   proponerCorrecciones(ref: string, soloErrores?: boolean): Promise<{ job_id: string }>;
   /** Aplica al informe la corrección aceptada de un párrafo (falla si el párrafo ha cambiado desde la revisión). */
   aplicarCorreccion(ref: string, original: string, propuesta: string): Promise<{ mensaje: string }>;
-  corregir(ref: string, avisos: boolean): Promise<{ job_id: string }>;
-  condensar(ref: string, objetivo?: number): Promise<{ job_id: string }>;
   cambio(ref: string, mensaje: string, soloPlan?: boolean): Promise<{ job_id: string }>;
   instrucciones(ref: string): Promise<{ texto: string }>;
   guardarInstrucciones(ref: string, texto: string): Promise<{ texto: string }>;
