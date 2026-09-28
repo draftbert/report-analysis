@@ -1676,7 +1676,7 @@ def estado_expediente(exp: Expediente, checker: StyleChecker | None = None) -> d
 
 
 PASOS = (("documentos", "Documentos"), ("contexto", "Contexto"), ("observaciones", "Observaciones"),
-         ("informe", "Informe"), ("reuniones", "Reuniones con el área"), ("entrega", "Exportación"))
+         ("informe", "Informe"), ("reuniones", "Reuniones"), ("entrega", "Exportación"))
 # Primera pasada: documentos → contexto → observaciones → informe. En cuanto el informe tiene observaciones se
 # ITERA sobre él (informe · reuniones · exportación) y los tres primeros pasos quedan tras «Añadir más contexto».
 PASOS_PREPARACION = ("documentos", "contexto", "observaciones")

@@ -1,4 +1,4 @@
-/* Paso Reuniones con el área (al iterar el informe): transcripción o audio → acta (el modelo separa texto / PPT / pendientes / acuerdos);
+/* Paso Reuniones (al iterar el informe): transcripción o audio → acta (el modelo separa texto / PPT / pendientes / acuerdos);
    los cambios de texto se aplican DESDE el acta. Alternativa «Transcribir y nombrar» con clips por
    hablante. El buzón 03_instrucciones.md nunca se toca desde aquí. */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -94,7 +94,7 @@ const ActaView = ({ refExp, acta, ocultarAplicar, recargar, alAplicar }: { refEx
   );
 };
 
-/** Reuniones con el área. `alAplicar`: tras aplicar cambios de un acta, p. ej. ver «Últimos cambios». */
+/** Reuniones. `alAplicar`: tras aplicar cambios de un acta, p. ej. ver «Últimos cambios». */
 export const Reunion = ({ refExp, recargar, alAplicar }: PropsPestana & { alAplicar?: () => void }) => {
   const notificar = useNotificar();
   const confirmar = useConfirmar();

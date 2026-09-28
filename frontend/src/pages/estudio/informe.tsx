@@ -1,7 +1,7 @@
 /* Informe en el espacio de trabajo (patrón 5 de la guía): toolbar sticky (estado y acciones), dos vistas
    —Documento (WYSIWYG, cada apartado es una diapositiva) y Últimos cambios (apartados cambiados en verde/rojo,
    como un diff de GitHub)— y el cajón del asistente: chat de cambios, buzón de instrucciones, revisión e historial.
-   Las reuniones con el área y la exportación son pasos hermanos de la iteración (ver estudio.tsx). */
+   Las reuniones y la exportación son pasos hermanos de la iteración (ver estudio.tsx). */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, History, Pencil, Send, Sparkles, SpellCheck } from "lucide-react";
 
@@ -313,7 +313,7 @@ const Asistente = ({ refExp, exp, abierto, diff, setDiff, onCambio, verDiff, des
             <button className="send-btn" type="submit" title="Aplicar cambio" aria-label="Aplicar cambio"><Send size={16} strokeWidth={1.5} /></button>
           </form>
         </div>)}
-      <p className="small muted" style={{ padding: "8px 0" }}>¿Cambios acordados en una reunión? <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("reuniones")}>Reuniones con el área</button></p>
+      <p className="small muted" style={{ padding: "8px 0" }}>¿Cambios acordados en una reunión? <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => irA?.("reuniones")}>Reuniones</button></p>
     </aside>
   );
 };

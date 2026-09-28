@@ -35,7 +35,7 @@ export const Nuevo = () => {
   const anadir = (carpeta: Carpeta, todos: File[]) => {
     const grab = todos.filter((f) => tipoMedio(f)).map((f) => f.name);
     const otros = todos.filter((f) => !tipoMedio(f) && !esDocumento(f.name)).map((f) => f.name);
-    if (grab.length) notificar({ texto: `${grab.join(", ")}: es una grabación de reunión. Crea el informe y súbela después en Reuniones con el área.`, error: true });
+    if (grab.length) notificar({ texto: `${grab.join(", ")}: es una grabación de reunión. Crea el informe y súbela después en Reuniones.`, error: true });
     else if (otros.length) notificar({ texto: `${otros.join(", ")}: formato no admitido. Admitidos: ${FORMATOS.replace(/,/g, ", ")}.`, error: true });
     const fs = todos.filter((f) => esDocumento(f.name));
     setFicheros((prev) => ({ ...prev, [carpeta]: [...prev[carpeta], ...fs.filter((f) => !prev[carpeta].some((p) => p.name === f.name && p.size === f.size))] }));
@@ -77,7 +77,7 @@ export const Nuevo = () => {
             <Dropzone key={modo} titulo={modo === "contexto" ? "Contexto de la auditoría (opcional)" : "Papeles de trabajo"} accept={FORMATOS} onFicheros={(fs) => anadir(modo, fs)}
               descripcion={<>{DESCRIPCION[modo]}<br />Formatos: {FORMATOS.replace(/,/g, ", ")}.</>} />
             {lista(modo)}
-            <p className="small muted" style={{ marginTop: 24 }}>Los documentos se pueden añadir o quitar después, desde el paso Documentos del informe; las grabaciones de reuniones, en Reuniones con el área. Los papeles de trabajo son la fuente de las conclusiones; el contexto solo orienta la introducción y el resumen ejecutivo.</p>
+            <p className="small muted" style={{ marginTop: 24 }}>Los documentos se pueden añadir o quitar después, desde el paso Documentos del informe; las grabaciones de reuniones, en Reuniones. Los papeles de trabajo son la fuente de las conclusiones; el contexto solo orienta la introducción y el resumen ejecutivo.</p>
           </section>
 
           <section>

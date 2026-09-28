@@ -208,7 +208,7 @@ Pantallas a construir: [LISTA: ruta → patrón → mockup → endpoints que con
 - **Generador de actas** (`report-generator/frontend`): origen del kit y de los mockups de `docs/mockups/`.
 - **Revisor de informes de auditoría interna** (`revisor-informes/frontend`): portada `/`, listado `/informes`,
   alta `/nuevo`, espacio de trabajo `/informes/:ref?paso=` (primera pasada Documentos → Contexto → Observaciones → Informe;
-  después se itera: Informe · Reuniones con el área · Exportación, con «Añadir más contexto» para volver a los tres pasos
+  después se itera: Informe · Reuniones · Exportación, con «Añadir más contexto» para volver a los tres pasos
   previos; el informe tiene las vistas Documento · Últimos cambios —apartados cambiados en verde/rojo contra cualquier
   versión del historial— y el cajón del asistente con cambios, buzón, revisión e historial) y reglas `/reglas` (documento editable del criterio de estilo + cajón plegable «Modificar usando el chat»: el modelo propone, el auditor carga la propuesta y guarda). Aporta al kit `textarea-doc`, `diff-view`, `mono-block`, `modal--ancho`,
   `kpi-row--sin-borde`, `main-container--una-columna`, `slide-card`, `SlideCard`, `ai-drawer--plegable`, `drawer-toggle--fijo`, `section-grid`, `document-container--ancho`, `DiffView`, `diff-doc`/`DiffDocumento`/`DiffCuenta`/`CambioTag`, `pasos`/`Pasos`/`PasoCabecera`/`PasoPie`/`Aviso` y las etiquetas `EstadoTag`/`RiesgoTag`/`SeveridadTag`/`PlanTag`.

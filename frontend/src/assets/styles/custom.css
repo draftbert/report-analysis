@@ -419,14 +419,14 @@ select.inline-edit { cursor: pointer; }
 
 /* ---------- pasos de un flujo (informe: documentos → contexto → observaciones → informe → entrega) ---------- */
 .pasos { display: flex; align-items: stretch; gap: 24px; padding: 0 64px; border-bottom: 0.5px solid var(--c-border-subtle); background: var(--c-neutral); }
-.pasos__lista { display: flex; flex: 1; list-style: none; margin: 0; padding: 0; overflow-x: auto; }
-.pasos__li { flex: 1 1 0; min-width: 150px; }
+.pasos__lista { display: flex; flex: 1; list-style: none; margin: 0; padding: 0; }
+.pasos__li { flex: 1 1 0; min-width: 0; }
 .pasos__item { display: flex; flex-direction: column; gap: 4px; width: 100%; height: 100%; padding: 16px 16px 14px 0; border: none; background: none;
   position: relative; cursor: pointer; text-align: left; font-family: var(--font); color: var(--c-secondary); }
 .pasos__item:focus-visible { outline: 1px solid var(--c-border-focus); }
 .pasos__item:hover .pasos__titulo, .pasos__item--hecho .pasos__titulo { color: var(--c-primary); }
 .pasos__item--activo .pasos__titulo { color: var(--c-primary); font-weight: 500; }
-.pasos__item--activo::after { content: ''; position: absolute; bottom: -0.5px; left: 0; right: 16px; height: 2px; background: var(--c-primary); }
+.pasos__item--activo::after { content: ''; position: absolute; bottom: 0; left: 0; right: 16px; height: 2px; background: var(--c-primary); }
 .pasos__titulo { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 4px; font-size: 13px; font-weight: 325; line-height: 20px; text-transform: uppercase; letter-spacing: 0.4px; }
 .pasos__num { font-family: var(--mono); font-size: 11px; color: var(--c-secondary); font-weight: 300; }
 .pasos__siguiente { font-size: 10px; line-height: 16px; padding: 0 6px; }
@@ -443,7 +443,8 @@ select.inline-edit { cursor: pointer; }
 .aviso-paso__accion { display: flex; gap: 8px; flex-wrap: wrap; }
 .paso-pie { display: flex; justify-content: space-between; gap: 16px; margin-top: 48px; padding-top: 24px; border-top: 0.5px solid var(--c-border-subtle); }
 @media (max-width: 1024px) { .pasos { padding: 0 32px; } }
-@media (max-width: 768px) { .pasos { padding: 0 16px; flex-direction: column; gap: 0; } .pasos__li { flex: none; min-width: 0; } .pasos__item { padding-right: 20px; }
+/* en móvil los pasos se desplazan en horizontal, sin barra visible (solo overflow-x: el eje vertical no se desborda) */
+@media (max-width: 768px) { .pasos { padding: 0 16px; flex-direction: column; gap: 0; } .pasos__lista { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; } .pasos__lista::-webkit-scrollbar { display: none; } .pasos__li { flex: none; min-width: 0; } .pasos__item { padding-right: 20px; }
   .pasos__resumen, .pasos__siguiente { display: none; } .pasos__extra { padding-bottom: 8px; } }
 
 /* ---------- tarjeta-diapositiva (informe: un apartado = una diapositiva) ---------- */

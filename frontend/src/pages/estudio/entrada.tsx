@@ -89,7 +89,7 @@ export const Entrada = ({ refExp, exp, recargar, irA }: PropsPestana) => {
       {grabacion && (
         <Aviso tipo="aviso" accion={<><button className="btn btn-primary" onClick={() => { dejarGrabacion(grabacion); irA?.("reuniones"); }}>Llevarla a Reuniones</button>
           <button className="btn btn-ghost" onClick={() => setGrabacion(null)}>Descartar</button></>}>
-          «{grabacion.name}» es una grabación ({fmt.bytes(grabacion.size)}). Las reuniones con el área se procesan en Reuniones con el área, que la transcribe y saca el acta; aquí solo van documentos.</Aviso>)}
+          «{grabacion.name}» es una grabación ({fmt.bytes(grabacion.size)}). Las grabaciones de reuniones se procesan en Reuniones, que las transcribe y saca el acta; aquí solo van documentos.</Aviso>)}
       {rechazados.length > 0 && (
         <Aviso tipo="aviso" accion={<button className="btn btn-ghost" onClick={() => setRechazados([])}>Cerrar</button>}>
           No se han subido por formato ({rechazados.join(", ")}). Admitidos: {FORMATOS.replace(/,/g, ", ")}.</Aviso>)}

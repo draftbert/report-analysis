@@ -1,7 +1,7 @@
 /* Espacio de trabajo de un informe, en una sola pantalla y con dos momentos (la API dice cuál: `modo`):
    - Primera pasada: Documentos → Contexto → Observaciones → Informe.
    - Iteración (el informe ya tiene observaciones): se trabaja sobre el informe —Informe (a mano o con el chat) ·
-     Reuniones con el área · Exportación— y «Añadir más contexto» abre los tres pasos previos para incorporar
+     Reuniones · Exportación— y «Añadir más contexto» abre los tres pasos previos para incorporar
      documentación nueva, con «Volver al informe».
    Todos los pasos se pueden abrir siempre. El paso va en la URL (`?paso=`; en el informe, `&vista=documento|cambios`). */
 import { useCallback, useEffect, useState } from "react";
