@@ -49,8 +49,9 @@ const TranscriptView = ({ texto }: { texto: string }) => {
   );
 };
 
-/** El acta: resumen + cambios de texto pendientes (seleccionables; se aplican directos con aplicar-cambios) y los ya
- *  aplicados al informe en su propio apartado (con «Volver a pendientes»), PPT, pendientes de dato y acuerdos. */
+/** El acta, un color por apartado: resumen y marcadores con el recuento de cada uno (llevan a su caja), cambios de texto
+ *  por aplicar (seleccionables; se aplican directos con aplicar-cambios), aplicados al informe (con «Volver a pendientes»),
+ *  pendientes de dato, acuerdos y cambios de presentación (informativos). */
 const ActaView = ({ refExp, acta, nombre, ocultarAplicar, recargar, alAplicar }: { refExp: string; acta: Acta; nombre: string; ocultarAplicar?: boolean; recargar: () => Promise<void>; alAplicar?: () => void }) => {
   const notificar = useNotificar();
   const job = useJob();
@@ -82,55 +83,101 @@ const ActaView = ({ refExp, acta, nombre, ocultarAplicar, recargar, alAplicar }:
     try { const r = await api.marcarCambiosActa(refExp, nombre, [i], false); setAplicados(r.aplicados ?? {}); setSel((s) => new Set(s).add(i)); }
     catch (e) { notificar({ texto: (e as Error).message, error: true }); }
   };
-  const bloque = (titulo: string, n: number) => <h2 className="section-header-sm" style={{ marginTop: 32 }}>{titulo} <span className="badge-status">{n}</span></h2>;
+  const alternar = (i: number) => setSel((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  const todosMarcados = pendientes.length > 0 && pendientes.every(({ i }) => sel.has(i));
+  const ir = (id: string) => document.getElementById(`${nombre}-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const kpis: [string, string, number, string][] = [
+    ["texto", "Cambios por aplicar", pendientes.length, "texto"], ["aplicados", "Aplicados al informe", hechos.length, "aplicado"],
+    ["ppt", "Presentación (PPT)", acta.cambios_ppt.length, "ppt"], ["pendientes", "Pendientes de dato", acta.pendientes.length, "pendiente"],
+    ["acuerdos", "Acuerdos", acta.acuerdos_sin_cambio.length, "acuerdo"],
+  ];
+  const cabecera = (id: string, titulo: string, cuenta: string, extra?: React.ReactNode) => (
+    <header className="acta-bloque__cabecera">
+      <h3 className="acta-bloque__titulo">{titulo}<span className="acta-bloque__cuenta">{cuenta}</span></h3>{extra}
+    </header>);
+  const lista = (items: string[], vacio: string) => items.length === 0
+    ? <p className="acta-bloque__vacio">{vacio}</p>
+    : items.map((t, i) => <div key={i} className="acta-item"><div className="acta-item__texto">{t}</div></div>);
+
   return (
-    <div>
-      <div className="executive-summary-box">{acta.resumen}</div>
-      {bloque("Cambios en el texto del informe pendientes", pendientes.length)}
-      <div className="options-grid">
-        {pendientes.length === 0 && <p className="small muted">{acta.cambios_texto.length ? "Ninguno: todos los cambios de esta acta ya están aplicados al informe." : "Ninguno."}</p>}
-        {pendientes.map(({ c, i }) => (
-          <button type="button" key={i} className={`option-card ${sel.has(i) ? "selected" : ""}`} style={{ alignItems: "flex-start" }} onClick={() => setSel((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })} aria-pressed={sel.has(i)}>
-            <div className="option-info"><span className="agreement-tag">{c.seccion}{c.solicitado_por ? ` · pide: ${c.solicitado_por}` : ""}</span><span className="option-name">{c.que_cambiar}</span><span className="option-desc">Instrucción: {c.instruccion}</span>{c.cita && <span className="cita">«{c.cita}»</span>}</div>
-            <div className="check-box" /></button>))}
+    <div className="acta">
+      <div className="acta-resumen"><div className="acta-resumen__etiqueta">Resumen de la reunión</div><p>{acta.resumen}</p></div>
+      <div className="acta-kpis">
+        {kpis.map(([id, etiqueta, n, color]) => (
+          <button key={id} type="button" className={`acta-kpi acta-color--${color} ${n === 0 ? "acta-kpi--cero" : ""}`} onClick={() => ir(id)}>
+            <span className="acta-kpi__valor">{n}</span><span className="acta-kpi__etiqueta">{etiqueta}</span></button>))}
       </div>
-      {!ocultarAplicar && pendientes.length > 0 && (
-        <div className="row" style={{ justifyContent: "space-between", marginTop: 16 }}>
-          <span className="small muted">Se aplican solo los cambios marcados, directamente sobre el informe (con snapshot en historial). Si ya están en el informe, márcalos como aplicados sin volver a enviarlos.</span>
-          <span className="row">
-            <button className="btn btn-ghost" onClick={marcarHechos} disabled={job.activo} title="Pasan a «Aplicados al informe» sin tocar el informe">Marcar como ya aplicados</button>
-            <button className="btn btn-primary" onClick={aplicar} disabled={job.activo}>{job.activo ? <><span className="spinner" /> Aplicando…</> : "Aplicar los seleccionados"}</button>
-          </span>
-        </div>)}
-      {job.activo && <Progreso texto={job.job?.progreso || "Aplicando cambios…"} pct={job.job?.progreso_pct} onDetener={job.detener} />}
-      {mensaje && <div style={{ marginTop: 16 }}><ResultBox mensaje={mensaje.texto} error={mensaje.error} onClose={() => setMensaje(null)} /></div>}
-      {hechos.length > 0 && <>
-        {bloque("Aplicados al informe", hechos.length)}
-        <div className="agreements-list">
-          {hechos.map(({ c, i }) => {
-            const a = aplicados[String(i)];
-            return (
-              <div key={i} className="agreement-card agreement-card--hecho">
-                <div className="agreement-tag"><span className="tag tag-success">Aplicado</span>{c.seccion}{c.solicitado_por ? ` · pide: ${c.solicitado_por}` : ""}</div>
-                <div className="agreement-title">{c.que_cambiar}</div>
-                <div className="agreement-meta">{fmt.fechaHora(a.fecha)}{a.resumen ? ` · ${a.resumen}` : ""}</div>
-                <div className="row" style={{ marginTop: 8 }}>
-                  <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => alAplicar?.()}>Ver en Últimos cambios</button>
-                  <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => devolver(i)} title="Si no quedó como querías, vuelve a la lista de pendientes para aplicarlo de nuevo">Volver a pendientes</button>
-                </div>
-              </div>);
-          })}
+
+      <section className="acta-bloque acta-color--texto" id={`${nombre}-texto`}>
+        {cabecera("texto", "Cambios en el texto del informe", `${pendientes.length} por aplicar`,
+          pendientes.length > 0 && !ocultarAplicar && <button type="button" className="btn btn-ghost btn-ghost--inline small"
+            onClick={() => setSel(todosMarcados ? new Set() : new Set(pendientes.map(({ i }) => i)))}>{todosMarcados ? "Quitar la selección" : "Seleccionar todos"}</button>)}
+        <div className="acta-bloque__cuerpo">
+          {pendientes.length === 0
+            ? <p className="acta-bloque__vacio">{acta.cambios_texto.length ? "Todos los cambios de esta reunión ya están aplicados al informe." : "La reunión no pide cambios en el texto del informe."}</p>
+            : <p className="acta-bloque__ayuda">Marca los que quieras aplicar: se aplican directamente sobre el informe y quedan en el historial. Si alguno ya está en el informe, márcalo como aplicado sin volver a enviarlo.</p>}
+          {pendientes.map(({ c, i }) => (
+            <button type="button" key={i} className={`acta-item acta-item--seleccionable ${sel.has(i) ? "acta-item--seleccionado" : ""}`} onClick={() => alternar(i)} aria-pressed={sel.has(i)}>
+              <span className="acta-item__meta"><span className="acta-item__seccion">{c.seccion}</span>{c.solicitado_por && <span className="acta-item__quien">Pide: {c.solicitado_por}</span>}<span className="acta-item__marca" aria-hidden="true" /></span>
+              <span className="acta-item__titulo">{c.que_cambiar}</span>
+              <span className="acta-item__texto">{c.instruccion}</span>
+              {c.cita && <span className="acta-item__cita">«{c.cita}»</span>}
+            </button>))}
+          {!ocultarAplicar && pendientes.length > 0 && (
+            <div className="acta-bloque__pie">
+              <span className="small muted">{fmt.plural(pendientes.filter(({ i }) => sel.has(i)).length, "cambio seleccionado", "cambios seleccionados")}</span>
+              <span className="row">
+                <button className="btn btn-ghost" onClick={marcarHechos} disabled={job.activo} title="Pasan a «Aplicados al informe» sin tocar el informe">Marcar como ya aplicados</button>
+                <button className="btn btn-primary" onClick={aplicar} disabled={job.activo}>{job.activo ? <><span className="spinner" /> Aplicando…</> : "Aplicar los seleccionados"}</button>
+              </span>
+            </div>)}
+          {job.activo && <Progreso texto={job.job?.progreso || "Aplicando cambios…"} pct={job.job?.progreso_pct} onDetener={job.detener} />}
+          {mensaje && <ResultBox mensaje={mensaje.texto} error={mensaje.error} onClose={() => setMensaje(null)} />}
         </div>
-      </>}
-      {bloque("Cambios en la presentación (PPT) — informativo", acta.cambios_ppt.length)}
-      <div className="agreements-list">
-        {acta.cambios_ppt.length === 0 && <p className="small muted">Ninguno.</p>}
-        {acta.cambios_ppt.map((c, i) => <div key={i} className="topic-card"><div className="topic-title">{c.que_cambiar}</div><div className="topic-desc">{c.solicitado_por ? `Pide: ${c.solicitado_por}. ` : ""}La presentación se ajusta a mano.</div>{c.cita && <div className="cita">«{c.cita}»</div>}</div>)}
+      </section>
+
+      {hechos.length > 0 && (
+        <section className="acta-bloque acta-color--aplicado" id={`${nombre}-aplicados`}>
+          {cabecera("aplicados", "Aplicados al informe", String(hechos.length))}
+          <div className="acta-bloque__cuerpo">
+            {hechos.map(({ c, i }) => {
+              const a = aplicados[String(i)];
+              return (
+                <div key={i} className="acta-item">
+                  <div className="acta-item__meta"><span className="acta-item__seccion">{c.seccion}</span>{c.solicitado_por && <span className="acta-item__quien">Pide: {c.solicitado_por}</span>}
+                    <span className="acta-item__quien" style={{ marginLeft: "auto" }}>{fmt.fechaHora(a.fecha)}</span></div>
+                  <div className="acta-item__titulo">{c.que_cambiar}</div>
+                  {a.resumen && <div className="acta-item__texto muted">{a.resumen}</div>}
+                  <div className="row">
+                    <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => alAplicar?.()}>Ver en «Últimos cambios»</button>
+                    <button type="button" className="btn btn-ghost btn-ghost--inline small" onClick={() => devolver(i)} title="Si no quedó como querías, vuelve a la lista de pendientes para aplicarlo de nuevo">Volver a pendientes</button>
+                  </div>
+                </div>);
+            })}
+          </div>
+        </section>)}
+
+      <div className="acta-rejilla">
+        <section className="acta-bloque acta-color--pendiente" id={`${nombre}-pendientes`}>
+          {cabecera("pendientes", "Pendientes de dato o confirmación", String(acta.pendientes.length))}
+          <div className="acta-bloque__cuerpo">{lista(acta.pendientes, "Nada pendiente de dato.")}</div>
+        </section>
+        <section className="acta-bloque acta-color--acuerdo" id={`${nombre}-acuerdos`}>
+          {cabecera("acuerdos", "Acuerdos que no cambian el informe", String(acta.acuerdos_sin_cambio.length))}
+          <div className="acta-bloque__cuerpo">{lista(acta.acuerdos_sin_cambio, "Sin acuerdos adicionales.")}</div>
+        </section>
+        <section className="acta-bloque acta-color--ppt" id={`${nombre}-ppt`}>
+          {cabecera("ppt", "Presentación (PPT)", String(acta.cambios_ppt.length), <span className="small muted">Solo informativo: se ajusta a mano</span>)}
+          <div className="acta-bloque__cuerpo">
+            {acta.cambios_ppt.length === 0 ? <p className="acta-bloque__vacio">Sin cambios en la presentación.</p> : acta.cambios_ppt.map((c, i) => (
+              <div key={i} className="acta-item">
+                {c.solicitado_por && <div className="acta-item__meta"><span className="acta-item__quien">Pide: {c.solicitado_por}</span></div>}
+                <div className="acta-item__titulo">{c.que_cambiar}</div>
+                {c.cita && <div className="acta-item__cita">«{c.cita}»</div>}
+              </div>))}
+          </div>
+        </section>
       </div>
-      {bloque("Pendientes de dato o confirmación", acta.pendientes.length)}
-      <ul className="summary-bullets">{acta.pendientes.length === 0 ? <p className="small muted">Ninguno.</p> : acta.pendientes.map((p, i) => <li key={i}>{p}</li>)}</ul>
-      {bloque("Acuerdos que no cambian el informe", acta.acuerdos_sin_cambio.length)}
-      <ul className="summary-bullets">{acta.acuerdos_sin_cambio.length === 0 ? <p className="small muted">Ninguno.</p> : acta.acuerdos_sin_cambio.map((p, i) => <li key={i}>{p}</li>)}</ul>
     </div>
   );
 };

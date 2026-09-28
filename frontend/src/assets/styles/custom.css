@@ -217,6 +217,48 @@ select.inline-edit { cursor: pointer; }
 .agreements-list { display: flex; flex-direction: column; gap: 16px; }
 .agreement-card { padding: 16px; border-left: 2px solid var(--c-primary); background: var(--c-surface-subtle); }
 .agreement-card--hecho { border-left-color: var(--c-success-fg); }
+/* ---------- acta de reunión: un color por apartado (texto azul, aplicado verde, pendiente ámbar, acuerdo negro, PPT gris) ---------- */
+.acta-color--texto { --c: var(--c-info-fg); --bg: var(--c-info-bg); }
+.acta-color--aplicado { --c: var(--c-success-fg); --bg: var(--c-success-bg); }
+.acta-color--pendiente { --c: var(--c-warning-fg); --bg: var(--c-warning-bg); }
+.acta-color--acuerdo { --c: var(--c-primary); --bg: var(--c-surface-subtle); }
+.acta-color--ppt { --c: var(--c-secondary); --bg: var(--c-surface-active); }
+.acta { display: flex; flex-direction: column; gap: 24px; }
+.acta-resumen { padding: 20px 24px; background: var(--c-surface-subtle); border-left: 2px solid var(--c-primary); }
+.acta-resumen__etiqueta { font-size: 11px; font-weight: 325; letter-spacing: 0.4px; text-transform: uppercase; color: var(--c-secondary); margin-bottom: 8px; }
+.acta-resumen p { font-size: 14px; line-height: 22px; }
+.acta-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.acta-kpi { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; background: var(--bg); border: none; border-top: 3px solid var(--c); text-align: left; cursor: pointer; font-family: var(--font); color: var(--c-primary); transition: filter .15s ease; }
+.acta-kpi:hover { filter: brightness(0.97); }
+.acta-kpi:focus-visible { outline: 1px solid var(--c-border-focus); }
+.acta-kpi--cero { opacity: 0.55; }
+.acta-kpi__valor { font-size: 28px; line-height: 34px; font-weight: 300; color: var(--c); font-variant-numeric: tabular-nums; }
+.acta-kpi__etiqueta { font-size: 11px; line-height: 16px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--c-secondary); }
+.acta-bloque { border: 0.5px solid var(--c-border-subtle); border-top: 3px solid var(--c); background: var(--c-neutral); scroll-margin-top: 140px; }
+.acta-bloque__cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 20px; background: var(--bg); }
+.acta-bloque__titulo { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; line-height: 20px; text-transform: uppercase; letter-spacing: 0.4px; margin: 0; }
+.acta-bloque__cuenta { font: 12px/18px var(--mono); color: var(--c); background: var(--c-neutral); border: 0.5px solid var(--c); border-radius: 999px; padding: 0 8px; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.acta-bloque__cuerpo { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 12px; }
+.acta-bloque__ayuda, .acta-bloque__vacio { font-size: 12px; line-height: 18px; color: var(--c-secondary); }
+.acta-bloque__pie { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 12px; border-top: 0.5px solid var(--c-border-subtle); }
+.acta-item { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 14px 16px; background: var(--c-neutral); border: 0.5px solid var(--c-border-subtle); border-left: 3px solid var(--c);
+  text-align: left; font-family: var(--font); font-weight: 300; color: var(--c-primary); overflow-wrap: anywhere; }
+.acta-item--seleccionable { cursor: pointer; transition: border-color .15s ease, background-color .15s ease; }
+.acta-item--seleccionable:hover { border-color: var(--c); }
+.acta-item--seleccionable:focus-visible { outline: 1px solid var(--c-border-focus); }
+.acta-item--seleccionado { background: var(--bg); }
+.acta-item__meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.acta-item__seccion { font-size: 11px; line-height: 16px; font-weight: 325; text-transform: uppercase; letter-spacing: 0.4px; color: var(--c); background: var(--bg); padding: 2px 8px; }
+.acta-item__quien { font-size: 12px; line-height: 16px; color: var(--c-secondary); }
+.acta-item__marca { margin-left: auto; width: 18px; height: 18px; flex: none; border: 1px solid var(--c-primary); position: relative; background: var(--c-neutral); }
+.acta-item--seleccionado .acta-item__marca { background: var(--c-primary); }
+.acta-item--seleccionado .acta-item__marca::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid var(--c-neutral); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.acta-item__titulo { font-size: 14px; line-height: 20px; font-weight: 500; }
+.acta-item__texto { font-size: 13px; line-height: 20px; }
+.acta-item__cita { font-size: 12px; line-height: 18px; font-style: italic; color: var(--c-secondary); border-left: 2px solid var(--c-border-subtle); padding-left: 10px; }
+.acta-rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: start; }
+.acta-rejilla > * { min-width: 0; }
+
 /* revisión de vocabulario: lo que marcan las reglas, resaltado sobre el documento */
 .marca-revision { background: none; color: inherit; padding: 0 1px; border-bottom: 2px solid; cursor: help; }
 .marca-revision--error { background: var(--c-error-bg); border-bottom-color: var(--c-error-fg); }
