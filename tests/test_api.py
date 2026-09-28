@@ -141,7 +141,7 @@ def test_comparacion_del_informe_con_el_ultimo_cambio(cliente):
     c, falso = cliente
     c.post("/api/expedientes", json={"referencia": "T-8", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
     assert c.get("/api/expedientes/T-8/informe/comparacion").json() == {
-        "contra": None, "versiones": [], "apartados": [], "lineas_nuevas": 0, "lineas_borradas": 0}
+        "contra": None, "ppt": None, "versiones": [], "apartados": [], "lineas_nuevas": 0, "lineas_borradas": 0}
     c.put("/api/expedientes/T-8/informe", json={"introduccion": "Intro con 12 casos.", "resumen_ejecutivo": "Res."})
     c.put("/api/expedientes/T-8/informe", json={"introduccion": "Intro con 15 casos."})           # edición manual
     c.put("/api/expedientes/T-8/informe", json={"introduccion": "Intro con 15 casos."})           # guardar sin cambios
