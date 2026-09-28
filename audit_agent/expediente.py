@@ -140,6 +140,10 @@ class Expediente:
         marca = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
         motivo_slug = re.sub(r"[^a-z0-9]+", "-", motivo.lower()).strip("-")[:40]
         destino = self.ruta / "historial" / f"{marca}_{origen.stem}_{motivo_slug}{origen.suffix}"
+        n = 2
+        while destino.exists():   # dos escrituras en el mismo segundo no se pisan
+            destino = self.ruta / "historial" / f"{marca}_{origen.stem}_{motivo_slug}.{n}{origen.suffix}"
+            n += 1
         shutil.copy2(origen, destino)
         return destino
 
@@ -151,7 +155,8 @@ class Expediente:
 
     def historial(self, clave: str) -> list[Path]:
         stem = self.archivo(clave).stem
-        return sorted((self.ruta / "historial").glob(f"*_{stem}_*"))
+        # la marca va al segundo: dentro del mismo segundo desempata el ctime (momento en que se hizo la copia)
+        return sorted((self.ruta / "historial").glob(f"*_{stem}_*"), key=lambda p: (p.name[:19], p.stat().st_ctime_ns))
 
     def restaurar(self, clave: str, snapshot: Path | None = None) -> Path:
         versiones = self.historial(clave)

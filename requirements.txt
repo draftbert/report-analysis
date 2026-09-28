@@ -3,6 +3,7 @@ requests>=2.31
 python-dotenv>=1.0
 pydantic>=2.6
 PyYAML>=6.0
+ruamel.yaml>=0.18      # edición de config/estilo.yaml desde la web conservando los comentarios
 python-pptx>=1.0
 python-docx>=1.1          # lectura de .docx en entrada/ (exportaciones de Pentana)
 # Solo se usa `openai.lib._pydantic.to_strict_json_schema`: el mismo compilador de

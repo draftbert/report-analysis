@@ -26,10 +26,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, acciones
+from . import __version__, acciones, reglas
 from .acciones import CONFIG_DEFECTO, Contexto, estado_expediente
 from .expediente import ARCHIVOS, Expediente, ExpedienteError
-from .formato_md import (COLETILLA_RIESGO_PROPUESTO, _apartado_conclusion, parsear_conclusiones,
+from .comparar import comparar_informes, origen_cambio
+from .formato_md import (COLETILLA_RIESGO_PROPUESTO, apartados_informe, parsear_conclusiones,
                          parsear_informe, render_conclusiones, render_informe)
 from .lectores import EXTENSIONES, LecturaError
 from .llm import LLMNoDisponible
@@ -642,17 +643,7 @@ def informe(ref: str):
     exp = _exp(ref)
     md = exp.leer("informe")
     datos = parsear_informe(md) if md else {"introduccion": "", "resumen_ejecutivo": "", "evaluacion_global": "", "conclusiones": [], "sugerencias": []}
-    apartados = [
-        {"id": "introduccion", "tipo": "introduccion", "titulo": "Introducción", "markdown": datos["introduccion"], "numero": 0, "nivel_riesgo": ""},
-        {"id": "resumen", "tipo": "resumen", "titulo": "Resumen ejecutivo", "markdown": datos["resumen_ejecutivo"], "numero": 0, "nivel_riesgo": ""},
-    ]
-    for i, c in enumerate(datos["conclusiones"], 1):
-        apartados.append({"id": f"c{i}", "tipo": "conclusion", "titulo": c["titulo"], "numero": i, "nivel_riesgo": c["nivel_riesgo"],
-                          "markdown": _apartado_conclusion(c, i, es_sugerencia=False)})
-    for i, s in enumerate(datos["sugerencias"], 1):
-        apartados.append({"id": f"s{i}", "tipo": "sugerencia", "titulo": s["titulo"], "numero": i, "nivel_riesgo": s["nivel_riesgo"] or "Bajo",
-                          "markdown": _apartado_conclusion(s, i, es_sugerencia=True)})
-    return {"markdown": md, "apartados": apartados, "evaluacion_global": datos["evaluacion_global"],
+    return {"markdown": md, "apartados": apartados_informe(datos), "evaluacion_global": datos["evaluacion_global"],
             "conclusiones": datos["conclusiones"], "sugerencias": datos["sugerencias"]}
 
 
@@ -691,17 +682,40 @@ def guardar_instrucciones(ref: str, t: Texto):
     return {"texto": exp.instrucciones_pendientes()}
 
 
+def _version(exp: Expediente, clave: str, p: Path) -> dict:
+    """Snapshot de historial/ (`<fecha>_<fichero>_<motivo>.md`). El motivo es el de la
+    escritura que vino DESPUÉS del snapshot: `origen` dice qué cambio lo produjo."""
+    m = re.match(rf"^(\d{{4}}-\d{{2}}-\d{{2}})T(\d{{2}})-(\d{{2}})-(\d{{2}})_{re.escape(exp.archivo(clave).stem)}_(.*)\.md$", p.name)
+    motivo = re.sub(r"\.\d+$", "", m.group(5)) if m else ""   # «.2»: segunda escritura en el mismo segundo
+    return {"fichero": clave, "nombre": p.name, "fecha": f"{m.group(1)} {m.group(2)}:{m.group(3)}:{m.group(4)}" if m else "",
+            "motivo": motivo, "origen": origen_cambio(motivo)}
+
+
 @app.get("/api/expedientes/{ref}/historial")
 def historial(ref: str):
     exp = _exp(ref)
-    salida = []
-    for clave in ("informe", "conclusiones", "instrucciones"):
-        for v in exp.historial(clave):
-            m = re.match(r"^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})_[^_]+_(.*)\.md$", v.name)
-            fecha = m.group(1).replace("T", " ").replace("-", ":", 0) if m else ""
-            salida.append({"fichero": clave, "nombre": v.name, "fecha": fecha[:10] + " " + fecha[11:].replace("-", ":") if m else "",
-                           "motivo": m.group(2) if m else ""})
-    return sorted(salida, key=lambda x: x["nombre"], reverse=True)
+    snaps = [(clave, v) for clave in ("informe", "conclusiones", "instrucciones") for v in exp.historial(clave)]
+    snaps.sort(key=lambda cv: (cv[1].name[:19], cv[1].stat().st_ctime_ns), reverse=True)   # mismo orden que Expediente.historial
+    return [_version(exp, clave, v) for clave, v in snaps]
+
+
+@app.get("/api/expedientes/{ref}/informe/comparacion")
+def comparacion_informe(ref: str, contra: str | None = None):
+    """El informe actual comparado apartado a apartado con un snapshot de historial/.
+    Sin `contra`, con el más reciente que difiere del actual (= el último cambio)."""
+    exp = _exp(ref)
+    actual = exp.leer("informe")
+    snaps = exp.historial("informe")[::-1]   # más recientes primero
+    if contra:
+        base = next((p for p in snaps if p.name == contra), None)
+        if base is None:
+            raise HTTPException(404, {"error": f"No existe la versión {contra} en historial/."})
+    else:
+        base = next((p for p in snaps if p.read_text(encoding="utf-8") != actual), None)
+    vacio = {"apartados": [], "lineas_nuevas": 0, "lineas_borradas": 0}
+    return {"contra": _version(exp, "informe", base) if base else None,
+            "versiones": [_version(exp, "informe", p) for p in snaps],
+            **(comparar_informes(base.read_text(encoding="utf-8"), actual) if base else vacio)}
 
 
 @app.get("/api/expedientes/{ref}/cambios")
@@ -804,6 +818,65 @@ def traza(ref: str, nombre: str):
 def config_estilo():
     return {"yaml": (RAIZ / "config" / "estilo.yaml").read_text(encoding="utf-8"),
             "coletilla_riesgo": COLETILLA_RIESGO_PROPUESTO}
+
+
+# ---------------------------------------------------------------- reglas de estilo (config/estilo.yaml)
+class ReglasEdicion(BaseModel):
+    reglas: dict[str, Any] | None = None   # estructura de ReglasEstilo (desde el editor de la web)
+    yaml: str | None = None                # o el YAML completo (editor avanzado)
+    motivo: str = "web"
+
+
+class ReglasChat(BaseModel):
+    mensaje: str
+    reglas: dict[str, Any] | None = None   # reglas de partida (las del editor, aún sin guardar); None = las guardadas
+
+
+class NombreVersion(BaseModel):
+    nombre: str
+
+
+@app.get("/api/reglas")
+def reglas_estado():
+    return _sincrono(reglas.estado)
+
+
+@app.put("/api/reglas")
+def reglas_guardar(o: ReglasEdicion):
+    """Guarda el criterio de estilo con snapshot previo en config/historial/ (conserva los comentarios del YAML)."""
+    if o.yaml is None and o.reglas is None:
+        raise HTTPException(400, {"error": "Falta `reglas` o `yaml`."})
+    with _lock("__reglas__"):
+        if o.yaml is not None:
+            _sincrono(lambda: reglas.guardar_texto(o.yaml, o.motivo))
+        else:
+            _sincrono(lambda: reglas.guardar(o.reglas, o.motivo))
+    return reglas.estado()
+
+
+@app.post("/api/reglas/restaurar")
+def reglas_restaurar(o: NombreVersion):
+    with _lock("__reglas__"):
+        _sincrono(lambda: reglas.restaurar(o.nombre))
+    return reglas.estado()
+
+
+@app.post("/api/reglas/chat")
+def reglas_chat(o: ReglasChat):
+    """Job: el modelo propone las reglas modificadas (respuesta, cambios, reglas, diff); no escribe nada."""
+    if not o.mensaje.strip():
+        raise HTTPException(400, {"error": "Escribe qué regla quieres cambiar."})
+    try:
+        llm = reglas.cliente_llm()
+    except LLMNoDisponible as exc:
+        raise HTTPException(503, {"error": str(exc)}) from exc
+
+    def tarea():
+        propuesta = reglas.chat(o.mensaje, o.reglas, llm=llm)
+        acciones.ULTIMO_RESULTADO.update(propuesta)
+        return propuesta["respuesta"]
+
+    return _job("__reglas__", "reglas-chat", tarea)
 
 
 # ---------------------------------------------------------------- front estático (SPA)

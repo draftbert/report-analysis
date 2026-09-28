@@ -87,7 +87,18 @@ export interface Job<T = unknown> {
   estado: "en_curso" | "ok" | "error"; accion: string; mensaje: string; resultado: T | null;
   progreso?: string; progreso_pct?: number | null; progreso_partes?: ("pendiente" | "en_curso" | "hecha" | "error")[] | null;
 }
-export interface Version { fichero: string; nombre: string; fecha: string; motivo: string }
+/** Snapshot de historial/. `motivo` es el de la escritura que vino después; `origen`, ese cambio en lenguaje del auditor. */
+export interface Version { fichero: string; nombre: string; fecha: string; motivo: string; origen: string }
+/** Trozo de una línea modificada: `cambio` marca las palabras que difieren de su pareja. */
+export interface SegmentoDiff { texto: string; cambio: boolean }
+export interface LineaDiff { tipo: "igual" | "add" | "del"; texto: string; segmentos: SegmentoDiff[] | null }
+export type EstadoApartadoDiff = "igual" | "modificado" | "nuevo" | "eliminado";
+export interface ApartadoDiff {
+  id: string; tipo: Apartado["tipo"] | "documento"; titulo: string; numero: number; nivel_riesgo: Riesgo; estado: EstadoApartadoDiff;
+  lineas: LineaDiff[]; lineas_nuevas: number; lineas_borradas: number;
+}
+/** El informe actual comparado apartado a apartado con un snapshot (`contra`; sin él, el último cambio). */
+export interface ComparacionInforme { contra: Version | null; versiones: Version[]; apartados: ApartadoDiff[]; lineas_nuevas: number; lineas_borradas: number }
 export interface Traza { nombre: string; fecha: string; accion: string; modelo: string; error?: string | null; tokens: { prompt: number | null; completion: number | null } }
 export interface ReunionActa { nombre: string; fecha: string; markdown: string; datos: (Acta & { transcripcion?: string | null }) | null }
 export interface ReunionTranscripcion { nombre: string; fecha: string; markdown: string }
@@ -98,6 +109,27 @@ export interface Voz { nombre: string; segundos: number; origen: string; fecha: 
 export interface Transcripcion { hay_transcripcion: boolean; etiquetada: boolean; origen: string; fecha: string; duracion_s: number; markdown: string; hablantes: HablanteTranscripcion[]; voces: Voz[] }
 export type Asignaciones = Record<string, { nombre: string; accion: string }>;
 export interface Descarga { nombre: string; url: string }
+
+/** Criterio de estilo (config/estilo.yaml), mismas claves que el YAML. */
+export interface PalabraProhibida { termino: string; sugerencia: string; motivo: string }
+export interface ExpresionAlternativa { termino: string; alternativa: string }
+export interface EjemploAbsoluto { antes: string; despues: string }
+export type ClaveExtension = "intro_bloque" | "resumen_total" | "resumen_vineta" | "incidencia" | "causa_raiz" | "detalle_vineta" | "detalles_max" | "consecuencias" | "recomendacion";
+export interface Reglas {
+  palabras_prohibidas: PalabraProhibida[];
+  primera_persona: string[];
+  tono: {
+    principios: string[]; expresiones_a_cuestionar: ExpresionAlternativa[]; formulas_constructivas: string[];
+    absolutos: { criterio: string; ejemplos: EjemploAbsoluto[] }; adjetivos_a_cuestionar: ExpresionAlternativa[]; tiempos_verbales: string[];
+  };
+  extension: Record<ClaveExtension, number>;
+  reglas: { longitud_maxima_frase: number; requiere_nivel_riesgo: boolean; niveles_riesgo_validos: string[]; escala_evaluacion_global: string[] };
+  estructura_conclusion: { campo: string; descripcion: string; requerido: boolean }[];
+}
+export interface VersionReglas { nombre: string; fecha: string; motivo: string }
+export interface EstadoReglas { reglas: Reglas; yaml: string; historial: VersionReglas[]; modificado: string }
+/** Resultado del job de «modificar usando el chat»: el modelo propone, el auditor guarda. */
+export interface PropuestaReglas { respuesta: string; cambios: string[]; reglas: Reglas; diff: string; sin_cambios: boolean }
 
 export interface Api {
   logout(): Promise<void>;
@@ -141,6 +173,8 @@ export interface Api {
   historial(ref: string): Promise<Version[]>;
   deshacer(ref: string, fichero: string): Promise<{ mensaje: string }>;
   diff(ref: string, fichero: string): Promise<{ diff: string; contra: string | null }>;
+  /** Cambios del informe por apartados contra `contra` (nombre de un snapshot); sin él, contra el último cambio. */
+  comparacionInforme(ref: string, contra?: string): Promise<ComparacionInforme>;
 
   /** Transcripción (.txt/.docx/.vtt) o audio/vídeo. `onProgreso(pct)` es la subida; `repetir` salta el aviso de duplicado. */
   reunion(ref: string, fichero: File, aplicar: boolean, onProgreso?: (pct: number) => void, repetir?: boolean): Promise<{ job_id: string }>;
@@ -153,6 +187,13 @@ export interface Api {
   /** Job: etiqueta en local, guarda la transcripción en reuniones/ y la analiza como reunión (acta). */
   etiquetar(ref: string, asignaciones: Asignaciones, guardarVoces: string[]): Promise<{ job_id: string }>;
   borrarVoz(ref: string, nombre: string): Promise<Transcripcion>;
+
+  reglas(): Promise<EstadoReglas>;
+  /** Guarda el criterio (snapshot previo en config/historial/): reglas estructuradas o el YAML completo. */
+  guardarReglas(d: { reglas?: Reglas; yaml?: string; motivo?: string }): Promise<EstadoReglas>;
+  restaurarReglas(nombre: string): Promise<EstadoReglas>;
+  /** Job: propuesta del modelo a partir de `mensaje` sobre `reglas` (las del editor) o las guardadas. */
+  chatReglas(mensaje: string, reglas?: Reglas): Promise<{ job_id: string }>;
 
   ppt(ref: string): Promise<Descarga>;
   archivar(ref: string): Promise<Descarga>;

@@ -341,8 +341,7 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
             "referencia a recomendaciones abiertas si consta). Solo párrafos y viñetas: sin subtítulos ni etiquetas "
             "(«Contexto», «Valoración»…). Sin reproducir campos uno a uno ni copiar recomendaciones completas; sin "
             "inventar cifras.\n"
-            "EVALUACIÓN GLOBAL: uno de " + " / ".join(textos["escala_evaluacion_global"]) + ", coherente con el "
-            "resumen; vacío si la evidencia no permite sostenerla.\n"
+            "EVALUACIÓN GLOBAL: NO la propongas (devuelve `evaluacion_global` vacío): la califica el auditor.\n"
             "EXTENSIÓN: cada bloque de la introducción y cada viñeta del resumen deben caber en su diapositiva: "
             "respeta la extensión orientativa del sistema; concreto y sin redundancias, sin omitir hechos ni cifras.\n\n"
             f"DOCUMENTOS DE ENTRADA:\n{_texto_entrada(docs)}{conclusiones_txt}")
@@ -354,7 +353,8 @@ def accion_redactar_contexto(ctx: Contexto, secciones: list[str] | None = None, 
         datos["introduccion"] = res.introduccion
     if "resum" in pedidas:
         datos["resumen_ejecutivo"] = res.resumen_ejecutivo
-        datos["evaluacion_global"] = res.evaluacion_global
+    # La evaluación global (Deficiente … Adecuado) la selecciona el auditor: nunca la fija el modelo,
+    # y en un informe nuevo queda vacía hasta que la elija.
     snap = exp.escribir("informe", render_informe(datos, exp.proyecto), "redactar-contexto")
     hall = revisar_markdown(ctx.checker, exp.leer("informe"))
     errores = sum(h["severidad"] == "error" for h in hall)
@@ -1109,7 +1109,8 @@ def accion_aplicar_cambios(ctx: Contexto, solo_plan: bool = False, instrucciones
 
     hall = revisar_markdown(ctx.checker, nuevo)
     errores = sum(h["severidad"] == "error" for h in hall)
-    snap = exp.escribir("informe", nuevo, "aplicar-cambios" if not directo else "cambio")
+    motivo = "aplicar-cambios" if not directo else "reunion" if origen.startswith("acta") else "cambio"
+    snap = exp.escribir("informe", nuevo, motivo)
     registro = [f"\n## Cambios aplicados — {_fecha()} ({origen})\n", "Instrucciones recibidas:\n",
                 "> " + instrucciones.replace("\n", "\n> "), ""]
     for i, (c, f) in enumerate(zip(plan.cambios, filas), 1):

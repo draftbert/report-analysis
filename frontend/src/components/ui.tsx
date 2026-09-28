@@ -5,8 +5,8 @@ import { ChevronDown, ChevronUp, UploadCloud, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import type { EstadoConclusion, Riesgo } from "@/api";
-import { ESTADO_CONCLUSION, planClase, riesgoClase, severidadClase } from "@/lib/formato";
+import type { EstadoApartadoDiff, EstadoConclusion, LineaDiff, Riesgo } from "@/api";
+import { ESTADO_CAMBIO, ESTADO_CONCLUSION, planClase, riesgoClase, severidadClase } from "@/lib/formato";
 
 // ---------------------------------------------------------------- marca y loader
 /** Logotipo corporativo del CDN de AMIGA; si no carga (fuera de la red), marca tipográfica. */
@@ -132,6 +132,53 @@ export const DiffView = ({ diff, abiertoInicial = true }: { diff: string; abiert
   );
 };
 
+// ---------------------------------------------------------------- cambios sobre el documento (estilo GitHub)
+/** Estado de un apartado comparado (añadido / modificado / eliminado). */
+export const CambioTag = ({ estado }: { estado: EstadoApartadoDiff }) => { const [cls, txt] = ESTADO_CAMBIO[estado]; return <span className={`tag ${cls}`}>{txt}</span>; };
+/** «+12 −4»: líneas añadidas y eliminadas. */
+export const DiffCuenta = ({ nuevas, borradas }: { nuevas: number; borradas: number }) => (
+  <span className="diff-cuenta" aria-label={`${nuevas} líneas añadidas, ${borradas} eliminadas`}><span className="diff-cuenta__mas">+{nuevas}</span><span className="diff-cuenta__menos">−{borradas}</span></span>
+);
+
+type TramoDiff = { lineas: LineaDiff[]; plegado: boolean };
+/** Una fila por párrafo o viñeta: verde lo añadido, rojo lo eliminado y, en las líneas modificadas, las palabras
+ *  que cambian más marcadas. Las tiradas largas sin cambios se pliegan dejando `contexto` líneas a cada lado. */
+export const DiffDocumento = ({ lineas, contexto = 2 }: { lineas: LineaDiff[]; contexto?: number }) => {
+  const [abiertos, setAbiertos] = useState<Set<number>>(new Set());
+  const tramos: TramoDiff[] = [];
+  for (let i = 0; i < lineas.length;) {
+    let j = i;
+    while (j < lineas.length && lineas[j].tipo === "igual") j++;
+    const iguales = lineas.slice(i, j);
+    const ini = i === 0 ? 0 : contexto, fin = j === lineas.length ? 0 : contexto;
+    if (iguales.length > ini + fin + 1) {
+      if (ini) tramos.push({ lineas: iguales.slice(0, ini), plegado: false });
+      tramos.push({ lineas: iguales.slice(ini, iguales.length - fin), plegado: true });
+      if (fin) tramos.push({ lineas: iguales.slice(iguales.length - fin), plegado: false });
+    } else if (iguales.length) tramos.push({ lineas: iguales, plegado: false });
+    let k = j;
+    while (k < lineas.length && lineas[k].tipo !== "igual") k++;
+    if (k > j) tramos.push({ lineas: lineas.slice(j, k), plegado: false });
+    i = k;
+  }
+  const fila = (l: LineaDiff, key: string) => (
+    <div key={key} className={`diff-doc__fila ${l.tipo === "add" ? "diff-doc__fila--add" : l.tipo === "del" ? "diff-doc__fila--del" : ""}`}>
+      <span className="diff-doc__signo" aria-hidden="true">{l.tipo === "add" ? "+" : l.tipo === "del" ? "−" : ""}</span>
+      <span className="diff-doc__texto">
+        {l.tipo !== "igual" && <span className="diff-doc__lector">{l.tipo === "add" ? "Añadido: " : "Eliminado: "}</span>}
+        {l.segmentos ? l.segmentos.map((s, i) => s.cambio ? <mark key={i} className="diff-doc__marca">{s.texto}</mark> : <React.Fragment key={i}>{s.texto}</React.Fragment>) : l.texto}
+      </span>
+    </div>);
+  return (
+    <div className="diff-doc">
+      {tramos.map((t, i) => t.plegado && !abiertos.has(i)
+        ? <button key={i} type="button" className="diff-doc__plegado" onClick={() => setAbiertos(new Set(abiertos).add(i))}>
+            <ChevronDown size={14} strokeWidth={1.5} /> {t.lineas.length} líneas sin cambios</button>
+        : t.lineas.map((l, j) => fila(l, `${i}-${j}`)))}
+    </div>
+  );
+};
+
 // ---------------------------------------------------------------- tarjeta-diapositiva (banda vertical con el nombre del apartado, color por riesgo)
 export const SlideCard = ({ banda, nivel, kicker, titulo, tools, children }: { banda: string; nivel?: Riesgo | string; kicker?: string; titulo?: string; tools?: React.ReactNode; children: React.ReactNode }) => {
   const mod = nivel ? ({ crítico: "critico", critico: "critico", alto: "alto", medio: "medio", bajo: "bajo" } as Record<string, string>)[nivel.toLowerCase()] ?? "neutro" : "neutro";
@@ -149,6 +196,25 @@ export const SlideCard = ({ banda, nivel, kicker, titulo, tools, children }: { b
     </section>
   );
 };
+
+// ---------------------------------------------------------------- esqueletos (silueta con la forma del contenido mientras carga)
+export const Esqueleto = ({ ancho = 100, titulo }: { ancho?: number; titulo?: boolean }) =>
+  <span className={`esqueleto ${titulo ? "esqueleto--titulo" : ""}`} style={{ width: `${ancho}%` }} aria-hidden="true" />;
+
+/** Filas fantasma de una tabla: `anchos` en % por columna (imitar la tabla real). */
+export const EsqueletoFilas = ({ anchos, filas = 5 }: { anchos: number[]; filas?: number }) => (
+  <tbody aria-busy="true">{Array.from({ length: filas }, (_, i) => (
+    <tr key={i}>{anchos.map((w, j) => <td key={j}><Esqueleto ancho={Math.min(100, w * (0.8 + ((i + j) % 3) * 0.1))} /></td>)}</tr>))}</tbody>
+);
+
+/** Documento: cabecera con metadatos y `bloques` tarjetas. */
+export const EsqueletoDocumento = ({ bloques = 3 }: { bloques?: number }) => (
+  <div aria-busy="true" aria-label="Cargando">
+    <Esqueleto ancho={22} /><Esqueleto titulo ancho={55} />
+    <div className="metadata-grid" style={{ marginBottom: 40 }}>{[40, 50, 60, 35].map((w, i) => <div key={i}><Esqueleto ancho={w} /><Esqueleto ancho={w + 20} /></div>)}</div>
+    {Array.from({ length: bloques }, (_, i) => <span key={i} className="esqueleto esqueleto--bloque" />)}
+  </div>
+);
 
 // ---------------------------------------------------------------- resultado de un job
 export const ResultBox = ({ mensaje, error, onClose }: { mensaje: string; error?: boolean; onClose?: () => void }) => (

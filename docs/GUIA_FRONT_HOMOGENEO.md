@@ -70,7 +70,7 @@ Catálogo de clases (todas en `custom.css`; se usan por nombre, no se redefinen)
 | Cabecera | `ids-header` (`--brand` 88 px), `header-zone` (`--center`, `--right`), `header-title`, `header-nav-item(.active)`, `header-search`, `icon-btn`, `brand-logo`, `brand-text` |
 | Barra | `toolbar` (sticky bajo la cabecera), `toolbar-title`, `toolbar-actions` |
 | Botones | `btn` + `btn-primary` / `btn-secondary` / `btn-ghost` (`--inline`) / `btn-danger` / `btn-block`; `spinner` dentro para estados de trabajo |
-| Contenedores | `content-container` (1440), `page-container` (1200), `section-block`, `section-header`, `section-title`, `section-label` (`--muted`), `editable-badge` |
+| Contenedores | `content-container` (1440), `page-container` (1200), `section-grid` (bloques a dos columnas de ≥ 480 px cuando caben, una columna si no; `__ancha` ocupa toda la fila), `section-block`, `section-header`, `section-title`, `section-label` (`--muted`), `editable-badge` |
 | Portada | `hero-section`, `hero-eyebrow`, `hero-title`, `hero-subtitle`, `kpi-row` (`--compact`), `kpi-item/label/value/caption`, `template-grid/card/badge/title/desc/footer/meta` |
 | Tablas | `table-wrapper`, `ids-table` (`--muted`), `col-right`, `td-title`, `td-acciones`, `empty` |
 | Etiquetas | `status-tag` + `status-completed/processing/pending/error`; `tag` + `tag-success/info/warning/error/neutral`; `status-pill` + `pending/progress/done`; `prio-alta/media/baja`; `source-type`; `badge-status` |
@@ -79,10 +79,11 @@ Catálogo de clases (todas en `custom.css`; se usan por nombre, no se redefinen)
 | Subida | `file-uploader(.over)`, `uploader-title/desc`, `uploaded-file-preview`, `file-info/name/size`, `recorder-panel`, `recording-timer`, `waveform-visualizer`, `recorder-controls` |
 | Estudio | `main-container` (grid 1fr/420 px; `--una-columna` sin configurador), `extraction-panel`, `panel-toolbar`, `meta-info-strip`, `meta-item/label/value`, `tab-content-container`, `section-header-sm`, `executive-summary-text`, `summary-bullets`, `agreements-list`, `agreement-card/tag/title/meta`, `cita`, `transcript-stream`, `transcript-item`, `speaker-name/time`, `transcript-text` |
 | Configurador | `configurator-panel` (sticky), `config-content`, `config-title`, `config-group(-title)`, `options-grid`, `option-card(.selected, .radio)`, `check-box`, `tone-selector`, `tone-btn(.selected)`, `config-footer` |
-| Documento | `main-layout`, `document-container(.editing)`, `doc-header`, `doc-headline`, `metadata-grid`, `meta-key/val`, `doc-section`, `executive-summary-box`, `topics-list`, `topic-card/title/desc`, `md`, `slide-card` (`--critico/alto/medio/bajo/neutro`, `__band`, `__body`, `__header`, `__kicker`, `__title`: un apartado = una diapositiva, banda vertical con el nombre de la sección coloreada por riesgo) |
-| Asistente | `ai-drawer(.abierto)`, `drawer-header/title/body`, `prompt-section-label`, `prompt-chips`, `prompt-chip`, `chat-history`, `chat-bubble(-user/-ai)`, `drawer-input-area`, `input-wrapper`, `ai-input`, `send-btn`, `drawer-toggle` |
+| Documento | `main-layout`, `document-container(.editing, --ancho sin límite de 920 px)`, `doc-header`, `doc-headline`, `metadata-grid`, `meta-key/val`, `doc-section`, `executive-summary-box`, `topics-list`, `topic-card/title/desc`, `md`, `slide-card` (`--critico/alto/medio/bajo/neutro`, `__band`, `__body`, `__header`, `__kicker`, `__title`: un apartado = una diapositiva, banda vertical con el nombre de la sección coloreada por riesgo) |
+| Asistente | `ai-drawer(.abierto)` (`--plegable`: oculto hasta que se abre con `drawer-toggle--fijo`, y entonces flota fijo a la derecha por encima del documento, sin ocupar columna), `drawer-header/title/body`, `prompt-section-label`, `prompt-chips`, `prompt-chip`, `chat-history`, `chat-bubble(-user/-ai)`, `drawer-input-area`, `input-wrapper`, `ai-input`, `send-btn`, `drawer-toggle` |
+| Carga y transición | `transicion-ruta` (contenedor del `Outlet` con `key={pathname}`: fundido de entrada en cada ruta, la cabecera no se anima), `aparece` (fundido del contenido real al llegar), `esqueleto` (`--titulo`, `--bloque`: silueta con brillo mientras carga). Solo opacity + translateY sin fill-mode; todo respeta `prefers-reduced-motion` |
 | Estado | `progress-panel`, `progress-bar`, `progress-parts` (`.hecha/.en_curso/.error`), `result-box(.error)`, `toast(--error)`, `modal-overlay`, `modal` (`--ancho`), `modal-actions`, `menu-flotante(.open)`, `menu-flotante__lista` |
-| Texto técnico | `diff-view` (`__add`, `__del`, `__meta`: diff unificado plegable), `mono-block` (prompt/respuesta de una traza), `kpi-row--sin-borde` (KPIs compactos dentro de un panel) |
+| Texto técnico | `diff-view` (`__add`, `__del`, `__meta`: diff unificado plegable), `diff-doc` (`__fila` `--add`/`--del`, `__signo`, `__texto`, `__marca`, `__plegado`, `__lector`: cambios sobre el documento estilo GitHub, una fila por párrafo o viñeta, palabras cambiadas marcadas; tokens `--c-diff-*`), `diff-cuenta` (`__mas`, `__menos`: «+12 −4»), `diff-resumen` (`__texto`: franja de resumen y selector de versión), `mono-block` (prompt/respuesta de una traza), `kpi-row--sin-borde` (KPIs compactos dentro de un panel) |
 
 Responsive: 1180 px (estudio a una columna, cajón del asistente como panel fijo), 1024 px
 (padding 32, rejillas a 2), 768 px (padding 16, navegación central oculta, tablas con scroll).
@@ -97,8 +98,10 @@ Responsive: 1180 px (estudio a una columna, cajón del asistente como panel fijo
 | `Modal` | diálogo genérico (Escape cierra); `ancho` para contenido extenso (trazas, editor Markdown). |
 | `EstadoTag`, `RiesgoTag`, `SeveridadTag`, `PlanTag` (revisor) · `OrigenTag`, `PrioridadTag`, `EstadoTareaPill` (actas) | etiquetas por valor (mapas en `lib/formato.ts`). Añade aquí las de tu dominio. |
 | `Markdown` | único renderizador de Markdown. |
+| `Esqueleto`, `EsqueletoFilas`, `EsqueletoDocumento` | siluetas con la forma del contenido real (mismos anchos y nº de bloques) en la primera carga; el mensaje «vacío» solo se muestra con `!cargando`. |
 | `SlideCard` | tarjeta-diapositiva: `banda` (texto vertical), `nivel` (color por riesgo), `kicker`, `titulo`, `tools`. |
 | `DiffView` | diff unificado coloreado y plegable (`abiertoInicial`); toda salida con `diff` del backend se muestra con él. |
+| `DiffDocumento`, `DiffCuenta`, `CambioTag` | cambios estructurados del backend sobre el documento (líneas `igual/add/del` con `segmentos` de palabra; pliega lo que no cambia), recuento +/− y estado del apartado (añadido / modificado / eliminado). |
 | `ResultBox` | mensaje multilínea de un trabajo (error en rojo). |
 | `Dropzone` | un fichero (`onFichero`) o varios (`onFicheros`), arrastrar o clic, `accept`. |
 | `Switch`, `MenuFlotante`, `Progreso` | interruptor IDS, menú desplegable de acciones, panel de progreso de un job con «Detener». |
@@ -115,6 +118,12 @@ Cada pantalla arranca de un mockup HTML del IDS (pídelo o hazlo primero) y se m
 
 Reglas: los KPIs y contadores son reales (de la API), los estados de proceso se muestran con
 `status-tag`, toda acción larga usa `useJob` y muestra progreso, toda acción destructiva confirma.
+
+### Carga sin pantallas vacías
+
+- **Transición de ruta:** `Layout` envuelve el `Outlet` en `.transicion-ruta` con `key={pathname}`.
+- **Caché de datos:** los hooks de datos compartidos guardan la última respuesta en una variable de módulo y la usan como estado inicial; pintan al instante lo conocido y refrescan por detrás (`cargando` solo en la primera visita). Lo que casi no cambia se memoiza en `client.ts` con una promesa por sesión que se anula si falla.
+- **Esqueletos + `.aparece`:** nunca se devuelve una página vacía o un loader suelto; se pinta la silueta y el contenido entra con fundido.
 
 ## 6. Contrato con la API
 
@@ -192,7 +201,7 @@ Pantallas a construir: [LISTA: ruta → patrón → mockup → endpoints que con
 - **Generador de actas** (`report-generator/frontend`): origen del kit y de los mockups de `docs/mockups/`.
 - **Revisor de informes de auditoría interna** (`revisor-informes/frontend`): portada `/`, listado `/informes`,
   alta `/nuevo`, estudio `/informes/:ref?pestana=` (Entrada · Contexto · Conclusiones · Reunión · Entregables ·
-  Trazas, a una columna: el siguiente paso y «Ver informe» van en la barra del panel) e informe `/informes/:ref/informe` (documento + cajón del asistente con
-  cambios, buzón, revisión e historial). Aporta al kit `textarea-doc`, `diff-view`, `mono-block`, `modal--ancho`,
-  `kpi-row--sin-borde`, `main-container--una-columna`, `slide-card`, `SlideCard`, `DiffView` y las etiquetas `EstadoTag`/`RiesgoTag`/`SeveridadTag`/`PlanTag`.
+  Trazas, a una columna: el siguiente paso y «Ver informe» van en la barra del panel), informe `/informes/:ref/informe` (documento + «Últimos cambios», que lo sustituye por los apartados cambiados en verde/rojo contra cualquier versión del historial, + cajón del asistente con
+  cambios, buzón, revisión e historial) y reglas `/reglas` (documento editable del criterio de estilo + cajón plegable «Modificar usando el chat»: el modelo propone, el auditor carga la propuesta y guarda). Aporta al kit `textarea-doc`, `diff-view`, `mono-block`, `modal--ancho`,
+  `kpi-row--sin-borde`, `main-container--una-columna`, `slide-card`, `SlideCard`, `ai-drawer--plegable`, `drawer-toggle--fijo`, `section-grid`, `document-container--ancho`, `DiffView`, `diff-doc`/`DiffDocumento`/`DiffCuenta`/`CambioTag` y las etiquetas `EstadoTag`/`RiesgoTag`/`SeveridadTag`/`PlanTag`.
   Pantallas y endpoints en `frontend/README.md`.

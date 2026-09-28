@@ -94,7 +94,8 @@ export const Contexto = ({ refExp, exp, recargar }: PropsPestana) => {
       <Editor id="intro" titulo="Introducción" valor={intro} onChange={(v) => { setIntro(v); setGuardado("sucio"); }} filas={18} />
       <Editor id="resumen" titulo="Resumen ejecutivo" valor={resumen} onChange={(v) => { setResumen(v); setGuardado("sucio"); }} filas={14} />
       <section className="doc-section">
-        <div className="section-label section-label--muted">Evaluación global</div>
+        <div className="section-label section-label--muted">Evaluación global {!evaluacion && <span className="tag tag-warning">Sin calificar</span>}</div>
+        <p className="small muted" style={{ marginBottom: 12 }}>La califica el auditor; el modelo no la propone. Queda vacía hasta que elijas una.</p>
         <div className="tone-selector">{ESCALA.map((n) => <button type="button" key={n} className={`tone-btn ${evaluacion === n ? "selected" : ""}`} onClick={() => { setEvaluacion(n); setGuardado("sucio"); }}>{n}</button>)}</div>
       </section>
     </div>

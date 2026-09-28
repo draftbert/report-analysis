@@ -2,14 +2,14 @@
    buscador/lupa y cierre de sesión), según el kit del front homogéneo (docs/GUIA_FRONT_HOMOGENEO.md). */
 import React from "react";
 import { ArrowLeft, LogOut, Menu as MenuIcon, Search } from "lucide-react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { api } from "@/api";
 import { Logo } from "@/components/ui";
 
 import "./layout.css";
 
-const NAV: [string, string][] = [["/", "Inicio"], ["/informes", "Informes"], ["/nuevo", "Nuevo informe"]];
+const NAV: [string, string][] = [["/", "Inicio"], ["/informes", "Informes"], ["/nuevo", "Nuevo informe"], ["/reglas", "Reglas"]];
 
 export const Cabecera = ({ titulo, atras, activo = "", brand = false, buscador, extra }: {
   titulo?: string; atras?: string; activo?: string; brand?: boolean; buscador?: React.ReactNode; extra?: React.ReactNode;
@@ -37,8 +37,15 @@ export const Cabecera = ({ titulo, atras, activo = "", brand = false, buscador, 
   );
 };
 
-export const Layout = () => (
-  <div className="app-shell">
-    <Outlet />
-  </div>
-);
+/** `key={pathname}` remonta el contenido en cada cambio de ruta y relanza la animación de entrada
+ *  (la cabecera queda fuera de la animación para que no parpadee). */
+export const Layout = () => {
+  const { pathname } = useLocation();
+  return (
+    <div className="app-shell">
+      <div className="transicion-ruta" key={pathname}>
+        <Outlet />
+      </div>
+    </div>
+  );
+};

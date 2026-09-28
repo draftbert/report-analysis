@@ -1,5 +1,6 @@
-/* Pestaña Conclusiones: una tarjeta editable por conclusión (incidencia → causa raíz → cómo se ha
-   llegado → consecuencias → recomendación), estados, acciones con el modelo (jobs) y el asistente
+/* Pestaña Conclusiones: una tarjeta editable por OBSERVACIÓN (incidencia → causa raíz → cómo se ha
+   llegado → consecuencias). El riesgo es de la observación; cada una lleva vinculada una recomendación
+   (con plan de acción) o una sugerencia de mejora. Estados, acciones con el modelo (jobs) y el asistente
    «Recomendar». La recomendación escrita por el auditor se respeta al 100 %. */
 import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCheck, ChevronDown, ChevronUp, FileOutput, RotateCcw, SpellCheck, Sparkles, XCircle } from "lucide-react";
@@ -36,7 +37,7 @@ const Tarjeta = ({ c, hallazgos, onGuardar, onEstado, onRegenerar, ocupado }: {
 
   return (
     <div className="agreement-card" style={c.estado === "descartada" ? { opacity: 0.7 } : undefined}>
-      <div className="agreement-tag">{c.id} <EstadoTag estado={c.estado} /> <RiesgoTag nivel={v.nivel_riesgo} propuesto={c.riesgo_propuesto} /> <span className="tag tag-neutral">{esSug ? "Sugerencia de mejora" : "Recomendación"}</span>
+      <div className="agreement-tag"><EstadoTag estado={c.estado} /> <RiesgoTag nivel={v.nivel_riesgo} propuesto={c.riesgo_propuesto} /> <span className="tag tag-neutral">{esSug ? "Sugerencia de mejora" : "Recomendación"}</span>
         <button type="button" className="icon-btn" style={{ marginLeft: "auto", height: 24 }} onClick={() => setAbierta(!abierta)} aria-label={abierta ? "Plegar" : "Desplegar"}>{abierta ? <ChevronUp size={16} strokeWidth={1.5} /> : <ChevronDown size={16} strokeWidth={1.5} />}</button>
       </div>
       <input className="inline-edit" style={{ fontSize: 14, fontWeight: 325 }} value={v.titulo} onChange={(e) => set("titulo", e.target.value)} aria-label={`Título de ${c.id}`} />
@@ -44,8 +45,8 @@ const Tarjeta = ({ c, hallazgos, onGuardar, onEstado, onRegenerar, ocupado }: {
         <div style={{ marginTop: 16 }}>
           <div className="metadata-grid" style={{ marginTop: 0, marginBottom: 16 }}>
             <div className="meta-item"><span className="meta-key">Tipo</span>
-              <select className="inline-edit" value={v.tipo} onChange={(e) => set("tipo", e.target.value as TipoConclusion)} aria-label="Tipo"><option value="recomendacion">Recomendación</option><option value="sugerencia">Sugerencia de mejora</option></select></div>
-            <div className="meta-item"><span className="meta-key">Nivel de riesgo</span>
+              <select className="inline-edit" value={v.tipo} onChange={(e) => set("tipo", e.target.value as TipoConclusion)} aria-label="Tipo"><option value="recomendacion">Recomendación (plan de acción)</option><option value="sugerencia">Sugerencia de mejora</option></select></div>
+            <div className="meta-item"><span className="meta-key">Riesgo de la observación</span>
               <select className="inline-edit" value={v.nivel_riesgo} onChange={(e) => set("nivel_riesgo", e.target.value as Riesgo)} aria-label="Nivel de riesgo">{RIESGOS.map((r) => <option key={r} value={r}>{r || "Sin nivel"}</option>)}</select></div>
             {META.map(([k, l]) => <div className="meta-item" key={k}><span className="meta-key">{l}</span><input className="inline-edit" value={String(v[k] ?? "")} onChange={(e) => set(k, e.target.value)} aria-label={l} /></div>)}
           </div>
@@ -101,11 +102,11 @@ export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
     if (j.estado === "ok") { await cargar(); await recargar(); }
   };
   const extraer = async () => {
-    if (lista.length && !(await confirmar({ titulo: "Extraer de nuevo", accion: "Extraer", cuerpo: "Se regenerarán todas las conclusiones a partir del papel de trabajo. El fichero actual queda en el historial." }))) return;
+    if (lista.length && !(await confirmar({ titulo: "Extraer de nuevo", accion: "Extraer", cuerpo: "Se regenerarán todas las observaciones a partir del papel de trabajo. El fichero actual queda en el historial." }))) return;
     await correr(() => api.extraer(refExp, true));
   };
   const guardar = async (id: string, campos: Partial<Conclusion>) => {
-    try { await api.guardarConclusion(refExp, id, campos); notificar({ texto: `${id} guardada.` }); await cargar(); await recargar(); }
+    try { await api.guardarConclusion(refExp, id, campos); notificar({ texto: "Observación guardada." }); await cargar(); await recargar(); }
     catch (e) { notificar({ texto: (e as Error).message, error: true }); }
   };
   const cambiarEstado = async (id: string, e: EstadoConclusion) => {
@@ -113,7 +114,7 @@ export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
     catch (err) { notificar({ texto: (err as Error).message, error: true }); }
   };
   const aprobarTodas = async () => {
-    if (!(await confirmar({ titulo: "Aprobar todas las conclusiones", accion: "Aprobar", cuerpo: "Se marcan como aprobadas todas las propuestas; al aprobar se valida el nivel de riesgo propuesto por el modelo." }))) return;
+    if (!(await confirmar({ titulo: "Aprobar todas las observaciones", accion: "Aprobar", cuerpo: "Se marcan como aprobadas todas las propuestas; al aprobar se valida el nivel de riesgo propuesto por el modelo." }))) return;
     try { const r = await api.aprobar(refExp, ["todas"], "aprobada"); notificar({ texto: r.mensaje }); await cargar(); await recargar(); }
     catch (e) { notificar({ texto: (e as Error).message, error: true }); }
   };
@@ -128,7 +129,7 @@ export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
 
   const abrirAsistente = () => {
     const pendientes = lista.filter((c) => c.estado === "aprobada" && c.tipo === "recomendacion" && !c.recomendacion.trim());
-    if (!pendientes.length) { notificar({ texto: "Todas las conclusiones aprobadas tienen recomendación." }); return; }
+    if (!pendientes.length) { notificar({ texto: "Todas las observaciones aprobadas tienen recomendación." }); return; }
     setAsistente({ pendientes, idx: 0, respuestas: {}, auto: [], texto: "" });
   };
   const pasoAsistente = (modo: "texto" | "modelo") => {
@@ -143,7 +144,7 @@ export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
   const c = exp.conclusiones;
   return (
     <div>
-      <h2 className="section-header-sm">Conclusiones
+      <h2 className="section-header-sm">Observaciones
         <span className="row">
           <button className="btn btn-ghost" onClick={extraer} disabled={job.activo || !exp.papeles.length}><Sparkles strokeWidth={1.5} /> {lista.length ? "Extraer de nuevo" : "Extraer del papel de trabajo"}</button>
           <button className="btn btn-ghost" onClick={aprobarTodas} disabled={!lista.length}><CheckCheck strokeWidth={1.5} /> Aprobar todas</button>
@@ -152,24 +153,24 @@ export const Conclusiones = ({ refExp, exp, recargar }: PropsPestana) => {
           <button className="btn btn-secondary" onClick={abrirAsistente} disabled={job.activo || !lista.length}>Recomendar…</button>
           <button className="btn btn-primary" onClick={volcar} disabled={!c?.aprobada}><FileOutput strokeWidth={1.5} /> Volcar aprobadas al informe</button>
         </span></h2>
-      <p className="small muted" style={{ marginBottom: 16 }}>Una por incidencia del papel de trabajo: incidencia, causa raíz, detalles, consecuencias y recomendación. Cada bloque es una recomendación (con plan de acción) o una sugerencia de mejora. Aquí manda el auditor.</p>
+      <p className="small muted" style={{ marginBottom: 16 }}>Una observación por incidencia del papel de trabajo: incidencia, causa raíz, detalles y consecuencias. El riesgo es de la observación, y cada una lleva vinculada una recomendación (con plan de acción) o una sugerencia de mejora. Aquí manda el auditor.</p>
       {c && (
         <div className="kpi-row kpi-row--compact">
-          <div className="kpi-item" style={{ marginRight: 48 }}><span className="kpi-label">Recomendaciones</span><span className="kpi-value">{c.total - c.sugerencias}</span></div>
+          <div className="kpi-item" style={{ marginRight: 48 }}><span className="kpi-label">Observaciones</span><span className="kpi-value">{c.total}</span></div>
           <div className="kpi-item" style={{ marginRight: 48 }}><span className="kpi-label">Aprobadas</span><span className="kpi-value">{c.aprobada}</span></div>
           <div className="kpi-item" style={{ marginRight: 48 }}><span className="kpi-label">Sin recomendación</span><span className="kpi-value">{c.sin_recomendacion.length}</span></div>
           <div className="kpi-item"><span className="kpi-label">Sugerencias de mejora</span><span className="kpi-value">{c.sugerencias}</span></div>
         </div>)}
       {job.activo && <Progreso texto={job.job?.progreso || "Trabajando con el modelo…"} pct={job.job?.progreso_pct} partes={job.job?.progreso_partes} onDetener={job.detener} />}
       {mensaje && <div style={{ marginBottom: 24 }}><ResultBox mensaje={mensaje.texto} error={mensaje.error} onClose={() => setMensaje(null)} /></div>}
-      {!lista.length && <div className="empty">{exp.papeles.length ? "Aún no hay conclusiones: extráelas del papel de trabajo." : "Sube el papel de trabajo en Entrada para poder extraer las conclusiones."}</div>}
+      {!lista.length && <div className="empty">{exp.papeles.length ? "Aún no hay observaciones: extráelas del papel de trabajo." : "Sube el papel de trabajo en Entrada para poder extraer las observaciones."}</div>}
       <div className="agreements-list">
         {lista.map((x) => <Tarjeta key={x.id + x.estado + x.recomendacion.length} c={x} hallazgos={hallazgos} ocupado={job.activo} onGuardar={guardar} onEstado={cambiarEstado} onRegenerar={(id, notas) => correr(() => api.regenerar(refExp, id, notas))} />)}
       </div>
       {asistente && (() => {
         const actual = asistente.pendientes[asistente.idx];
         return (
-          <Modal ancho titulo={`Recomendar · ${actual.id} (${asistente.idx + 1} de ${asistente.pendientes.length})`} onClose={() => setAsistente(null)}
+          <Modal ancho titulo={`Recomendar · observación ${asistente.idx + 1} de ${asistente.pendientes.length}`} onClose={() => setAsistente(null)}
             acciones={<><button className="btn btn-secondary" onClick={() => pasoAsistente("modelo")}>Que la proponga el modelo</button><button className="btn btn-primary" onClick={() => pasoAsistente("texto")} disabled={!asistente.texto.trim()}>Usar mi texto (se respeta tal cual)</button></>}>
             <div className="topic-card"><div className="topic-title">{actual.titulo}</div><div className="topic-desc">{actual.incidencia}</div>{actual.consecuencias && <p className="small muted" style={{ marginTop: 8 }}>{actual.consecuencias}</p>}</div>
             <div className="form-group" style={{ marginBottom: 0 }}><label className="input-label" htmlFor="recom">¿Tienes recomendación?</label>

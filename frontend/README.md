@@ -34,7 +34,8 @@ No hay mocks: el front se prueba contra la API real (`./revisor web`). En Docker
 | `/informes` | Listado | Tabla con buscador y filtro de estado; abrir, ver informe, eliminar (con la referencia escrita). | `GET /expedientes`, `DELETE /expedientes/{ref}` |
 | `/nuevo` | Alta | Documentos de entrada (papeles de trabajo / contexto) + datos del informe; crea y sube con progreso. | `POST /expedientes`, `POST …/documentos/{carpeta}` |
 | `/informes/:ref?pestana=` | Estudio | Pestañas Entrada · Contexto · Conclusiones · Reunión · Entregables · Trazas (a una columna); el siguiente paso y «Ver informe» van en la barra del panel. | documentos, informe, conclusiones, acciones (jobs), reuniones, transcripción, trazas, ppt, archivar |
-| `/informes/:ref/informe` | Documento | El informe apartado a apartado (cada uno es una diapositiva), edición de introducción/resumen/evaluación, Markdown completo, acciones del modelo, entregables y cajón del asistente (cambios, buzón, revisión, historial). | informe, revisar, corregir, condensar, cambio, instrucciones, aplicar-cambios, historial, diff, deshacer |
+| `/reglas` | Documento | Criterio de estilo (config/estilo.yaml) editable por secciones o como YAML, historial con restauración y cajón «Modificar usando el chat» (el modelo propone; el auditor carga la propuesta en el editor y guarda). | `GET/PUT /reglas`, `POST /reglas/restaurar`, `POST /reglas/chat` (job) |
+| `/informes/:ref/informe` | Documento | El informe apartado a apartado (cada uno es una diapositiva), edición de introducción/resumen/evaluación, Markdown completo, acciones del modelo, entregables, «Últimos cambios» (apartados añadidos/modificados/eliminados en verde/rojo, contra el último cambio o cualquier versión del historial) y cajón del asistente (cambios, buzón, revisión, historial). | informe, revisar, corregir, condensar, cambio, instrucciones, aplicar-cambios, historial, diff, `GET /informe/comparacion?contra=`, deshacer |
 
 ## Estructura
 
@@ -44,5 +45,5 @@ src/components/   ui.tsx: Logo, Loader, notificaciones, confirmaciones, Modal, e
 src/hooks/        useJob: lanzar / seguir / detener un trabajo largo con progreso
 src/layout/       Cabecera IDS (brand / normal, navegación central, buscador, cierre de sesión) + Layout (Outlet)
 src/lib/          formato: fechas, tamaños, fases, clases por valor (estado, riesgo, severidad, plan)
-src/pages/        inicio · informes · nuevo · estudio (entrada, contexto, conclusiones, reunion, entregables, trazas) · informe
+src/pages/        inicio · informes · nuevo · reglas · estudio (entrada, contexto, conclusiones, reunion, entregables, trazas) · informe
 ```

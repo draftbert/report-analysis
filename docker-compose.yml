@@ -16,7 +16,7 @@ services:
       - .env.secrets
     volumes:
       - ./expedientes:/app/expedientes          # datos de trabajo: documentos, informes, historial, trazas, salidas
-      - ./config:/app/config:ro                 # criterio de estilo, textos fijos, plantilla PPT (editables sin rebuild)
+      - ./config:/app/config                    # criterio de estilo (editable desde la web: /reglas), textos fijos, plantilla PPT
     expose:
       - "8000"
     healthcheck:

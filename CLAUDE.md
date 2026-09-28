@@ -6,7 +6,9 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 ## Principios que no se rompen
 - **El modelo propone, el auditor decide.** Ninguna acción escribe fuera del expediente;
   antes de sobreescribir un fichero editable se guarda snapshot en `historial/`.
-- **El criterio de estilo vive solo en `config/`**: `estilo.yaml` (reglas), `textos_informe.yaml` (frases fijas),
+- **El criterio de estilo vive solo en `config/`**: `estilo.yaml` (reglas; editable desde la web en `/reglas` vía `reglas.py`:
+  validación con `esquemas.ReglasEstilo`, escritura round-trip con ruamel que conserva comentarios, snapshot en `config/historial/`,
+  y «modificar usando el chat» = el modelo PROPONE `PropuestaReglas` y el auditor guarda), `textos_informe.yaml` (frases fijas),
   `ejemplo_conclusion.md` (few-shot de `extraer`; una conclusión por prueba por defecto). El registro real
   (primera persona del plural para el equipo auditor, patrón deber ser → identificado → datos → riesgo →
   materialización) está en `docs/ESTILO_INFORMES.md` y en `SYSTEM_BASE`; no contradecirlo sin recalibrar. Se aplica de forma determinista
@@ -31,7 +33,9 @@ Herramienta Python para las fases 7–9 del proceso de auditoría interna. Ver R
 `cli.py` (comandos/menú) → `acciones.py` (flujo) → `expediente.py` (ficheros) + `formato_md.py`
 (Markdown ↔ dict) + `lectores.py` + `extractores/` (contexto/ y papeles_trabajo/ → Markdown; docx/pdf/pptx/xlsx con los extractores
 de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-pptx) + `llm.py`/`kaia_client.py` (modelo) +
-`style_checker.py` (reglas) + `ppt_builder.py` + `calibracion.py` (estilo.yaml vs informes aprobados).
+`style_checker.py` (reglas) + `ppt_builder.py` + `calibracion.py` (estilo.yaml vs informes aprobados) +
+`comparar.py` («Últimos cambios» de la web: 02_informe.md contra un snapshot de historial/, por apartados y palabras;
+el motivo del snapshot dice el origen del cambio: `cambio`=chat, `reunion`=acta, `aplicar-cambios`=buzón, `web`=edición manual…).
 
 - Entrada: `contexto/` (design thinking; alimenta intro/resumen, solo orienta a extraer) y `papeles_trabajo/`
   (fuente de las conclusiones). `entrada/` antiguo se lee como papeles_trabajo.
@@ -59,7 +63,7 @@ de audit-engine, ficheros con sufijo `_` para no sombrear a python-docx/python-p
   y documentadas en la guía). Contrato: `src/api/types.ts` (mismos nombres que el JSON de `api.py`), todo
   endpoint es un método de `interface Api` en `client.ts`; nada llama a `fetch` fuera. Pantallas: portada `/`,
   listado `/informes`, alta `/nuevo`, estudio `/informes/:ref?pestana=` (entrada · contexto · conclusiones ·
-  reunión · entregables · trazas, a una columna) e informe `/informes/:ref/informe`. Los tokens `--ids-*` de `tokens.css` se sustituyen por
+  reunión · entregables · trazas, a una columna), informe `/informes/:ref/informe` y reglas `/reglas`. Los tokens `--ids-*` de `tokens.css` se sustituyen por
   `@inditex/sewingiopdsweb-styles` en el entorno corporativo.
 
 ## Pruebas rápidas

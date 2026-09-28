@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 
 import { api } from "@/api";
 import type { Expediente } from "@/api";
-import { Modal, useNotificar } from "@/components/ui";
+import { EsqueletoFilas, Modal, useNotificar } from "@/components/ui";
 import { Cabecera } from "@/layout/layout";
 import { esEmitido, fmt, textoSiguiente } from "@/lib/formato";
 import { useExpedientes } from "@/pages/inicio/secciones";
@@ -15,7 +15,7 @@ type Filtro = "" | "en_curso" | "emitido";
 
 export const Informes = () => {
   const notificar = useNotificar();
-  const { lista, cargar } = useExpedientes();
+  const { lista, cargando, cargar } = useExpedientes();
   const [q, setQ] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("");
   const [borrar, setBorrar] = useState<Expediente | null>(null);
@@ -58,7 +58,8 @@ export const Informes = () => {
           <div className="table-wrapper">
             <table className="ids-table">
               <thead><tr><th>Referencia</th><th>Auditoría</th><th>Fecha</th><th>Fase</th><th>Siguiente paso</th><th>Actividad</th><th className="col-right">Acciones</th></tr></thead>
-              <tbody>
+              {cargando && <EsqueletoFilas anchos={[10, 30, 9, 13, 22, 8, 12]} />}
+              <tbody className="aparece">
                 {filas.map((e) => (
                   <tr key={e.referencia}>
                     <td className="td-title"><Link to={`/informes/${encodeURIComponent(e.referencia)}`}>{e.referencia}</Link></td>
@@ -75,8 +76,8 @@ export const Informes = () => {
                   </tr>))}
               </tbody>
             </table>
-            {lista !== null && lista.length === 0 && <div className="empty">Todavía no hay informes. Crea el primero con «Nuevo informe».</div>}
-            {lista !== null && lista.length > 0 && filas.length === 0 && <div className="empty">Ningún informe coincide con el filtro.</div>}
+            {!cargando && lista !== null && lista.length === 0 && <div className="empty">Todavía no hay informes. Crea el primero con «Nuevo informe».</div>}
+            {!cargando && lista !== null && lista.length > 0 && filas.length === 0 && <div className="empty">Ningún informe coincide con el filtro.</div>}
           </div>
         </section>
       </main>

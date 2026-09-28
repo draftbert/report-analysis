@@ -1,5 +1,5 @@
 /* Formato de fechas, duraciones y tamaños; clases de etiquetas por valor. */
-import type { EstadoConclusion, Riesgo } from "@/api";
+import type { EstadoApartadoDiff, EstadoConclusion, Riesgo } from "@/api";
 
 export const fmt = {
   fecha(iso: string | undefined | null): string {
@@ -43,6 +43,10 @@ export const textoSiguiente = (s: string) => s.replace(/`/g, "");
 
 export const ESTADO_CONCLUSION: Record<EstadoConclusion, [string, string]> = {
   propuesta: ["status-pending", "Propuesta"], aprobada: ["status-completed", "Aprobada"], descartada: ["status-error", "Descartada"],
+};
+/** Estado de un apartado en «Últimos cambios» del informe. */
+export const ESTADO_CAMBIO: Record<EstadoApartadoDiff, [string, string]> = {
+  igual: ["tag-neutral", "Sin cambios"], modificado: ["tag-warning", "Modificado"], nuevo: ["tag-success", "Añadido"], eliminado: ["tag-error", "Eliminado"],
 };
 export const riesgoClase = (r: Riesgo | string) =>
   ({ crítico: "tag-error", critico: "tag-error", alto: "tag-warning", medio: "tag-info", bajo: "tag-neutral" } as Record<string, string>)[(r || "").toLowerCase()] ?? "tag-neutral";

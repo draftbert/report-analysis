@@ -6,7 +6,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { api } from "@/api";
 import type { Expediente } from "@/api";
-import { Loader } from "@/components/ui";
+import { Esqueleto, EsqueletoDocumento } from "@/components/ui";
 import { Cabecera } from "@/layout/layout";
 import { faseNum, fmt, textoSiguiente } from "@/lib/formato";
 
@@ -21,16 +21,18 @@ export type Pestana = "entrada" | "contexto" | "conclusiones" | "reunion" | "ent
 export interface PropsPestana { refExp: string; exp: Expediente; recargar: () => Promise<void> }
 
 const PESTANAS: Pestana[] = ["entrada", "contexto", "conclusiones", "reunion", "entregables", "trazas"];
+/** Último estado conocido de cada expediente (sobrevive a la navegación; se refresca al montar). */
+const cacheEstado = new Map<string, Expediente>();
 const porFase = (fase: string): Pestana => (faseNum(fase) === 0 ? "entrada" : faseNum(fase) === 1 ? "contexto" : "conclusiones");
 
 export const Estudio = () => {
   const { ref = "" } = useParams();
   const [params, setParams] = useSearchParams();
-  const [exp, setExp] = useState<Expediente | null>(null);
+  const [exp, setExp] = useState<Expediente | null>(cacheEstado.get(ref) ?? null);
   const [error, setError] = useState("");
 
   const recargar = useCallback(async () => {
-    try { setExp(await api.estado(ref)); setError(""); } catch (e) { setError((e as Error).message); }
+    try { const e = await api.estado(ref); cacheEstado.set(ref, e); setExp(e); setError(""); } catch (e) { setError((e as Error).message); }
   }, [ref]);
   useEffect(() => { recargar(); }, [recargar]);
 
@@ -48,9 +50,9 @@ export const Estudio = () => {
     <>
       <Cabecera titulo={exp?.nombre ?? "Informe"} atras="/informes" activo="/informes" extra={exp && <span className="badge-status">{exp.fase}</span>} />
       {error && <section className="progress-panel"><div className="section-label" style={{ marginBottom: 8 }}>No se ha podido abrir el informe</div><div className="result-box error">{error}</div><div className="row" style={{ marginTop: 16 }}><button className="btn btn-primary" onClick={recargar}>Reintentar</button><Link className="btn btn-ghost" to="/informes">Informes</Link></div></section>}
-      {!exp && !error && <div className="content-container" style={{ textAlign: "center" }}><Loader /></div>}
+      {!exp && !error && <main className="main-container main-container--una-columna"><section className="extraction-panel"><div className="panel-toolbar"><div className="meta-info-strip">{[14, 16, 22, 14].map((w, i) => <div key={i} style={{ width: `${w}%` }}><Esqueleto ancho={60} /><Esqueleto /></div>)}</div><Esqueleto ancho={60} titulo /></div><div className="tab-content-container"><EsqueletoDocumento bloques={2} /></div></section></main>}
       {exp && (
-        <main className="main-container main-container--una-columna">
+        <main className="main-container main-container--una-columna aparece">
           <section className="extraction-panel">
             <div className="panel-toolbar">
               <div className="meta-info-strip">

@@ -480,6 +480,22 @@ def parsear_informe(texto: str) -> dict:
     return datos
 
 
+def apartados_informe(datos: dict) -> list[dict]:
+    """Apartados del informe tal como se pintan (y se exportan): cada uno es una
+    diapositiva. `datos` es la salida de `parsear_informe`."""
+    apartados = [
+        {"id": "introduccion", "tipo": "introduccion", "titulo": "Introducción", "markdown": datos["introduccion"], "numero": 0, "nivel_riesgo": ""},
+        {"id": "resumen", "tipo": "resumen", "titulo": "Resumen ejecutivo", "markdown": datos["resumen_ejecutivo"], "numero": 0, "nivel_riesgo": ""},
+    ]
+    for i, c in enumerate(datos["conclusiones"], 1):
+        apartados.append({"id": f"c{i}", "tipo": "conclusion", "titulo": c["titulo"], "numero": i, "nivel_riesgo": c["nivel_riesgo"],
+                          "markdown": _apartado_conclusion(c, i, es_sugerencia=False)})
+    for i, s in enumerate(datos["sugerencias"], 1):
+        apartados.append({"id": f"s{i}", "tipo": "sugerencia", "titulo": s["titulo"], "numero": i, "nivel_riesgo": s["nivel_riesgo"] or "Bajo",
+                          "markdown": _apartado_conclusion(s, i, es_sugerencia=True)})
+    return apartados
+
+
 def parrafos_con_lineas(texto: str) -> list[tuple[int, str]]:
     """Divide en párrafos (bloques separados por línea en blanco), devolviendo
     (nº de línea inicial 1-based, párrafo). Ignora blockquotes (`>`)."""

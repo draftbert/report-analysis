@@ -37,13 +37,13 @@ export const Entregables = ({ refExp, exp, recargar }: PropsPestana) => {
           <div>
             <span className="template-badge">Presentación</span>
             <h3 className="template-title">PowerPoint</h3>
-            <p className="template-desc">Cada apartado del informe es una diapositiva: portada, índice, introducción, resumen ejecutivo con evaluación global, una diapositiva por conclusión con el diseño corporativo, sugerencias de mejora y anexo de planes de acción.</p>
+            <p className="template-desc">Cada apartado del informe es una diapositiva: portada, índice, introducción, resumen ejecutivo con evaluación global, una diapositiva por observación con el diseño corporativo, sugerencias de mejora y anexo de planes de acción.</p>
             <div className="row" style={{ marginBottom: 16 }}>
               {exp.ppt ? <span className={`tag ${exp.ppt.desactualizado ? "tag-warning" : "tag-success"}`}>{exp.ppt.desactualizado ? "Desactualizada respecto al informe" : "Al día"}</span> : <span className="tag tag-neutral">Aún no generada</span>}
               {exp.informe && <span className="small muted">informe modificado {fmt.fechaHora(exp.informe.modificado)}</span>}
             </div>
             {exp.ppt && <p className="small"><a className="btn btn-ghost btn-ghost--inline" href={api.urlSalida(refExp, exp.ppt.nombre)}><Download strokeWidth={1.5} /> {exp.ppt.nombre}</a></p>}
-            {!listo && <p className="small muted">Vuelca al menos una conclusión aprobada al informe para poder exportar.</p>}
+            {!listo && <p className="small muted">Vuelca al menos una observación aprobada al informe para poder exportar.</p>}
           </div>
           <div className="template-footer">
             <span className="template-meta">Sin modelo, determinista</span>

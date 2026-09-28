@@ -1,4 +1,4 @@
-import type { Api, Carpeta, Documentos } from "./types";
+import type { Api, Carpeta, Documentos, Salud } from "./types";
 
 const BASE = "/api";
 
@@ -55,9 +55,11 @@ const postConProgreso = <T,>(url: string, fd: FormData, onProgreso?: (pct: numbe
     xhr.send(fd);
   });
 
+let saludPromesa: Promise<Salud> | null = null;
+
 export const clienteReal: Api = {
   logout: () => req("/acceso/logout", { method: "POST" }),
-  salud: () => req("/salud"),
+  salud: () => (saludPromesa ??= req<Salud>("/salud").catch((e) => { saludPromesa = null; throw e; })),
   job: (id) => req(`/jobs/${id}`),
   detenerJob: (id) => req(`/jobs/${id}/detener`, { method: "POST" }),
 
@@ -101,6 +103,7 @@ export const clienteReal: Api = {
   historial: (ref) => req(`${e(ref)}/historial`),
   deshacer: (ref, fichero) => req(acc(ref, "deshacer"), json({ fichero })),
   diff: (ref, fichero) => req(`${e(ref)}/diff?fichero=${encodeURIComponent(fichero)}`),
+  comparacionInforme: (ref, contra) => req(`${e(ref)}/informe/comparacion${contra ? `?contra=${encodeURIComponent(contra)}` : ""}`),
 
   reunion: (ref, fichero, aplicar, onProgreso, repetir = false) => {
     const fd = new FormData();
@@ -121,6 +124,11 @@ export const clienteReal: Api = {
   borradorTranscripcion: (ref, asignaciones, guardarIds) => req(`${e(ref)}/transcripcion/borrador`, json({ asignaciones, guardar_voces: guardarIds }, "PUT")),
   etiquetar: (ref, asignaciones, guardarVoces) => req(acc(ref, "etiquetar"), json({ asignaciones, guardar_voces: guardarVoces })),
   borrarVoz: (ref, nombre) => req(`${e(ref)}/voces/${encodeURIComponent(nombre)}`, { method: "DELETE" }),
+
+  reglas: () => req("/reglas"),
+  guardarReglas: (d) => req("/reglas", json(d, "PUT")),
+  restaurarReglas: (nombre) => req("/reglas/restaurar", json({ nombre })),
+  chatReglas: (mensaje, reglas) => req("/reglas/chat", json({ mensaje, reglas: reglas ?? null })),
 
   ppt: (ref) => req(acc(ref, "ppt"), { method: "POST" }),
   archivar: (ref) => req(acc(ref, "archivar"), { method: "POST" }),

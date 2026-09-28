@@ -59,7 +59,7 @@ def test_flujo_completo_por_api(cliente):
     j = _esperar(c, c.post("/api/expedientes/T-1/acciones/redactar-contexto", json={}).json()["job_id"])
     assert j["estado"] == "ok" and "Introducción" in j["mensaje"]
     inf = c.get("/api/expedientes/T-1/informe").json()
-    assert inf["apartados"][0]["markdown"] == "Intro." and inf["evaluacion_global"] == "Mejorable"
+    assert inf["apartados"][0]["markdown"] == "Intro." and inf["evaluacion_global"] == ""   # la califica el auditor, no el modelo
     # editar el resumen desde el front
     inf = c.put("/api/expedientes/T-1/informe", json={"resumen_ejecutivo": "Res. editado", "evaluacion_global": "Razonable"}).json()
     assert inf["apartados"][1]["markdown"] == "Res. editado" and inf["evaluacion_global"] == "Razonable"
@@ -135,6 +135,34 @@ def test_aprobar_una_a_una_por_api(cliente):
     assert c.get("/api/expedientes/T-4/conclusiones").json()["conclusiones"][0]["estado"] == "descartada"
     assert c.post("/api/expedientes/T-4/acciones/aprobar", json={"ids": ["C-01"], "estado": "propuesta"}).status_code == 200
     assert c.get("/api/expedientes/T-4/conclusiones").json()["conclusiones"][0]["estado"] == "propuesta"
+
+
+def test_comparacion_del_informe_con_el_ultimo_cambio(cliente):
+    c, falso = cliente
+    c.post("/api/expedientes", json={"referencia": "T-8", "nombre": "N", "fecha": "Mayo 2026", "distribucion": []})
+    assert c.get("/api/expedientes/T-8/informe/comparacion").json() == {
+        "contra": None, "versiones": [], "apartados": [], "lineas_nuevas": 0, "lineas_borradas": 0}
+    c.put("/api/expedientes/T-8/informe", json={"introduccion": "Intro con 12 casos.", "resumen_ejecutivo": "Res."})
+    c.put("/api/expedientes/T-8/informe", json={"introduccion": "Intro con 15 casos."})           # edición manual
+    c.put("/api/expedientes/T-8/informe", json={"introduccion": "Intro con 15 casos."})           # guardar sin cambios
+    r = c.get("/api/expedientes/T-8/informe/comparacion").json()
+    assert r["contra"]["origen"] == "Edición manual" and r["contra"]["motivo"] == "web"
+    intro = next(a for a in r["apartados"] if a["id"] == "introduccion")                          # salta el guardado sin cambios
+    assert intro["estado"] == "modificado" and [s["texto"] for l in intro["lineas"] if l["tipo"] == "add" for s in l["segmentos"] if s["cambio"]] == ["15"]
+    # cambio aplicado desde un acta de reunión (web): queda identificado como tal
+    from audit_agent.esquemas import Cambio, PlanCambios
+    falso.respuestas["aplicar-cambios"] = PlanCambios(cambios=[Cambio(
+        seccion="## Introducción", motivo="acta", texto_original="15 casos", texto_nuevo="16 casos", insertar_tras="")], pendientes=[])
+    j = _esperar(c, c.post("/api/expedientes/T-8/acciones/aplicar-cambios", json={"texto": "Son 16 casos."}).json()["job_id"])
+    assert j["estado"] == "ok"
+    r = c.get("/api/expedientes/T-8/informe/comparacion").json()
+    assert r["contra"]["origen"] == "Acta de reunión" and r["versiones"][0]["origen"] == "Acta de reunión"
+    assert c.get("/api/expedientes/T-8/historial").json()[0]["motivo"] == "reunion"
+    # contra una versión anterior concreta: cambios acumulados desde entonces
+    primera = r["versiones"][-1]["nombre"]
+    r = c.get(f"/api/expedientes/T-8/informe/comparacion?contra={primera}").json()
+    assert r["contra"]["nombre"] == primera and r["lineas_nuevas"] >= 1
+    assert c.get("/api/expedientes/T-8/informe/comparacion?contra=no-existe.md").status_code == 404
 
 
 def test_condensar_api(cliente):

@@ -89,7 +89,7 @@ class ContextoInforme(BaseModel):
 
     introduccion: str = Field(description="Introducción del informe en Markdown con los bloques **Contexto:**, **Objetivo de la auditoría:** (con la lista de aspectos revisados), **Riesgos a cubrir:**, **Alcance de la auditoría:** y, si constan cifras, **Principales magnitudes:**; empieza y termina con las frases fijas indicadas.")
     resumen_ejecutivo: str = Field(description="Resumen ejecutivo para Dirección en Markdown: párrafo de contexto, valoración general del control, una viñeta por conclusión (debilidad + efecto) y párrafo final de valoración. Solo hechos presentes en la fuente.")
-    evaluacion_global: str = Field(default="", description="Evaluación global del proceso: exactamente uno de Deficiente, Insuficiente, Mejorable, Razonable, Adecuado; vacío si no se puede sostener con la evidencia.")
+    evaluacion_global: str = Field(default="", description="Déjalo vacío: la evaluación global la selecciona el auditor, no el modelo.")
 
 
 class TextoLibre(BaseModel):
@@ -177,3 +177,79 @@ class AnalisisReunion(BaseModel):
     cambios_ppt: list[CambioPPTDetectado] = Field(default_factory=list)
     pendientes: list[str] = Field(default_factory=list, description="Peticiones que no pueden aplicarse sin un dato o confirmación que no consta (indicar qué falta y quién debe aportarlo).")
     acuerdos_sin_cambio: list[str] = Field(default_factory=list, description="Acuerdos de la reunión que no modifican el informe (plazos de conformidad, seguimiento, reparto de tareas).")
+
+
+# ============================================================ criterio de estilo (config/estilo.yaml)
+# Espejo del YAML: es lo que viaja al modelo cuando el auditor pide un cambio de reglas
+# «usando el chat» (ver reglas.py) y lo que valida cualquier guardado desde la web.
+class PalabraProhibida(BaseModel):
+    termino: str = Field(description="Palabra o expresión prohibida (minúsculas).")
+    sugerencia: str = Field(default="", description="Alternativa que se propone en su lugar.")
+    motivo: str = Field(default="", description="Por qué está prohibida.")
+
+
+class ExpresionAlternativa(BaseModel):
+    termino: str = Field(description="Expresión o adjetivo a cuestionar (minúsculas).")
+    alternativa: str = Field(default="", description="Fórmula constructiva que suele sustituirla.")
+
+
+class EjemploAbsoluto(BaseModel):
+    antes: str = Field(description="Formulación absoluta o excesiva.")
+    despues: str = Field(description="Formulación precisa sobre el alcance real.")
+
+
+class Absolutos(BaseModel):
+    criterio: str = Field(default="", description="Criterio para cuestionar afirmaciones absolutas.")
+    ejemplos: list[EjemploAbsoluto] = Field(default_factory=list)
+
+
+class Tono(BaseModel):
+    principios: list[str] = Field(default_factory=list, description="Principios de tono y lenguaje.")
+    expresiones_a_cuestionar: list[ExpresionAlternativa] = Field(default_factory=list)
+    formulas_constructivas: list[str] = Field(default_factory=list)
+    absolutos: Absolutos = Field(default_factory=Absolutos)
+    adjetivos_a_cuestionar: list[ExpresionAlternativa] = Field(default_factory=list)
+    tiempos_verbales: list[str] = Field(default_factory=list)
+
+
+class Extension(BaseModel):
+    """Extensión orientativa en palabras (el informe se lee en diapositivas)."""
+    intro_bloque: int = Field(default=70)
+    resumen_total: int = Field(default=260)
+    resumen_vineta: int = Field(default=35)
+    incidencia: int = Field(default=110)
+    causa_raiz: int = Field(default=45)
+    detalle_vineta: int = Field(default=30)
+    detalles_max: int = Field(default=5, description="Número máximo de viñetas de detalles.")
+    consecuencias: int = Field(default=70)
+    recomendacion: int = Field(default=60)
+
+
+class ReglasCuantitativas(BaseModel):
+    longitud_maxima_frase: int = Field(default=55, description="Palabras por frase (aviso).")
+    requiere_nivel_riesgo: bool = Field(default=True)
+    niveles_riesgo_validos: list[str] = Field(default_factory=lambda: list(NIVELES_RIESGO))
+    escala_evaluacion_global: list[str] = Field(default_factory=lambda: list(ESCALA_EVALUACION_GLOBAL))
+
+
+class CampoEstructura(BaseModel):
+    campo: str = Field(description="Nombre del campo de la conclusión.")
+    descripcion: str = Field(default="")
+    requerido: bool = Field(default=True, description="false = se avisa si falta, pero no es error hasta redactar.")
+
+
+class ReglasEstilo(BaseModel):
+    """Contenido completo de config/estilo.yaml."""
+    palabras_prohibidas: list[PalabraProhibida] = Field(default_factory=list)
+    primera_persona: list[str] = Field(default_factory=list, description="Formas en primera persona del singular que se señalan como error.")
+    tono: Tono = Field(default_factory=Tono)
+    extension: Extension = Field(default_factory=Extension)
+    reglas: ReglasCuantitativas = Field(default_factory=ReglasCuantitativas)
+    estructura_conclusion: list[CampoEstructura] = Field(default_factory=list)
+
+
+class PropuestaReglas(BaseModel):
+    """Respuesta del modelo a una petición de cambio de reglas: propone, el auditor decide."""
+    respuesta: str = Field(description="Respuesta breve al auditor en español: qué se ha cambiado o qué falta por aclarar. Si la petición es ambigua, pregunta aquí y devuelve las reglas sin cambios.")
+    cambios: list[str] = Field(default_factory=list, description="Un ítem por cambio concreto aplicado (sección y qué cambia). Vacío si no se cambia nada.")
+    reglas: ReglasEstilo = Field(description="Las reglas COMPLETAS tras aplicar la petición (misma estructura que las recibidas, sin omitir nada que no se haya pedido quitar).")

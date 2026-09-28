@@ -9,6 +9,7 @@ __pycache__/
 # Evidencia de trabajo por expediente: no se versiona (ver README § Trazabilidad y retención)
 expedientes/*/trazas/
 expedientes/*/historial/
+config/historial/
 expedientes/*/salidas/
 expedientes/*/*_archivo_*.zip
 
